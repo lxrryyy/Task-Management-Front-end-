@@ -31,7 +31,13 @@ class LoginController extends Controller
             Session::put('api_token', $response['token']);
             Session::put('expires_in', $response['expiresIn']);
 
-            Session::put('user', ['name' => 'User', 'email' => $request->email]);
+            // Get all accounts and find the one matching the logged in email
+            $accounts = $this->api->get('/api/Account/GetAccountsv1');
+            // Get all accounts and find the matching email
+            $accounts = $this->api->get('/api/Account/GetAccountsv1');
+            $user = collect($accounts)->firstWhere('email', $request->email);
+
+            Session::put('user', $user);
 
             return redirect()->route('dashboard');
 

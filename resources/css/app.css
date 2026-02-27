@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-.clr-primary-bg{
-    background-color: #205375;
+.clr-primary{
+    background-color: #102B3C;
+}
+
+.clr-accent {
+    color: #ED1C24;
+}
+
+.clr-bg-accent {
+    background-color: #ED1C24;
+}
+
+.hover-clr-bg-accent-light:hover {
+    background-color: #ff575d;
+}
+
+.hover-clr-accent:hover {
+    color: #ED1C24;
+}
+
+.active-clr-accent:active {
+    color: #ED1C24;
+}
+
+.focus-clr-accent {
+    color: #ED1C24;
+}
+
+.hover-clr-bg-accent:hover {
+    background-color: #ED1C24;
 }
