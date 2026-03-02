@@ -25,6 +25,10 @@ Route::get('/time-logs', function () {
     return view('time-logs');
 })->middleware(['api.auth'])->name('Time Logs');
 
+Route::get('/tasks', function () {
+    return view('tasks');
+})->middleware(['api.auth'])->name('Tasks');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

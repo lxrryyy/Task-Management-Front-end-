@@ -131,6 +131,9 @@
                                     </tr>
                                     </tbody>
                                 </table>
+                                <div class="modal-action">
+                                    <button class="btn clr-bg-primary text-base-100 px-2">Add Project</button>
+                                </div>
                                 </div>
                         </div>
                         {{-- Backdrop click to close --}}
@@ -147,18 +150,19 @@
             <table class="table">
                 <!-- head -->
                 <thead>
-                    <th>Project Name</th>
-                    <th>Leader</th>
-                    <th>Members</th>
-                    <th>Progress</th>
-                    <th>Status</th>
-                    <th>Created At</th>
-                    <th>Action</th>
-                </tr>
+                    <tr>
+                        <th>Project Name</th>
+                        <th>Leader</th>
+                        <th>Members</th>
+                        <th>Progress</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Action</th>
+                    </tr>
                 </thead>
                 <tbody>
                 <!-- row -->
-                <tr>
+                <tr class="cursor-pointer hover:bg-gray-500" wire:click="navigateToTasks">
                     <td>
                         <span>Email Bulk Sender</span>
                     </td>
