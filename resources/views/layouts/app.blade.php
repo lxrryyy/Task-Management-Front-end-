@@ -37,6 +37,12 @@
                 <span class="hidden group-hover:block">Calendar</span>
             </a>
 
+            <a href="/projects"
+               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'focus-clr-accent' : '' }} hover-clr-accent">
+                <x-icons.project classes="w-6 h-6" />
+                <span class="hidden group-hover:block">Projects</span>
+            </a>
+
             <a href="/time-logs"
                class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('time-logs') ? 'focus-clr-accent' : '' }} hover-clr-accent">
                 <x-icons.time-logs classes="w-6 h-6" />
@@ -55,12 +61,11 @@
                 </button>
             </form>
         </div>
-
     </div>
 
     <div class="flex-1 flex flex-col overflow-hidden bg-gray-100 ml-16">
 
-        <div class="clr-primary shadow px-6 py-4 h-16 flex items-center justify-between">
+        <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
             <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
             <div class="flex items-center gap-3">
                 <span class="text-base-100">Hi, {{ Session::get('user')['name'] ?? 'User' }}!</span>

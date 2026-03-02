@@ -5,7 +5,7 @@ use App\Http\Controllers\LoginController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('/auth/login');
 });
 
 Route::get('/dashboard', function () {
@@ -15,6 +15,11 @@ Route::get('/dashboard', function () {
 Route::get('/calendar', function () {
     return view('calendar');
 })->middleware(['api.auth'])->name('Calendar');
+
+Route::get('/projects', function () {
+    return view('projects');
+})->middleware(['api.auth'])->name('Projects');
+
 
 Route::get('/time-logs', function () {
     return view('time-logs');

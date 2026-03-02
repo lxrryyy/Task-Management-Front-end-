@@ -2,8 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-.clr-primary{
+.clr-bg-primary{
     background-color: #102B3C;
+}
+
+select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
 }
 
 .clr-accent {
@@ -33,3 +39,13 @@
 .hover-clr-bg-accent:hover {
     background-color: #ED1C24;
 }
+
+.hover-clr-bg-primary-light:hover {
+    background-color: #3292ce;
+}
+
+.hover-clr-bg-primary:hover {
+    background-color: #102B3C;
+}
+
+
