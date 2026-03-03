@@ -8,6 +8,8 @@ new class extends Component
 
     public bool $showModal = false;
 
+    public array $projects = [];
+
     public function openModal()
     {
         $this->showModal = true;

@@ -161,28 +161,51 @@
                     </tr>
                 </thead>
                 <tbody>
-                <!-- row -->
-                <tr class="cursor-pointer hover:bg-gray-500" wire:click="navigateToTasks">
-                    <td>
-                        <span>Email Bulk Sender</span>
-                    </td>
-                    <td>
-                    Clarence May Espina
-                    </td>
-                    <td>Purple</td>
-                    <th>
-                        <progress class="progress w-24" value="50" max="100"></progress>
-                    </th>
-                    <th>
-                        <span class="badge badge-success">Active</span>
-                    </th>
-                    <th>
-                        <span>05/05/2025</span>
-                    </th>
-                    <th>
-                        <button class="btn btn-ghost btn-xs">details</button>
-                    </th>
-                </tr>
+                @forelse(($projects ?? []) as $project)
+                    @php
+                        $projectId = $project['id'] ?? $project['Id'] ?? null;
+                        $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
+                        $status = $project['status'] ?? '—';
+                        $createdAt = $project['createdAt'] ?? null;
+                        $memberIds = $project['memberIds'] ?? $project['members'] ?? [];
+                        $memberCount = is_array($memberIds) ? count($memberIds) : ($project['memberCount'] ?? '—');
+
+                        // Leader: backend defines CreatedBy as leader
+                        $leaderId = $project['createdBy'] ?? $project['projectManagerId'] ?? null;
+                        $sessionUser = session('user', []);
+                        $sessionId = $sessionUser['id'] ?? $sessionUser['Id'] ?? null;
+                        $sessionName = $sessionUser['name'] ?? $sessionUser['Name'] ?? null;
+                        $leaderName = $project['leaderName'] ?? (($leaderId && $leaderId == $sessionId) ? $sessionName : null);
+                        $leaderDisplay = $leaderName ?? $leaderId ?? '—';
+                    @endphp
+                    <tr class="hover:bg-gray-50">
+                        <td><span>{{ $name }}</span></td>
+                        <td>{{ $leaderDisplay }}</td>
+                        <td>{{ $memberCount }}</td>
+                        <th>
+                            <progress class="progress w-24" value="{{ $project['progress'] ?? 0 }}" max="100"></progress>
+                        </th>
+                        <th>
+                            <span class="badge badge-success">{{ $status }}</span>
+                        </th>
+                        <th>
+                            <span>
+                                {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
+                            </span>
+                        </th>
+                        <th>
+                            @if($projectId)
+                                <a class="btn btn-ghost btn-xs" href="{{ route('projects.show', $projectId) }}">details</a>
+                            @else
+                                <span class="btn btn-ghost btn-xs btn-disabled">details</span>
+                            @endif
+                        </th>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
+                    </tr>
+                @endforelse
                 </tbody>
             </table>
             </div>
