@@ -21,52 +21,175 @@
         </div>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="table">
+    <div class="overflow-x-auto max-h-[500px] relative">
+        <table class="table w-full table-fixed">
+            <colgroup>
+                <col class="w-8"><!-- expand/collapse -->
+                <col class="w-10"><!-- checkbox -->
+                <col class="w-1/3"><!-- Task Name -->
+                <col class="w-1/5"><!-- Assignee -->
+                <col class="w-24"><!-- Due Date -->
+                <col class="w-20"><!-- Story Point -->
+                <col class="w-24"><!-- Status -->
+                <col class="w-24"><!-- Priority -->
+                <col class="w-20"><!-- Action -->
+            </colgroup>
             <!-- head -->
             <thead>
-            <tr>
-                <th></th>
-                <th>
-                </th>
-                <th>Task Name</th>
-                <th>Assignee</th>
-                <th>Due Date</th>
-                <th>Story Point</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>Action</th>
+            <tr class="bg-base-200">
+                <th class="sticky top-0 z-10 bg-base-200"></th>
+                <th class="sticky top-0 z-10 bg-base-200"></th>
+                <th class="sticky top-0 z-10 bg-base-200">Task Name</th>
+                <th class="sticky top-0 z-10 bg-base-200">Assignee</th>
+                <th class="sticky top-0 z-10 bg-base-200">Due Date</th>
+                <th class="sticky top-0 z-10 bg-base-200">Story Point</th>
+                <th class="sticky top-0 z-10 bg-base-200">Status</th>
+                <th class="sticky top-0 z-10 bg-base-200">Priority</th>
+                <th class="sticky top-0 z-10 bg-base-200">Action</th>
             </tr>
             </thead>
             <tbody>
-            <!-- row 1 -->
-            <tr>
-                <th><x-icons.vector class="w-4 h-4 inline-block" /></th>
-                <th>
-                <label>
-                    <input type="checkbox" class="checkbox" />
-                </label>
-                </th>
+            <!-- Parent task -->
+            <tr class="hover:bg-gray-50">
                 <td>
-                    <span>Finish Login Page</span>
+                    <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        wire:click="toggleSubtasks"
+                    >
+                        {{ $showSubtasks ? '▾' : '▸' }}
+                    </button>
                 </td>
                 <td>
-                Zemlak, Daniel and Leannon
+                    <label>
+                        <input type="checkbox" class="checkbox" />
+                    </label>
                 </td>
-                <td>Purple</td>
-                <th>
-                <button class="btn btn-ghost btn-xs">details</button>
-                </th>
-                <th>
-                <button class="btn btn-ghost btn-xs">details</button>
-                </th>
-                <th>
-                <button class="btn btn-ghost btn-xs">details</button>
-                </th>
-                <th>
-                <button class="btn btn-ghost btn-xs">details</button>
-                </th>
+                <td>
+                    <span class="font-semibold">Finish Login Page</span>
+                </td>
+                <td>Zemlak, Daniel and Leannon</td>
+                <td>2026-03-05</td>
+                <td>3</td>
+                <td>
+                    <span class="badge badge-success w-24">In Progress</span>
+                </td>
+                <td>
+                    <span class="badge badge-warning">High</span>
+                </td>
+                <td>
+                    <button class="btn btn-ghost btn-xs">details</button>
+                </td>
             </tr>
+
+            @if($showSubtasks)
+                <!-- Subtask row -->
+                <tr class="hover:bg-gray-50">
+                    <td></td>
+                    <td>
+                        <label>
+                            <input type="checkbox" class="checkbox checkbox-xs" />
+                        </label>
+                    </td>
+                    <td class="pl-8">
+                        <button
+                            type="button"
+                            class="btn btn-ghost btn-xs px-0 normal-case"
+                            wire:click="toggleGrandchildren"
+                        >
+                            <span class="mr-1">{{ $showGrandchildren ? '▾' : '▸' }}</span>
+                            <span class="text-sm">Design login UI</span>
+                        </button>
+                    </td>
+                    <td>Airone Gamil</td>
+                    <td>2026-03-04</td>
+                    <td>1</td>
+                    <td>
+                        <span class="badge badge-success badge-sm">In Progress</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-ghost badge-sm">Medium</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-xs">Edit</button>
+                    </td>
+                </tr>
+
+                @if($showGrandchildren)
+                    <!-- Grandchild task rows -->
+                    <tr class="hover:bg-gray-50">
+                        <td></td>
+                        <td>
+                            <label>
+                                <input type="checkbox" class="checkbox checkbox-xs" />
+                            </label>
+                        </td>
+                        <td class="pl-14 text-xs">
+                            Create Figma mockups
+                        </td>
+                        <td>Airone Gamil</td>
+                        <td>2026-03-03</td>
+                        <td>0.5</td>
+                        <td>
+                            <span class="badge badge-success badge-sm">In Progress</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-ghost badge-sm">Low</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-xs">Edit</button>
+                        </td>
+                    </tr>
+                    <tr class="hover:bg-gray-50">
+                        <td></td>
+                        <td>
+                            <label>
+                                <input type="checkbox" class="checkbox checkbox-xs" />
+                            </label>
+                        </td>
+                        <td class="pl-14 text-xs">
+                            Review with team
+                        </td>
+                        <td>Airone Gamil</td>
+                        <td>2026-03-03</td>
+                        <td>0.5</td>
+                        <td>
+                            <span class="badge badge-ghost badge-sm">Todo</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-ghost badge-sm">Low</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-xs">Edit</button>
+                        </td>
+                    </tr>
+                @endif
+
+                <!-- Another subtask -->
+                <tr class="hover:bg-gray-50">
+                    <td></td>
+                    <td>
+                        <label>
+                            <input type="checkbox" class="checkbox checkbox-xs" />
+                        </label>
+                    </td>
+                    <td class="pl-8 text-sm">
+                        Implement validation
+                    </td>
+                    <td>Other Member</td>
+                    <td>2026-03-06</td>
+                    <td>1</td>
+                    <td>
+                        <span class="badge badge-ghost badge-sm">Todo</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-ghost badge-sm">Medium</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-xs">Edit</button>
+                    </td>
+                </tr>
+            @endif
             </tbody>
         </table>
         </div>
