@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -30,6 +31,10 @@ Route::get('/time-logs', function () {
 Route::get('/tasks', function () {
     return view('tasks');
 })->middleware(['api.auth'])->name('Tasks');
+
+Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
+    ->middleware(['api.auth'])
+    ->name('projects.tasks');
 
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
