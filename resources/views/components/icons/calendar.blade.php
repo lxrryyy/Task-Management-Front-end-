@@ -1,4 +1,4 @@
-@props(['classes' => ''])
+@props (['classes' => ''])
 
 <svg width="26" height="30" viewBox="0 0 26 30" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="{{$classes}}">
 <path d="M20.7393 23.9746V24.7754H20.0977V23.9746H20.7393Z" fill="currentColor" stroke="#9F9F9F" stroke-width="10.4483"/>

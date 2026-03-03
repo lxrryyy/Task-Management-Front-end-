@@ -5,12 +5,34 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
+use App\Services\CsharpApiService;
+use Illuminate\Http\Client\RequestException;
 
 class ApiAuthenticated
 {
     public function handle(Request $request, Closure $next)
     {
         if (!Session::has('api_token')) {
+            return redirect()->route('login');
+        }
+
+        // Optional: if backend is offline or token is revoked, clear session and force login.
+        try {
+            /** @var CsharpApiService $api */
+            $api = app(CsharpApiService::class);
+            // Cheap connectivity check; we only care about connection / auth errors.
+            $api->get('/'); // path doesn't matter for offline detection
+        } catch (RequestException $e) {
+            $status = $e->response?->status();
+            if (in_array($status, [401, 403], true)) {
+                // Token invalid or revoked on backend
+                Session::forget(['api_token', 'expires_in', 'user']);
+                return redirect()->route('login');
+            }
+            // For 404/500 etc. we just continue; the controller will handle specifics.
+        } catch (\Exception $e) {
+            // Network / DNS / connection error → treat as logged out for safety
+            Session::forget(['api_token', 'expires_in', 'user']);
             return redirect()->route('login');
         }
 

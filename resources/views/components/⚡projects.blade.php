@@ -22,6 +22,11 @@ new class extends Component
     {
         return view('livewire.projects');
     }
+
+    public function navigateToTasks()
+    {
+        return redirect()->route('Tasks');
+    }
 };
 ?>
 

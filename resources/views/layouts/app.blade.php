@@ -68,7 +68,7 @@
         <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
             <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
             <div class="flex items-center gap-3">
-                <span class="text-base-100">Hi, {{ Session::get('user')['name'] ?? 'User' }}!</span>
+                <span class="text-base-100">Hi, {{ Session::get('user')['name'] ?? Session::get('user')['Name'] ?? 'User' }}!</span>
                 <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">👤</div>
             </div>
         </div>
