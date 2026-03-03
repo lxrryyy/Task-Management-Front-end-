@@ -34,7 +34,6 @@
                 <col class="w-24"><!-- Priority -->
                 <col class="w-20"><!-- Action -->
             </colgroup>
-            <!-- head -->
             <thead>
             <tr class="bg-base-200">
                 <th class="sticky top-0 z-10 bg-base-200"></th>
@@ -49,148 +48,173 @@
             </tr>
             </thead>
             <tbody>
-            <!-- Parent task -->
-            <tr class="hover:bg-gray-50">
-                <td>
-                    <button
-                        type="button"
-                        class="btn btn-ghost btn-xs"
-                        wire:click="toggleSubtasks"
-                    >
-                        {{ $showSubtasks ? '▾' : '▸' }}
-                    </button>
-                </td>
-                <td>
-                    <label>
-                        <input type="checkbox" class="checkbox" />
-                    </label>
-                </td>
-                <td>
-                    <span class="font-semibold">Finish Login Page</span>
-                </td>
-                <td>Zemlak, Daniel and Leannon</td>
-                <td>2026-03-05</td>
-                <td>3</td>
-                <td>
-                    <span class="badge badge-success w-24">In Progress</span>
-                </td>
-                <td>
-                    <span class="badge badge-warning">High</span>
-                </td>
-                <td>
-                    <button class="btn btn-ghost btn-xs">details</button>
-                </td>
-            </tr>
+            @php
+                // Group tasks by parentTaskId (null => parents)
+                $byParent = [];
+                foreach ($tasks as $task) {
+                    $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
+                    $key = $pid ?? '__root__';
+                    $byParent[$key][] = $task;
+                }
 
-            @if($showSubtasks)
-                <!-- Subtask row -->
+                $parents = $byParent['__root__'] ?? [];
+
+                $fmt = function (array $task) {
+                    $taskName    = $task['name'] ?? $task['title'] ?? '—';
+                    $assignee    = $task['assigneeName'] ?? $task['assignedToName'] ?? $task['reporterName'] ?? '—';
+                    $dueDateRaw  = $task['dueDate'] ?? $task['dueAt'] ?? null;
+                    $storyPoints = $task['storyPoints'] ?? $task['storyPoint'] ?? $task['points'] ?? null;
+                    $status      = $task['status'] ?? '—';
+                    $priority    = $task['priority'] ?? '—';
+
+                    return compact('taskName','assignee','dueDateRaw','storyPoints','status','priority');
+                };
+            @endphp
+
+            @forelse($parents as $parent)
+                @php
+                    $p = $fmt($parent);
+                    $parentId = $parent['id'] ?? null;
+                    $children = $parentId !== null ? ($byParent[$parentId] ?? []) : [];
+                    $hasChildren = !empty($children);
+                    $isExpanded = $parentId !== null && ($expanded[$parentId] ?? false);
+                @endphp
+                <!-- Parent task -->
                 <tr class="hover:bg-gray-50">
-                    <td></td>
+                    <td>
+                        @if($hasChildren && $parentId !== null)
+                            <button
+                                type="button"
+                                class="btn btn-ghost btn-xs"
+                                wire:click="toggle({{ $parentId }})"
+                            >
+                                {{ $isExpanded ? '▾' : '▸' }}
+                            </button>
+                        @endif
+                    </td>
                     <td>
                         <label>
-                            <input type="checkbox" class="checkbox checkbox-xs" />
+                            <input type="checkbox" class="checkbox" />
                         </label>
                     </td>
-                    <td class="pl-8">
-                        <button
-                            type="button"
-                            class="btn btn-ghost btn-xs px-0 normal-case"
-                            wire:click="toggleGrandchildren"
-                        >
-                            <span class="mr-1">{{ $showGrandchildren ? '▾' : '▸' }}</span>
-                            <span class="text-sm">Design login UI</span>
-                        </button>
-                    </td>
-                    <td>Airone Gamil</td>
-                    <td>2026-03-04</td>
-                    <td>1</td>
                     <td>
-                        <span class="badge badge-success badge-sm">In Progress</span>
+                        <span class="font-semibold">{{ $p['taskName'] }}</span>
                     </td>
+                    <td>{{ $p['assignee'] }}</td>
                     <td>
-                        <span class="badge badge-ghost badge-sm">Medium</span>
+                        @if($p['dueDateRaw'])
+                            {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td>{{ $p['storyPoints'] ?? '—' }}</td>
+                    <td>
+                        <span class="badge badge-success w-24">{{ $p['status'] }}</span>
                     </td>
                     <td>
-                        <button class="btn btn-ghost btn-xs">Edit</button>
+                        <span class="badge badge-warning">{{ $p['priority'] }}</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-ghost btn-xs">details</button>
                     </td>
                 </tr>
 
-                @if($showGrandchildren)
-                    <!-- Grandchild task rows -->
-                    <tr class="hover:bg-gray-50">
-                        <td></td>
-                        <td>
-                            <label>
-                                <input type="checkbox" class="checkbox checkbox-xs" />
-                            </label>
-                        </td>
-                        <td class="pl-14 text-xs">
-                            Create Figma mockups
-                        </td>
-                        <td>Airone Gamil</td>
-                        <td>2026-03-03</td>
-                        <td>0.5</td>
-                        <td>
-                            <span class="badge badge-success badge-sm">In Progress</span>
-                        </td>
-                        <td>
-                            <span class="badge badge-ghost badge-sm">Low</span>
-                        </td>
-                        <td>
-                            <button class="btn btn-ghost btn-xs">Edit</button>
-                        </td>
-                    </tr>
-                    <tr class="hover:bg-gray-50">
-                        <td></td>
-                        <td>
-                            <label>
-                                <input type="checkbox" class="checkbox checkbox-xs" />
-                            </label>
-                        </td>
-                        <td class="pl-14 text-xs">
-                            Review with team
-                        </td>
-                        <td>Airone Gamil</td>
-                        <td>2026-03-03</td>
-                        <td>0.5</td>
-                        <td>
-                            <span class="badge badge-ghost badge-sm">Todo</span>
-                        </td>
-                        <td>
-                            <span class="badge badge-ghost badge-sm">Low</span>
-                        </td>
-                        <td>
-                            <button class="btn btn-ghost btn-xs">Edit</button>
-                        </td>
-                    </tr>
+                @if($isExpanded && $parentId !== null)
+                    @foreach($children as $child)
+                        @php
+                            $c = $fmt($child);
+                            $childId = $child['id'] ?? null;
+                            $grandChildren = $childId !== null ? ($byParent[$childId] ?? []) : [];
+                            $childHasChildren = !empty($grandChildren);
+                            $childExpanded = $childId !== null && ($expanded[$childId] ?? false);
+                        @endphp
+                        <!-- Subtask row -->
+                        <tr class="hover:bg-gray-50">
+                            <td>
+                                @if($childHasChildren && $childId !== null)
+                                    <button
+                                        type="button"
+                                        class="btn btn-ghost btn-xs"
+                                        wire:click="toggle({{ $childId }})"
+                                    >
+                                        {{ $childExpanded ? '▾' : '▸' }}
+                                    </button>
+                                @endif
+                            </td>
+                            <td>
+                                <label>
+                                    <input type="checkbox" class="checkbox checkbox-xs" />
+                                </label>
+                            </td>
+                            <td class="pl-10">
+                                <span class="text-sm">{{ $c['taskName'] }}</span>
+                            </td>
+                            <td>{{ $c['assignee'] }}</td>
+                            <td>
+                                @if($c['dueDateRaw'])
+                                    {{ \Carbon\Carbon::parse($c['dueDateRaw'])->format('Y-m-d') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td>{{ $c['storyPoints'] ?? '—' }}</td>
+                            <td>
+                                <span class="badge badge-success badge-sm">{{ $c['status'] }}</span>
+                            </td>
+                            <td>
+                                <span class="badge badge-ghost badge-sm">{{ $c['priority'] }}</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-ghost btn-xs">Edit</button>
+                            </td>
+                        </tr>
+
+                        @if($childExpanded && $childId !== null)
+                            @foreach($grandChildren as $gc)
+                                @php($g = $fmt($gc))
+                                <!-- Grandchild task rows -->
+                                <tr class="hover:bg-gray-50">
+                                    <td></td>
+                                    <td>
+                                        <label>
+                                            <input type="checkbox" class="checkbox checkbox-xs" />
+                                        </label>
+                                    </td>
+                                    <td class="pl-16 text-xs">
+                                        {{ $g['taskName'] }}
+                                    </td>
+                                    <td>{{ $g['assignee'] }}</td>
+                                    <td>
+                                        @if($g['dueDateRaw'])
+                                            {{ \Carbon\Carbon::parse($g['dueDateRaw'])->format('Y-m-d') }}
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
+                                    <td>{{ $g['storyPoints'] ?? '—' }}</td>
+                                    <td>
+                                        <span class="badge badge-ghost badge-sm">{{ $g['status'] }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-ghost badge-sm">{{ $g['priority'] }}</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-ghost btn-xs">Edit</button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        @endif
+                    @endforeach
                 @endif
-
-                <!-- Another subtask -->
-                <tr class="hover:bg-gray-50">
-                    <td></td>
-                    <td>
-                        <label>
-                            <input type="checkbox" class="checkbox checkbox-xs" />
-                        </label>
-                    </td>
-                    <td class="pl-8 text-sm">
-                        Implement validation
-                    </td>
-                    <td>Other Member</td>
-                    <td>2026-03-06</td>
-                    <td>1</td>
-                    <td>
-                        <span class="badge badge-ghost badge-sm">Todo</span>
-                    </td>
-                    <td>
-                        <span class="badge badge-ghost badge-sm">Medium</span>
-                    </td>
-                    <td>
-                        <button class="btn btn-ghost btn-xs">Edit</button>
+            @empty
+                <tr>
+                    <td colspan="9" class="text-center py-8 text-gray-500">
+                        No tasks for this project yet.
                     </td>
                 </tr>
-            @endif
+            @endforelse
             </tbody>
         </table>
-        </div>
+    </div>
 </div>
