@@ -113,7 +113,7 @@
                                                 <div class="dropdown w-full">
                                                     {{-- Trigger Button --}}
                                                     <div tabindex="0" role="button" class="select select-bordered w-full flex items-center justify-between">
-                                                        <span x-text="selected ?? 'Member'">Member</span>
+                                                        <span>Member</span>
                                                     </div>
 
                                                     {{-- Options --}}
@@ -167,21 +167,29 @@
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
                         $status = $project['status'] ?? '—';
                         $createdAt = $project['createdAt'] ?? null;
-                        $memberIds = $project['memberIds'] ?? $project['members'] ?? [];
-                        $memberCount = is_array($memberIds) ? count($memberIds) : ($project['memberCount'] ?? '—');
+                        // Members: prefer names array, fall back to count
+                        $memberNames = $project['memberNames'] ?? $project['members'] ?? [];
+                        if (is_array($memberNames)) {
+                            $membersDisplay = implode(', ', $memberNames);
+                            $memberCount = count($memberNames);
+                        } else {
+                            $membersDisplay = $memberNames ?: '—';
+                            $memberCount = $project['memberCount'] ?? '—';
+                        }
 
-                        // Leader: backend defines CreatedBy as leader
-                        $leaderId = $project['createdBy'] ?? $project['projectManagerId'] ?? null;
-                        $sessionUser = session('user', []);
-                        $sessionId = $sessionUser['id'] ?? $sessionUser['Id'] ?? null;
-                        $sessionName = $sessionUser['name'] ?? $sessionUser['Name'] ?? null;
-                        $leaderName = $project['leaderName'] ?? (($leaderId && $leaderId == $sessionId) ? $sessionName : null);
-                        $leaderDisplay = $leaderName ?? $leaderId ?? '—';
+                        // Leader name comes from createdByName
+                        $leaderDisplay = $project['createdByName'] ?? '—';
                     @endphp
                     <tr class="hover:bg-gray-50">
                         <td><span>{{ $name }}</span></td>
                         <td>{{ $leaderDisplay }}</td>
-                        <td>{{ $memberCount }}</td>
+                        <td>
+                            @if($membersDisplay !== '—')
+                                <span class="block text-sm">{{ $membersDisplay }}</span>
+                            @else
+                                <span class="text-sm text-gray-400">No members</span>
+                            @endif
+                        </td>
                         <th>
                             <progress class="progress w-24" value="{{ $project['progress'] ?? 0 }}" max="100"></progress>
                         </th>
@@ -195,7 +203,7 @@
                         </th>
                         <th>
                             @if($projectId)
-                                <a class="btn btn-ghost btn-xs" href="{{ route('projects.show', $projectId) }}">details</a>
+                                <a class="btn btn-ghost btn-xs" href="{{ route('projects.tasks', $projectId) }}">details</a>
                             @else
                                 <span class="btn btn-ghost btn-xs btn-disabled">details</span>
                             @endif
