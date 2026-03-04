@@ -38,21 +38,36 @@ class CsharpApiService
 
     public function get(string $endpoint, array $query = []): array
     {
-        return $this->client()->get($endpoint, $query)->throw()->json();
+        $result = $this->client()->get($endpoint, $query)->throw()->json();
+        return is_array($result) ? $result : [];
     }
 
     public function post(string $endpoint, array $data = []): array
     {
-        return $this->client()->post($endpoint, $data)->throw()->json();
+        $result = $this->client()->post($endpoint, $data)->throw()->json();
+        return is_array($result) ? $result : [];
+    }
+
+    public function patch(string $endpoint, array $data = []): array
+    {
+        $response = $this->client()->patch($endpoint, $data)->throw();
+        // API returns 204 No Content on success (no body) — treat as success, return empty array
+        if ($response->status() === 204) {
+            return [];
+        }
+        $result = $response->json();
+        return is_array($result) ? $result : [];
     }
 
     public function put(string $endpoint, array $data = []): array
     {
-        return $this->client()->put($endpoint, $data)->throw()->json();
+        $result = $this->client()->put($endpoint, $data)->throw()->json();
+        return is_array($result) ? $result : [];
     }
 
     public function delete(string $endpoint): array
     {
-        return $this->client()->delete($endpoint)->throw()->json();
+        $result = $this->client()->delete($endpoint)->throw()->json();
+        return is_array($result) ? $result : [];
     }
 }
