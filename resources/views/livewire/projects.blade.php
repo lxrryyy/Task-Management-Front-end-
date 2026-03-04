@@ -143,7 +143,11 @@
                             </span>
                         </th>
                         <th>
-                            @if($projectId)
+                            @php
+                                $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
+                                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
+                            @endphp
+                            @if($isLeader && $projectId)
                                 <button
                                     type="button"
                                     class="btn btn-sm bg-warning text-base-100 border-none hover:opacity-90 p-2"
@@ -152,7 +156,7 @@
                                     Edit
                                 </button>
                             @else
-                                <span class="">Edit</span>
+                                <span class="text-gray-400">—</span>
                             @endif
                         </th>
                     </tr>
