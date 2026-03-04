@@ -6,6 +6,12 @@
     </x-slot>
 
     <div class="w-full mx-auto sm:px-6 lg:px-8">
-        @livewire('tasks', ['projectId' => $projectId ?? null, 'tasks' => $tasks ?? []])
+        @livewire('tasks', [
+            'projectId'        => $projectId ?? null,
+            'tasks'            => $tasks ?? [],
+            'accounts'         => $accounts ?? [],
+            'showAddTaskModal' => $errors->any() && old('name') !== null,
+            'taskParentId'     => old('parentTaskId') ? (int) old('parentTaskId') : null,
+        ])
     </div>
 </x-app-layout>
