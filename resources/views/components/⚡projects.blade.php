@@ -281,7 +281,24 @@ new class extends Component
 
     public function render()
     {
-        return view('livewire.projects');
+        $query = mb_strtolower(trim((string) $this->search));
+
+        if ($query === '') {
+            $filtered = $this->projects;
+        } else {
+            $filtered = array_values(array_filter($this->projects, function ($p) use ($query) {
+                $name    = mb_strtolower($p['name'] ?? $p['projectName'] ?? $p['title'] ?? '');
+                $leader  = mb_strtolower($p['createdByName'] ?? '');
+                $status  = mb_strtolower($p['status'] ?? '');
+                $members = mb_strtolower(implode(' ', (array) ($p['memberNames'] ?? [])));
+                return str_contains($name, $query)
+                    || str_contains($leader, $query)
+                    || str_contains($status, $query)
+                    || str_contains($members, $query);
+            }));
+        }
+
+        return view('livewire.projects', ['filteredProjects' => $filtered]);
     }
 
     public function navigateToTasks()

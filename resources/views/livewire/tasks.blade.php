@@ -195,7 +195,7 @@
             @php
                 // Group tasks by parentTaskId (null => parents)
                 $byParent = [];
-                foreach ($tasks as $task) {
+                foreach ($filteredTasks as $task) {
                     $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
                     $key = $pid ?? '__root__';
                     $byParent[$key][] = $task;

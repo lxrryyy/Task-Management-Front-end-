@@ -90,7 +90,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @forelse(($projects ?? []) as $project)
+                @forelse(($filteredProjects ?? []) as $project)
                     @php
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
