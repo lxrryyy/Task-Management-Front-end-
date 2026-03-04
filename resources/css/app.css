@@ -6,6 +6,10 @@
     background-color: #102B3C;
 }
 
+.clr-primary{
+    color: #102B3C;
+}
+
 select:focus {
     outline: none !important;
     box-shadow: none !important;

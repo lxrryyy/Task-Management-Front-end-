@@ -38,6 +38,7 @@ Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
 
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+    Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
     Route::get('/projects/{id}', [ProjectController::class, 'show'])->name('projects.show');
 });
 
