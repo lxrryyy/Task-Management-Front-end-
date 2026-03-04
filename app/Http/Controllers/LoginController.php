@@ -28,7 +28,9 @@ class LoginController extends Controller
                 'password' => $request->password,
             ]);
 
-            Session::put('api_token', $response['token']);
+            $token = $response['token'] ?? '';
+            $token = preg_replace('/^Bearer\s+/i', '', $token);
+            Session::put('api_token', trim($token));
             Session::put('expires_in', $response['expiresIn'] ?? null);
 
             // Use the user object returned directly by the login endpoint

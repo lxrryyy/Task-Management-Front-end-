@@ -6,6 +6,6 @@
     </x-slot>
 
     <div class="w-full mx-auto sm:px-6 lg:px-8">
-        @livewire('tasks')
+        @livewire('tasks', ['projectId' => $projectId ?? null, 'tasks' => $tasks ?? []])
     </div>
 </x-app-layout>

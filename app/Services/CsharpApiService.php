@@ -25,7 +25,12 @@ class CsharpApiService
         ];
 
         if (Session::has('api_token')) {
-            $headers['Authorization'] = 'Bearer ' . Session::get('api_token');
+            $token = (string) Session::get('api_token');
+            $token = preg_replace('/^Bearer\s+/i', '', $token);
+            $token = trim($token);
+            if ($token !== '') {
+                $headers['Authorization'] = 'Bearer ' . $token;
+            }
         }
 
         return Http::withHeaders($headers)->baseUrl($this->baseUrl);

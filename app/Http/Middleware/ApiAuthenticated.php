@@ -20,8 +20,12 @@ class ApiAuthenticated
         try {
             /** @var CsharpApiService $api */
             $api = app(CsharpApiService::class);
-            // Cheap connectivity check; we only care about connection / auth errors.
-            $api->get('/'); // path doesn't matter for offline detection
+            // Validate token against a real authenticated endpoint.
+            $user = Session::get('user', []);
+            $userId = $user['id'] ?? $user['Id'] ?? null;
+            if ($userId) {
+                $api->get("/api/Auth/me/{$userId}");
+            }
         } catch (RequestException $e) {
             $status = $e->response?->status();
             if (in_array($status, [401, 403], true)) {

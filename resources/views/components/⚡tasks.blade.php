@@ -4,27 +4,21 @@ use Livewire\Component;
 
 new class extends Component
 {
-    public bool $showSubtasks = false;
-    public bool $showGrandchildren = false;
+    public ?int $projectId = null;
+    public array $tasks = [];
 
-    public function toggleSubtasks()
+    // track which tasks' children are expanded (id => bool)
+    public array $expanded = [];
+
+    public function mount(?int $projectId = null, array $tasks = [])
     {
-        $this->showSubtasks = ! $this->showSubtasks;
-
-        // If we hide subtasks, also hide grandchildren
-        if (! $this->showSubtasks) {
-            $this->showGrandchildren = false;
-        }
+        $this->projectId = $projectId;
+        $this->tasks = $tasks;
     }
 
-    public function toggleGrandchildren()
+    public function toggle(int $taskId): void
     {
-        // Only allow toggling grandchildren when subtasks are visible
-        if (! $this->showSubtasks) {
-            return;
-        }
-
-        $this->showGrandchildren = ! $this->showGrandchildren;
+        $this->expanded[$taskId] = !($this->expanded[$taskId] ?? false);
     }
 
     public function render()

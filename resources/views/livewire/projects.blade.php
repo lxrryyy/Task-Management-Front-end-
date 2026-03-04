@@ -113,7 +113,7 @@
                                                 <div class="dropdown w-full">
                                                     {{-- Trigger Button --}}
                                                     <div tabindex="0" role="button" class="select select-bordered w-full flex items-center justify-between">
-                                                        <span x-text="selected ?? 'Member'">Member</span>
+                                                        <span>Member</span>
                                                     </div>
 
                                                     {{-- Options --}}
@@ -161,28 +161,59 @@
                     </tr>
                 </thead>
                 <tbody>
-                <!-- row -->
-                <tr class="cursor-pointer hover:bg-gray-500" wire:click="navigateToTasks">
-                    <td>
-                        <span>Email Bulk Sender</span>
-                    </td>
-                    <td>
-                    Clarence May Espina
-                    </td>
-                    <td>Purple</td>
-                    <th>
-                        <progress class="progress w-24" value="50" max="100"></progress>
-                    </th>
-                    <th>
-                        <span class="badge badge-success">Active</span>
-                    </th>
-                    <th>
-                        <span>05/05/2025</span>
-                    </th>
-                    <th>
-                        <button class="btn btn-ghost btn-xs">details</button>
-                    </th>
-                </tr>
+                @forelse(($projects ?? []) as $project)
+                    @php
+                        $projectId = $project['id'] ?? $project['Id'] ?? null;
+                        $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
+                        $status = $project['status'] ?? '—';
+                        $createdAt = $project['createdAt'] ?? null;
+                        // Members: prefer names array, fall back to count
+                        $memberNames = $project['memberNames'] ?? $project['members'] ?? [];
+                        if (is_array($memberNames)) {
+                            $membersDisplay = implode(', ', $memberNames);
+                            $memberCount = count($memberNames);
+                        } else {
+                            $membersDisplay = $memberNames ?: '—';
+                            $memberCount = $project['memberCount'] ?? '—';
+                        }
+
+                        // Leader name comes from createdByName
+                        $leaderDisplay = $project['createdByName'] ?? '—';
+                    @endphp
+                    <tr class="hover:bg-gray-50">
+                        <td><span>{{ $name }}</span></td>
+                        <td>{{ $leaderDisplay }}</td>
+                        <td>
+                            @if($membersDisplay !== '—')
+                                <span class="block text-sm">{{ $membersDisplay }}</span>
+                            @else
+                                <span class="text-sm text-gray-400">No members</span>
+                            @endif
+                        </td>
+                        <th>
+                            <progress class="progress w-24" value="{{ $project['progress'] ?? 0 }}" max="100"></progress>
+                        </th>
+                        <th>
+                            <span class="badge badge-success">{{ $status }}</span>
+                        </th>
+                        <th>
+                            <span>
+                                {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
+                            </span>
+                        </th>
+                        <th>
+                            @if($projectId)
+                                <a class="btn btn-ghost btn-xs" href="{{ route('projects.tasks', $projectId) }}">details</a>
+                            @else
+                                <span class="btn btn-ghost btn-xs btn-disabled">details</span>
+                            @endif
+                        </th>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
+                    </tr>
+                @endforelse
                 </tbody>
             </table>
             </div>
