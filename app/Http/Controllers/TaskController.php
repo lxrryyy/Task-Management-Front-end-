@@ -98,10 +98,10 @@ class TaskController extends Controller
     public function store(int $projectId, Request $request)
     {
         $user      = Session::get('user', []);
-        $requesterId = $user['id'] ?? $user['Id'] ?? null;
+        $creatorId = $user['id'] ?? $user['Id'] ?? null;
 
         $request->validate([
-            'name'     => 'required|string|max:255',
+            'name'       => 'required|string|max:255',
             'assigneeId' => 'nullable|integer',
         ]);
 
@@ -112,22 +112,29 @@ class TaskController extends Controller
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
+        $assigneeId   = $request->integer('assigneeId')   ?: null;
 
-        $payload = array_filter([
-            'name'         => $request->input('name'),
-            'description'  => $request->input('description') ?: null,
+        // Build body matching the C# API spec
+        $payload = [
+            'title'        => $request->input('name'),
+            'description'  => $request->input('description') ?? '',
+            'priority'     => $request->input('priority') ?? '',
+            'storyPoints'  => $request->integer('storyPoints') ?: 0,
             'projectId'    => $projectId,
-            'assigneeId'   => $request->integer('assigneeId') ?: null,
             'parentTaskId' => $parentTaskId,
-            'priority'     => $request->input('priority') ?: null,
-            'storyPoints'  => $request->integer('storyPoints') ?: null,
             'startDate'    => $toDate($request->input('startDate')),
             'dueDate'      => $toDate($request->input('dueDate')),
-            'requesterId'  => $requesterId,
-        ], static fn ($v) => $v !== null);
+            'assigneeIds'  => $assigneeId ? [$assigneeId] : [],
+        ];
+
+        // Remove null date values so we don't send null strings
+        if ($payload['startDate'] === null) unset($payload['startDate']);
+        if ($payload['dueDate']   === null) unset($payload['dueDate']);
+        if ($payload['parentTaskId'] === null) unset($payload['parentTaskId']);
 
         try {
-            $this->api->post('/api/Task/CreateTask', $payload);
+            // creatorId passed as query parameter per the API spec
+            $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
             Log::warning('Task create failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
