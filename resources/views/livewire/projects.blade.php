@@ -29,7 +29,7 @@
                     </div>
 
                     {{-- Add Project modal (create only) --}}
-                    <dialog class="{{ $showAddModal ? 'modal modal-open' : 'modal' }}">
+                    <dialog id="addProjectDialog" class="{{ $showAddModal ? 'modal modal-open' : 'modal' }}">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeAddModal" class="btn">X</button>
@@ -49,7 +49,7 @@
                     </dialog>
 
                     {{-- Edit Project modal (update only) --}}
-                    <dialog class="{{ $showEditModal ? 'modal modal-open' : 'modal' }}">
+                    <dialog id="editProjectDialog" class="{{ $showEditModal ? 'modal modal-open' : 'modal' }}">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeEditModal" class="btn">X</button>
@@ -165,3 +165,4 @@
             </table>
             </div>
     </div>
+

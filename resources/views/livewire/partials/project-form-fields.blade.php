@@ -93,9 +93,16 @@
     @error('memberIds')
         <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
     @enderror
-    @foreach(array_values((array) ($selectedMemberIds ?? [])) as $id)
-        <input wire:key="{{ $ctx }}-member-hidden-{{ (int) $id }}" type="hidden" name="memberIds[]" value="{{ (int) $id }}" />
-    @endforeach
+    @php
+        $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
+        $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
+    @endphp
+    {{-- wire:key changes whenever selectedMemberIds changes, forcing Livewire to fully replace this div --}}
+    <div wire:key="{{ $hiddenKey }}">
+        @foreach($hiddenIds as $id)
+            <input type="hidden" name="memberIds[]" value="{{ $id }}" />
+        @endforeach
+    </div>
     <input type="hidden" name="scrumMasterId" value="{{ $selectedScrumMasterId ?: $creatorId }}" />
     @if($isEdit && !empty($editingProjectId))
         <input type="hidden" name="_edit_project_id" value="{{ $editingProjectId }}" />

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class ProjectController extends Controller
@@ -85,17 +86,19 @@ class ProjectController extends Controller
         $projectManagerId = (int) ($user['id'] ?? $user['Id'] ?? 0);
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
 
-        // Payload per PATCH /api/Project/UpdateProject/{projectId}; send MemberIds (PascalCase) for .NET binding
+        // Snapshot project state BEFORE the update so we can diff it
+        $before = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+
+        // C# backend uses AssigneeIds (not MemberIds) for updating the member list
         $payload = [
-            'name' => $request->name,
-            'description' => $request->description ?? '',
-            'status' => $request->status ?? null,
+            'name'             => $request->name,
+            'description'      => $request->description ?? '',
+            'status'           => $request->status ?? null,
             'projectManagerId' => $projectManagerId,
-            'scrumMasterId' => $scrumMasterId,
-            'memberIds' => $memberIds,
-            'MemberIds' => $memberIds,
-            'startDate' => $this->toIso8601OrNull($request->input('startDate')),
-            'endDate' => $this->toIso8601OrNull($request->input('endDate')),
+            'scrumMasterId'    => $scrumMasterId,
+            'assigneeIds'      => $memberIds,
+            'startDate'        => $this->toIso8601OrNull($request->input('startDate')),
+            'endDate'          => $this->toIso8601OrNull($request->input('endDate')),
         ];
 
         $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
@@ -105,6 +108,19 @@ class ProjectController extends Controller
         if (!empty($updated) && is_array($updated)) {
             Session::put('refreshed_project', $updated);
         }
+
+        // --- Diff & log what actually changed ---
+        $changes = $this->diffProject($before, $payload, $memberIds, $updated);
+
+        Log::info('Project updated', [
+            'projectId'           => $projectId,
+            'requesterId'         => $requesterId,
+            'changes'             => $changes ?: ['(no changes detected)'],
+            'submitted_memberIds' => $request->input('memberIds', []),
+            'assigneeIds_sent'    => $memberIds,
+            'before_members'      => $before['memberNames'] ?? [],
+            'after_members'       => $updated['memberNames'] ?? [],
+        ]);
 
         return redirect()->route('Projects');
     }
@@ -193,6 +209,87 @@ class ProjectController extends Controller
         }
 
         return [];
+    }
+
+    /**
+     * Compare the project snapshot before the PATCH with what was submitted and
+     * what the API returned afterwards. Returns a human-readable list of changes.
+     */
+    private function diffProject(array $before, array $payload, array $submittedMemberIds, array $after): array
+    {
+        $changes = [];
+
+        // --- Name ---
+        $nameBefore = $before['name'] ?? $before['Name'] ?? null;
+        $nameAfter  = $payload['name'] ?? null;
+        if ($nameBefore !== null && $nameAfter !== null && $nameBefore !== $nameAfter) {
+            $changes[] = "Name: \"{$nameBefore}\" → \"{$nameAfter}\"";
+        }
+
+        // --- Description ---
+        $descBefore = $before['description'] ?? $before['Description'] ?? '';
+        $descAfter  = $payload['description'] ?? '';
+        if ($descBefore !== $descAfter) {
+            $changes[] = 'Description changed';
+        }
+
+        // --- Status ---
+        // Only report a status change when we actually submitted a non-null value
+        $statusBefore = $before['status'] ?? $before['Status'] ?? null;
+        $statusAfter  = $payload['status'] ?? null;
+        if ($statusAfter !== null && $statusBefore !== $statusAfter) {
+            $changes[] = "Status: \"{$statusBefore}\" → \"{$statusAfter}\"";
+        }
+
+        // --- Members ---
+        // Primary: compare memberNames from before/after API responses.
+        // Fallback (ID-based) only runs when before has NO memberNames at all.
+        $memberNamesBefore = array_values(array_filter(array_map('strval', (array) ($before['memberNames'] ?? []))));
+        $memberNamesAfter  = array_values(array_filter(array_map('strval', (array) ($after['memberNames']  ?? []))));
+        sort($memberNamesBefore);
+        sort($memberNamesAfter);
+
+        $beforeHasNames = !empty($memberNamesBefore);
+
+        if ($memberNamesBefore !== $memberNamesAfter) {
+            $removed = array_values(array_diff($memberNamesBefore, $memberNamesAfter));
+            $added   = array_values(array_diff($memberNamesAfter,  $memberNamesBefore));
+            if ($removed) {
+                $changes[] = 'Members removed: ' . implode(', ', $removed);
+            }
+            if ($added) {
+                $changes[] = 'Members added: ' . implode(', ', $added);
+            }
+        } elseif (!$beforeHasNames) {
+            // No names available at all — fall back to raw ID comparison
+            $memberIdsBefore = array_values(array_map('intval', array_filter(
+                (array) ($before['memberIds'] ?? $before['MemberIds'] ?? [])
+            )));
+            sort($memberIdsBefore);
+            $sortedSubmitted = $submittedMemberIds;
+            sort($sortedSubmitted);
+            if ($memberIdsBefore !== $sortedSubmitted) {
+                $removedIds = array_values(array_diff($memberIdsBefore, $sortedSubmitted));
+                $addedIds   = array_values(array_diff($sortedSubmitted, $memberIdsBefore));
+                if ($removedIds) {
+                    $changes[] = 'Members removed (IDs): ' . implode(', ', $removedIds);
+                }
+                if ($addedIds) {
+                    $changes[] = 'Members added (IDs): ' . implode(', ', $addedIds);
+                }
+            }
+        }
+
+        // --- Scrum Master ---
+        $smBefore     = $before['scrumMasterId']   ?? $before['ScrumMasterId']   ?? null;
+        $smAfter      = $after['scrumMasterId']    ?? $after['ScrumMasterId']    ?? null;
+        if ((int) $smBefore !== (int) $smAfter) {
+            $smNameBefore = $before['scrumMasterName'] ?? $before['ScrumMasterName'] ?? $smBefore;
+            $smNameAfter  = $after['scrumMasterName']  ?? $after['ScrumMasterName']  ?? $smAfter;
+            $changes[] = "Scrum Master: \"{$smNameBefore}\" → \"{$smNameAfter}\"";
+        }
+
+        return $changes;
     }
 
     /** Return ISO 8601 date string or null for PATCH request body. */

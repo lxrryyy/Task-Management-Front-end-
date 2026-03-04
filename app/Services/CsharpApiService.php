@@ -51,7 +51,7 @@ class CsharpApiService
     public function patch(string $endpoint, array $data = []): array
     {
         $response = $this->client()->patch($endpoint, $data)->throw();
-        // API returns 204 No Content on success (no body) — treat as success, return empty array
+        // 204 No Content — success but no body
         if ($response->status() === 204) {
             return [];
         }
