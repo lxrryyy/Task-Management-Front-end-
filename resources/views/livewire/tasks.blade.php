@@ -1,8 +1,23 @@
 <div class="flex flex-col gap-4">
+
+    {{-- API error banner --}}
+    @if($moveError)
+    <div class="alert alert-error text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
+        <span>{{ $moveError }}</span>
+        <button wire:click="$set('moveError', null)" class="ml-auto btn btn-ghost btn-xs">x</button>
+    </div>
+    @endif
+
     <div class="flex justify-between">
         <div class="flex gap-2">
-            <button class="btn clr-bg-primary text-base-100 p-4"><x-icons.list class="w-4 h-4 inline-block" /> List</button>
-            <button class="btn border-2 border-gray-400 clr-primary p-4 hover-clr-bg-primary hover:text-base-100 hover:border-none"><x-icons.board class="w-4 h-4 inline-block" /> Board View</button>
+            <button wire:click="switchView('list')"
+                class="btn p-4 {{ $viewMode === 'list' ? 'clr-bg-primary text-base-100' : 'border-2 border-gray-400 clr-primary hover-clr-bg-primary hover:text-base-100 hover:border-none' }}">
+                <x-icons.list class="w-4 h-4 inline-block" /> List
+            </button>
+            <button wire:click="switchView('board')"
+                class="btn p-4 {{ $viewMode === 'board' ? 'clr-bg-primary text-base-100' : 'border-2 border-gray-400 clr-primary hover-clr-bg-primary hover:text-base-100 hover:border-none' }}">
+                <x-icons.board class="w-4 h-4 inline-block" /> Board View
+            </button>
         </div>
         <div class="flex items-center">
             <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
@@ -11,8 +26,8 @@
             <div class="dropdown dropdown-end">
                 <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
                 <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg mt-1">
-                    <li><a href="#">Alphabetical (A → Z)</a></li>
-                    <li><a href="#">Alphabetical (Z → A)</a></li>
+                    <li><a href="#">Alphabetical (A - Z)</a></li>
+                    <li><a href="#">Alphabetical (Z - A)</a></li>
                     <li><a href="#">Date (Newest first)</a></li>
                     <li><a href="#">Date (Oldest first)</a></li>
                 </ul>
@@ -68,29 +83,82 @@
                 </div>
 
                 {{-- Assignee --}}
-                <div class="flex flex-col gap-1">
+                @php
+                    $oldAssigneeId = old('assigneeId', '');
+                    $oldAssigneeName = 'Choose assignee';
+                    foreach ($assignableAccounts as $_acc) {
+                        $_aid = $_acc['id'] ?? $_acc['Id'] ?? null;
+                        if ($_aid && (string) $_aid === (string) $oldAssigneeId) {
+                            $oldAssigneeName = $_acc['name'] ?? $_acc['Name'] ?? 'Unknown';
+                            break;
+                        }
+                    }
+                @endphp
+                <div class="flex flex-col gap-1"
+                     x-data="{
+                         open: false,
+                         selectedId: '{{ $oldAssigneeId }}',
+                         selectedName: '{{ addslashes($oldAssigneeName) }}'
+                     }">
                     <label class="font-medium text-sm">Assignee</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                            </svg>
-                        </span>
-                        <select name="assigneeId" class="select select-bordered w-full pl-10">
-                            <option value="">— Unassigned —</option>
-                            @foreach($accounts as $account)
-                                @php
-                                    $aid   = $account['id']    ?? $account['Id']    ?? null;
-                                    $aname = $account['name']  ?? $account['Name']  ?? 'Unknown';
-                                @endphp
-                                @if($aid !== null)
-                                    <option value="{{ $aid }}" {{ old('assigneeId') == $aid ? 'selected' : '' }}>
-                                        {{ $aname }}
-                                    </option>
-                                @endif
-                            @endforeach
-                        </select>
+
+                    {{-- Trigger --}}
+                    <div @click="open = !open" @click.outside="open = false" tabindex="0" role="button"
+                         class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
+                        <div class="flex flex-col">
+                            <span class="font-medium text-sm">Assignee</span>
+                            <span class="text-xs text-gray-500" x-text="selectedName"></span>
+                        </div>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
                     </div>
+
+                    {{-- Dropdown list --}}
+                    <ul x-show="open" x-transition
+                        class="bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+
+                        {{-- Unassigned --}}
+                        <li class="px-2 py-1">
+                            <x-person-option name="Unassigned"
+                                             @click="selectedId = ''; selectedName = 'Choose assignee'; open = false">
+                                <template x-if="selectedId === ''">
+                                    <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
+                                        <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
+                                        <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2"
+                                              stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </template>
+                            </x-person-option>
+                        </li>
+
+                        @foreach($assignableAccounts as $account)
+                            @php
+                                $aid    = $account['id']    ?? $account['Id']    ?? null;
+                                $aname  = $account['name']  ?? $account['Name']  ?? 'Unknown';
+                                $aemail = $account['email'] ?? $account['Email'] ?? '';
+                            @endphp
+                            @if($aid !== null)
+                                <li class="px-2 py-1">
+                                    <x-person-option
+                                        :name="$aname"
+                                        :email="$aemail"
+                                        @click="selectedId = '{{ $aid }}'; selectedName = '{{ addslashes($aname) }}'; open = false">
+                                        <template x-if="selectedId == '{{ $aid }}'">
+                                            <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
+                                                <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
+                                                <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2"
+                                                      stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </template>
+                                    </x-person-option>
+                                </li>
+                            @endif
+                        @endforeach
+                    </ul>
+
+                    {{-- Hidden input carries the selected ID on form submit --}}
+                    <input type="hidden" name="assigneeId" :value="selectedId">
                 </div>
 
                 {{-- Priority | Story Point | Start Date | Due Date --}}
@@ -99,10 +167,9 @@
                         <label class="font-medium text-sm">Priority</label>
                         <select name="priority" class="select select-bordered w-full">
                             <option value="">Priority</option>
-                            <option value="Low"      {{ old('priority') === 'Low'      ? 'selected' : '' }}>Low</option>
-                            <option value="Medium"   {{ old('priority') === 'Medium'   ? 'selected' : '' }}>Medium</option>
-                            <option value="High"     {{ old('priority') === 'High'     ? 'selected' : '' }}>High</option>
-                            <option value="Critical" {{ old('priority') === 'Critical' ? 'selected' : '' }}>Critical</option>
+                            @foreach($taskPriorities as $pr)
+                                <option value="{{ $pr }}" {{ old('priority') === $pr ? 'selected' : '' }}>{{ $pr }}</option>
+                            @endforeach
                         </select>
                     </div>
 
@@ -165,7 +232,7 @@
         </form>
     </dialog>
 
-    <div class="overflow-x-auto max-h-[500px] relative">
+    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
         <table class="table w-full table-fixed">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
@@ -203,15 +270,54 @@
 
                 $parents = $byParent['__root__'] ?? [];
 
-                $fmt = function (array $task) {
-                    $taskName    = $task['name'] ?? $task['title'] ?? '—';
-                    $assignee    = $task['assigneeName'] ?? $task['assignedToName'] ?? $task['reporterName'] ?? '—';
+                $fmt = function (array $task) use ($accountMap) {
+                    $taskName = $task['name'] ?? $task['title'] ?? '';
+
+                    // Resolve assignee name: prefer API-provided name fields,
+                    // then look up each ID in the accounts map
+                    $assignee = $task['assigneeName'] ?? $task['assignedToName'] ?? $task['reporterName'] ?? null;
+                    if ($assignee === null || $assignee === '') {
+                        $ids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
+                        if (!is_array($ids)) $ids = [$ids];
+                        $names = [];
+                        foreach ($ids as $aid) {
+                            if ($aid && isset($accountMap[(int) $aid])) {
+                                $names[] = $accountMap[(int) $aid];
+                            }
+                        }
+                        $assignee = implode(', ', $names);
+                    }
                     $dueDateRaw  = $task['dueDate'] ?? $task['dueAt'] ?? null;
                     $storyPoints = $task['storyPoints'] ?? $task['storyPoint'] ?? $task['points'] ?? null;
-                    $status      = $task['status'] ?? '—';
-                    $priority    = $task['priority'] ?? '—';
+                    $status      = $task['statusName'] ?? $task['status'] ?? '';
+                    $priority    = $task['priorityName'] ?? $task['priority'] ?? '';
 
-                    return compact('taskName','assignee','dueDateRaw','storyPoints','status','priority');
+                    $statusBadge = match($status) {
+                        'Not Started' => 'badge-ghost',
+                        'In Progress' => 'badge-info',
+                        'For Review'  => 'badge-warning',
+                        'Completed'   => 'badge-success',
+                        default       => 'badge-ghost',
+                    };
+                    $priorityBadge = match($priority) {
+                        'Urgent'    => 'badge-error',
+                        'Important' => 'badge-error',
+                        'Medium'    => 'badge-warning',
+                        'Low'       => 'badge-info',
+                        default     => 'badge-ghost',
+                    };
+
+                    $id = $task['id'] ?? $task['Id'] ?? null;
+
+                    $statusStyle = match($status) {
+                        'Not Started' => 'background:#f3f4f6;color:#374151;',
+                        'In Progress' => 'background:#dbeafe;color:#1d4ed8;',
+                        'For Review'  => 'background:#fef3c7;color:#b45309;',
+                        'Completed'   => 'background:#d1fae5;color:#065f46;',
+                        default       => 'background:#f3f4f6;color:#374151;',
+                    };
+
+                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityBadge','statusStyle');
                 };
             @endphp
 
@@ -232,14 +338,12 @@
                                 class="btn btn-ghost btn-xs"
                                 wire:click="toggle({{ $parentId }})"
                             >
-                                {{ $isExpanded ? '▾' : '▸' }}
+                                {{ $isExpanded ? 'v' : '>' }}
                             </button>
                         @endif
                     </td>
                     <td>
-                        <label>
-                            <input type="checkbox" class="checkbox" />
-                        </label>
+                        <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
                     </td>
                     <td>
                         <span class="font-semibold">{{ $p['taskName'] }}</span>
@@ -248,16 +352,37 @@
                     <td>
                         @if($p['dueDateRaw'])
                             {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
-                        @else
-                            —
                         @endif
                     </td>
-                    <td>{{ $p['storyPoints'] ?? '—' }}</td>
+                    <td>{{ $p['storyPoints'] ?? '' }}</td>
                     <td>
-                        <span class="badge badge-success w-30">{{ $p['status'] }}</span>
+                        <div x-data="{
+                                 status: '{{ addslashes($p['status']) }}',
+                                 styles: {
+                                     'Not Started': 'background:#f3f4f6;color:#374151;',
+                                     'In Progress': 'background:#dbeafe;color:#1d4ed8;',
+                                     'For Review':  'background:#fef3c7;color:#b45309;',
+                                     'Completed':   'background:#d1fae5;color:#065f46;',
+                                 },
+                                 get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
+                             }"
+                             class="relative inline-flex items-center rounded-none pl-7 pr-3 py-1"
+                             :style="pill">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                <x-icons.circle />
+                            </span>
+                            <select x-model="status"
+                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                    style="border:none;box-shadow:none;"
+                                    @change="Livewire.dispatch('task-status-changed', { taskId: {{ $p['id'] ?? 0 }}, newStatus: status })">
+                                @foreach($boardStatuses as $s)
+                                <option value="{{ $s }}">{{ $s }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </td>
                     <td>
-                        <span class="badge badge-warning">{{ $p['priority'] }}</span>
+                        <span class="badge {{ $p['priorityBadge'] }}">{{ $p['priority'] }}</span>
                     </td>
                     <td>
                         <button class="btn btn-ghost btn-xs">details</button>
@@ -282,14 +407,12 @@
                                         class="btn btn-ghost btn-xs"
                                         wire:click="toggle({{ $childId }})"
                                     >
-                                        {{ $childExpanded ? '▾' : '▸' }}
+                                        {{ $childExpanded ? 'v' : '>' }}
                                     </button>
                                 @endif
                             </td>
                             <td>
-                                <label>
-                                    <input type="checkbox" class="checkbox checkbox-xs" />
-                                </label>
+                                <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
                             </td>
                             <td class="pl-10">
                                 <span class="text-sm">{{ $c['taskName'] }}</span>
@@ -298,16 +421,37 @@
                             <td>
                                 @if($c['dueDateRaw'])
                                     {{ \Carbon\Carbon::parse($c['dueDateRaw'])->format('Y-m-d') }}
-                                @else
-                                    —
                                 @endif
                             </td>
-                            <td>{{ $c['storyPoints'] ?? '—' }}</td>
+                            <td>{{ $c['storyPoints'] ?? '' }}</td>
                             <td>
-                                <span class="badge badge-success badge-sm">{{ $c['status'] }}</span>
+                                <div x-data="{
+                                         status: '{{ addslashes($c['status']) }}',
+                                         styles: {
+                                             'Not Started': 'background:#f3f4f6;color:#374151;',
+                                             'In Progress': 'background:#dbeafe;color:#1d4ed8;',
+                                             'For Review':  'background:#fef3c7;color:#b45309;',
+                                             'Completed':   'background:#d1fae5;color:#065f46;',
+                                         },
+                                         get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
+                                     }"
+                                     class="relative inline-flex items-center rounded-full pl-7 pr-3 py-0.5"
+                                     :style="pill">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                        <x-icons.circle />
+                                    </span>
+                                    <select x-model="status"
+                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                            style="border:none;box-shadow:none;"
+                                            @change="Livewire.dispatch('task-status-changed', { taskId: {{ $c['id'] ?? 0 }}, newStatus: status })">
+                                        @foreach($boardStatuses as $s)
+                                        <option value="{{ $s }}">{{ $s }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </td>
                             <td>
-                                <span class="badge badge-ghost badge-sm">{{ $c['priority'] }}</span>
+                                <span class="badge badge-sm {{ $c['priorityBadge'] }}">{{ $c['priority'] }}</span>
                             </td>
                             <td>
                                 <button class="btn btn-ghost btn-xs">Edit</button>
@@ -316,14 +460,12 @@
 
                         @if($childExpanded && $childId !== null)
                             @foreach($grandChildren as $gc)
-                                @php($g = $fmt($gc))
+                                @php $g = $fmt($gc); @endphp
                                 <!-- Grandchild task rows -->
                                 <tr class="hover:bg-gray-50">
                                     <td></td>
                                     <td>
-                                        <label>
-                                            <input type="checkbox" class="checkbox checkbox-xs" />
-                                        </label>
+                                        <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
                                     <td class="pl-16 text-xs">
                                         {{ $g['taskName'] }}
@@ -332,16 +474,37 @@
                                     <td>
                                         @if($g['dueDateRaw'])
                                             {{ \Carbon\Carbon::parse($g['dueDateRaw'])->format('Y-m-d') }}
-                                        @else
-                                            —
                                         @endif
                                     </td>
-                                    <td>{{ $g['storyPoints'] ?? '—' }}</td>
+                                    <td>{{ $g['storyPoints'] ?? '' }}</td>
                                     <td>
-                                        <span class="badge badge-ghost badge-sm">{{ $g['status'] }}</span>
+                                        <div x-data="{
+                                                 status: '{{ addslashes($g['status']) }}',
+                                                 styles: {
+                                                     'Not Started': 'background:#f3f4f6;color:#374151;',
+                                                     'In Progress': 'background:#dbeafe;color:#1d4ed8;',
+                                                     'For Review':  'background:#fef3c7;color:#b45309;',
+                                                     'Completed':   'background:#d1fae5;color:#065f46;',
+                                                 },
+                                                 get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
+                                             }"
+                                             class="relative inline-flex items-center rounded-full pl-7 pr-3 py-0.5"
+                                             :style="pill">
+                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                                <x-icons.circle />
+                                            </span>
+                                            <select x-model="status"
+                                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                                    style="border:none;box-shadow:none;"
+                                                    @change="Livewire.dispatch('task-status-changed', { taskId: {{ $g['id'] ?? 0 }}, newStatus: status })">
+                                                @foreach($boardStatuses as $s)
+                                                <option value="{{ $s }}">{{ $s }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </td>
                                     <td>
-                                        <span class="badge badge-ghost badge-sm">{{ $g['priority'] }}</span>
+                                        <span class="badge badge-sm {{ $g['priorityBadge'] }}">{{ $g['priority'] }}</span>
                                     </td>
                                     <td>
                                         <button class="btn btn-ghost btn-xs">Edit</button>
@@ -381,4 +544,76 @@
             </tbody>
         </table>
     </div>
+
+    {{-- Board / Kanban View --}}
+    @php
+        $colStyles = [
+            'Not Started' => 'bg-gray-100 border-gray-300',
+            'In Progress' => 'bg-blue-50 border-blue-300',
+            'For Review'  => 'bg-yellow-50 border-yellow-300',
+            'Completed'   => 'bg-green-50 border-green-300',
+        ];
+        $priorityBadge = [
+            'Urgent'    => 'badge-error',
+            'Important' => 'badge-error',
+            'Medium'    => 'badge-warning',
+            'Low'       => 'badge-info',
+        ];
+    @endphp
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full pb-4">
+        @foreach($boardStatuses as $status)
+        @php $statusJs = addslashes($status); @endphp
+        <div x-data="{ dragOver: false }"
+             class="flex flex-col gap-3 flex-1 min-w-0 rounded-lg transition-all duration-150"
+             :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''"
+             @dragover.prevent
+             @dragenter.prevent="dragOver = true"
+             @dragleave="if (!$event.relatedTarget || !$el.contains($event.relatedTarget)) dragOver = false"
+             @drop.prevent="dragOver = false; var id = parseInt($event.dataTransfer.getData('text/plain')); if (id) Livewire.dispatch('task-status-changed', { taskId: id, newStatus: '{{ $statusJs }}' })">
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg border {{ $colStyles[$status] ?? 'bg-gray-100 border-gray-300' }}">
+                <span class="font-semibold text-sm">{{ $status }}</span>
+                <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
+            </div>
+            <div class="flex flex-col gap-2 min-h-[100px]">
+                @foreach($boardGrouped[$status] ?? [] as $task)
+                <div x-data="{ dragging: false }"
+                     class="bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex flex-col gap-2 hover:shadow-md transition-shadow cursor-grab"
+                     draggable="true"
+                     :style="dragging ? 'opacity:0.4' : ''"
+                     @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ (int)($task['id'] ?? $task['Id'] ?? 0) }}'); $event.dataTransfer.effectAllowed = 'move'"
+                     @dragend="dragging = false">
+                    <span class="font-medium text-sm leading-tight">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
+                    <div class="flex flex-wrap gap-1 items-center">
+                        @if(!empty($task['priority']))
+                            <span class="badge badge-sm {{ $priorityBadge[$task['priority']] ?? 'badge-ghost' }}">{{ $task['priority'] }}</span>
+                        @endif
+                        @if(isset($task['storyPoints']) || isset($task['storyPoint']))
+                            <span class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }} pts</span>
+                        @endif
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-gray-500 mt-1">
+                        @php
+                            $boardAssignee = $task['assigneeName'] ?? $task['assignedToName'] ?? null;
+                            if (!$boardAssignee) {
+                                $bids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
+                                if (!is_array($bids)) $bids = [$bids];
+                                $bnames = array_filter(array_map(fn($id) => $accountMap[(int)$id] ?? null, $bids));
+                                $boardAssignee = implode(', ', $bnames) ?: 'Unassigned';
+                            }
+                        @endphp
+                        <span>{{ $boardAssignee }}</span>
+                        @if(!empty($task['dueDate']) || !empty($task['dueAt']))
+                            <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
+                        @endif
+                    </div>
+                </div>
+                @endforeach
+                @if(empty($boardGrouped[$status]))
+                <div class="text-center text-xs text-gray-400 py-6">No tasks</div>
+                @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+
 </div>
