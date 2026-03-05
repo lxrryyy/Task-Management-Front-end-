@@ -76,13 +76,16 @@ class TaskController extends Controller
             $tasks = [];
         }
 
-        // Fetch all accounts for the assignee dropdown in the Add Task modal
+        // Fetch all accounts then narrow down to project members for the assignee dropdown
         $accounts = [];
         try {
             $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
-            $accounts = is_array($accountsRaw)
+            $allAccounts = is_array($accountsRaw)
                 ? $accountsRaw
                 : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+
+            // Keep only accounts that belong to this project
+            $accounts = $this->projectMemberAccounts($project ?? [], $allAccounts);
         } catch (\Exception $e) {
             $accounts = [];
         }
@@ -93,6 +96,67 @@ class TaskController extends Controller
             'tasks'     => $tasks,
             'accounts'  => $accounts,
         ]);
+    }
+
+    /**
+     * Fetch all task statuses from the C# API.
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
+     */
+    /**
+     * Response shape: [{id, name, description, active, createdAt}, ...]
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
+     */
+    public function getStatuses(): array
+    {
+        try {
+            $list = $this->api->get('/api/Task/GetAllTasksStatuses');
+
+            $map   = [];
+            $names = [];
+            foreach ((array) $list as $s) {
+                $id   = $s['id']   ?? null;
+                $name = $s['name'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $map[$name] = (int) $id;
+                    $names[]    = $name;
+                }
+            }
+            return ['map' => $map, 'names' => $names];
+        } catch (\Throwable) {
+            return ['map' => [], 'names' => []];
+        }
+    }
+
+    /**
+     * Response shape: [{id, name, description, active, createdAt}, ...]
+     * Returns an ordered list of priority name strings.
+     */
+    public function getPriorities(): array
+    {
+        try {
+            $list = $this->api->get('/api/Task/GetAllTasksPriorities');
+
+            $names = [];
+            foreach ((array) $list as $p) {
+                if (isset($p['name'])) {
+                    $names[] = $p['name'];
+                }
+            }
+            return $names;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    public function updateStatus(int $projectId, int $taskId, int $statusId): void
+    {
+        $user        = Session::get('user', []);
+        $requesterId = $user['id'] ?? $user['Id'] ?? null;
+
+        $this->api->patch(
+            "/api/Task/UpdateTaskStatus/{$taskId}?requesterId={$requesterId}",
+            ['statusId' => $statusId]
+        );
     }
 
     public function store(int $projectId, Request $request)
@@ -146,6 +210,70 @@ class TaskController extends Controller
 
         return redirect()->route('projects.tasks', $projectId)
             ->with('success', 'Task created successfully.');
+    }
+
+    /**
+     * Given the raw project array and the full accounts list, return only
+     * the accounts that are members of the project (PM, Scrum Master, members).
+     *
+     * Falls back to the full list when the project data carries no member info.
+     */
+    private function projectMemberAccounts(array $project, array $allAccounts): array
+    {
+        if (empty($project)) {
+            return $allAccounts;
+        }
+
+        // Collect every person ID associated with the project
+        $memberIds = [];
+
+        // Project manager / creator
+        foreach (['projectManagerId', 'createdById', 'createdBy'] as $key) {
+            if (!empty($project[$key])) {
+                $memberIds[(int) $project[$key]] = true;
+                break;
+            }
+        }
+
+        // Scrum master
+        foreach (['scrumMasterId', 'ScrumMasterId'] as $key) {
+            if (!empty($project[$key])) {
+                $memberIds[(int) $project[$key]] = true;
+                break;
+            }
+        }
+
+        // Regular members by ID array
+        foreach (['memberIds', 'MemberIds', 'assigneeIds'] as $key) {
+            if (!empty($project[$key]) && is_array($project[$key])) {
+                foreach ($project[$key] as $mid) {
+                    if ($mid) $memberIds[(int) $mid] = true;
+                }
+                break;
+            }
+        }
+
+        // If member IDs are unavailable, fall back to matching memberNames against the account list
+        $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
+        if (!empty($memberNames) && is_array($memberNames)) {
+            $normalised = array_map('mb_strtolower', array_map('trim', $memberNames));
+            foreach ($allAccounts as $account) {
+                $aid   = $account['id']   ?? $account['Id']   ?? null;
+                $aname = mb_strtolower(trim($account['name'] ?? $account['Name'] ?? ''));
+                if ($aid && in_array($aname, $normalised, true)) {
+                    $memberIds[(int) $aid] = true;
+                }
+            }
+        }
+
+        // If we still couldn't identify any members, return the full list
+        if (empty($memberIds)) {
+            return $allAccounts;
+        }
+
+        return array_values(
+            array_filter($allAccounts, fn ($a) => isset($memberIds[(int) ($a['id'] ?? $a['Id'] ?? 0)])
+        ));
     }
 }
 
