@@ -69,18 +69,21 @@
                                     </div>
                                 </form>
 
-                                <dialog :class="confirmOpen ? 'modal modal-open' : 'modal'">
-                                    <div class="modal-box max-w-sm">
+                                {{-- Centered card; invisible backdrop blocks clicks without adding extra darkness --}}
+                                <div x-show="confirmOpen"
+                                     style="display:none"
+                                     class="fixed inset-0 z-[9999] flex items-center justify-center">
+                                    <div class="absolute inset-0" @click="confirmOpen = false"></div>
+                                    <div class="relative bg-gray-100 rounded-2xl shadow-2xl border border-gray-200 p-6 w-94">
                                         <h3 class="text-lg font-bold">Confirm Update</h3>
                                         <p class="py-4 text-sm text-gray-600">Are you sure you want to save the changes to this project?</p>
-                                        <div class="modal-action">
-                                            <button type="button" class="btn btn-ghost" @click="confirmOpen = false">Cancel</button>
-                                            <button type="button" class="btn clr-bg-primary text-base-100"
+                                        <div class="flex justify-end gap-2">
+                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" @click="confirmOpen = false">Cancel</button>
+                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2"
                                                     @click="$refs.editProjectForm.submit()">Yes, Update</button>
                                         </div>
                                     </div>
-                                    <div class="modal-backdrop" @click="confirmOpen = false"></div>
-                                </dialog>
+                                </div>
                             </div>
                             @endif
                         </div>

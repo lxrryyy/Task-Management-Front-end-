@@ -45,17 +45,18 @@
             <h3 class="font-bold text-lg">{{ $taskParentId ? 'New Subtask' : 'New Task' }}</h3>
 
             @if($errors->any())
+                @php
+                    $errorMessages = array_filter(array_map('trim', array_unique($errors->all())));
+                @endphp
                 <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mt-3 text-sm text-red-700">
                     <p class="font-semibold mb-1">Please fix the following:</p>
                     <ul class="list-disc list-inside space-y-0.5">
-                        @foreach($errors->get('api_error') as $msg)
+                        @foreach($errorMessages as $msg)
                             <li>{{ $msg }}</li>
                         @endforeach
-                        @foreach($errors->all() as $msg)
-                            @if(!in_array($msg, $errors->get('api_error', [])))
-                                <li>{{ $msg }}</li>
-                            @endif
-                        @endforeach
+                        @if(empty($errorMessages))
+                            <li>An error occurred. Please check your input and try again.</li>
+                        @endif
                     </ul>
                 </div>
             @endif
@@ -82,93 +83,46 @@
                     @endforeach
                 </div>
 
-                {{-- Assignee --}}
-                @php
-                    $oldAssigneeId = old('assigneeId', '');
-                    $oldAssigneeName = 'Choose assignee';
-                    foreach ($assignableAccounts as $_acc) {
-                        $_aid = $_acc['id'] ?? $_acc['Id'] ?? null;
-                        if ($_aid && (string) $_aid === (string) $oldAssigneeId) {
-                            $oldAssigneeName = $_acc['name'] ?? $_acc['Name'] ?? 'Unknown';
-                            break;
-                        }
-                    }
-                @endphp
-                <div class="flex flex-col gap-1"
-                     x-data="{
-                         open: false,
-                         selectedId: '{{ $oldAssigneeId }}',
-                         selectedName: '{{ addslashes($oldAssigneeName) }}'
-                     }">
-                    <label class="font-medium text-sm">Assignee</label>
-
-                    {{-- Trigger --}}
-                    <div @click="open = !open" @click.outside="open = false" tabindex="0" role="button"
-                         class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
-                        <div class="flex flex-col">
-                            <span class="font-medium text-sm">Assignee</span>
-                            <span class="text-xs text-gray-500" x-text="selectedName"></span>
-                        </div>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </div>
-
-                    {{-- Dropdown list --}}
-                    <ul x-show="open" x-transition
-                        class="bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
-
-                        {{-- Unassigned --}}
-                        <li class="px-2 py-1">
-                            <x-person-option name="Unassigned"
-                                             @click="selectedId = ''; selectedName = 'Choose assignee'; open = false">
-                                <template x-if="selectedId === ''">
-                                    <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
-                                        <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
-                                        <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2"
-                                              stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </template>
-                            </x-person-option>
-                        </li>
-
-                        @foreach($assignableAccounts as $account)
-                            @php
-                                $aid    = $account['id']    ?? $account['Id']    ?? null;
-                                $aname  = $account['name']  ?? $account['Name']  ?? 'Unknown';
-                                $aemail = $account['email'] ?? $account['Email'] ?? '';
-                            @endphp
-                            @if($aid !== null)
-                                <li class="px-2 py-1">
-                                    <x-person-option
-                                        :name="$aname"
-                                        :email="$aemail"
-                                        @click="selectedId = '{{ $aid }}'; selectedName = '{{ addslashes($aname) }}'; open = false">
-                                        <template x-if="selectedId == '{{ $aid }}'">
-                                            <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
-                                                <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
-                                                <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2"
-                                                      stroke-linecap="round" stroke-linejoin="round"/>
-                                            </svg>
-                                        </template>
-                                    </x-person-option>
-                                </li>
-                            @endif
-                        @endforeach
-                    </ul>
-
-                    {{-- Hidden input carries the selected ID on form submit --}}
-                    <input type="hidden" name="assigneeId" :value="selectedId">
-                </div>
-
                 {{-- Priority | Story Point | Start Date | Due Date --}}
                 <div class="flex flex-wrap gap-4">
                     <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
-                        <label class="font-medium text-sm">Priority</label>
-                        <select name="priority" class="select select-bordered w-full">
-                            <option value="">Priority</option>
-                            @foreach($taskPriorities as $pr)
-                                <option value="{{ $pr }}" {{ old('priority') === $pr ? 'selected' : '' }}>{{ $pr }}</option>
+                        <label class="font-medium text-sm">Priority <span class="text-red-500">*</span></label>
+                        <select name="priorityId" class="select select-bordered w-full text-gray-900 bg-white {{ $errors->has('priorityId') ? 'border-red-500' : '' }}" required>
+                            <option value="" class="text-gray-500">Select priority</option>
+                            @php
+                                // Normalize priorities into a list of {id, name}.
+                                // If API data is present but malformed (e.g. missing keys),
+                                // fall back to the known defaults so the dropdown is never empty.
+                                $normalizedPriorities = [];
+                                foreach ((array) ($taskPriorities ?? []) as $pr) {
+                                    if (is_array($pr)) {
+                                        $prId = $pr['id'] ?? $pr['Id'] ?? null;
+                                        $prName = $pr['name'] ?? $pr['Name'] ?? $pr['priorityName'] ?? $pr['PriorityName'] ?? '';
+                                        $prName = is_string($prName) ? trim($prName) : '';
+                                        if ($prId !== null && $prName !== '') {
+                                            $normalizedPriorities[] = ['id' => $prId, 'name' => $prName];
+                                        }
+                                    } elseif (is_string($pr) || is_int($pr)) {
+                                        $v = (string) $pr;
+                                        if (trim($v) !== '') {
+                                            $normalizedPriorities[] = ['id' => $v, 'name' => $v];
+                                        }
+                                    }
+                                }
+
+                                if (empty($normalizedPriorities)) {
+                                    $normalizedPriorities = [
+                                        ['id' => 1, 'name' => 'Urgent'],
+                                        ['id' => 2, 'name' => 'Important'],
+                                        ['id' => 3, 'name' => 'Medium'],
+                                        ['id' => 4, 'name' => 'Low'],
+                                    ];
+                                }
+                            @endphp
+                            @foreach($normalizedPriorities as $pr)
+                                <option value="{{ $pr['id'] }}" {{ (string) old('priorityId') === (string) $pr['id'] ? 'selected' : '' }}>
+                                    {{ $pr['name'] }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -212,6 +166,61 @@
                     </div>
                 </div>
 
+                {{-- Assignees (multiple) — same style as project members, no table --}}
+                @php
+                    $rawOld = old('assigneeIds');
+                    $oldAssigneeIds = is_array($rawOld)
+                        ? array_map('intval', $rawOld)
+                        : array_filter(array_map('intval', array_filter(explode(',', (string) ($rawOld ?? '')))));
+                @endphp
+                <div class="flex flex-col gap-2"
+                     x-data="{
+                         selectedIds: {{ json_encode($oldAssigneeIds) }},
+                         toggle(id) {
+                             const idx = this.selectedIds.indexOf(id);
+                             if (idx >= 0) this.selectedIds.splice(idx, 1);
+                             else this.selectedIds.push(id);
+                         }
+                     }">
+                    <label class="font-medium text-sm">Assignees</label>
+                    <div class="dropdown w-full">
+                        <div tabindex="0" role="button"
+                             class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
+                            <div class="flex flex-col">
+                                <span class="font-medium text-sm">Select assignees</span>
+                                <span class="text-xs text-gray-500" x-text="selectedIds.length ? selectedIds.length + ' selected' : 'Choose one or more assignees'"></span>
+                            </div>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                        <ul tabindex="0"
+                            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+                            @foreach($assignableAccounts as $account)
+                                @php
+                                    $aid    = $account['id']    ?? $account['Id']    ?? null;
+                                    $aname  = $account['name']  ?? $account['Name']  ?? 'Unknown';
+                                    $aemail = $account['email'] ?? $account['Email'] ?? '';
+                                @endphp
+                                @if($aid !== null)
+                                    <li class="px-2 py-1">
+                                        <x-person-option name="{{ $aname }}" :email="$aemail"
+                                                         @click="toggle({{ (int) $aid }})">
+                                            <template x-if="selectedIds.includes({{ (int) $aid }})">
+                                                <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
+                                                    <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
+                                                    <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </template>
+                                        </x-person-option>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
+                    <input type="hidden" name="assigneeIds" :value="selectedIds.join(',')" />
+                </div>
+
                 {{-- Description --}}
                 <div class="flex flex-col gap-1">
                     <label class="font-medium text-sm">Description</label>
@@ -233,7 +242,7 @@
     </dialog>
 
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
-        <table class="table w-full table-fixed">
+        <table class="table w-full table-fixed border-separate [border-spacing:0_0.25rem]">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
                 <col class="w-10"><!-- checkbox -->
@@ -270,7 +279,7 @@
 
                 $parents = $byParent['__root__'] ?? [];
 
-                $fmt = function (array $task) use ($accountMap) {
+                $fmt = function (array $task) use ($accountMap, $taskPriorityMap) {
                     $taskName = $task['name'] ?? $task['title'] ?? '';
 
                     // Resolve assignee name: prefer API-provided name fields,
@@ -291,6 +300,9 @@
                     $storyPoints = $task['storyPoints'] ?? $task['storyPoint'] ?? $task['points'] ?? null;
                     $status      = $task['statusName'] ?? $task['status'] ?? '';
                     $priority    = $task['priorityName'] ?? $task['priority'] ?? '';
+                    if ($priority === '' && isset($task['priorityId'])) {
+                        $priority = $taskPriorityMap[(int) ($task['priorityId'] ?? $task['PriorityId'] ?? 0)] ?? '';
+                    }
 
                     $statusBadge = match($status) {
                         'Not Started' => 'badge-ghost',
@@ -372,7 +384,7 @@
                                 <x-icons.circle />
                             </span>
                             <select x-model="status"
-                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-10 pr-2 py-1"
                                     style="border:none;box-shadow:none;"
                                     @change="Livewire.dispatch('task-status-changed', { taskId: {{ $p['id'] ?? 0 }}, newStatus: status })">
                                 @foreach($boardStatuses as $s)
@@ -441,7 +453,7 @@
                                         <x-icons.circle />
                                     </span>
                                     <select x-model="status"
-                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-10 pr-2 py-1"
                                             style="border:none;box-shadow:none;"
                                             @change="Livewire.dispatch('task-status-changed', { taskId: {{ $c['id'] ?? 0 }}, newStatus: status })">
                                         @foreach($boardStatuses as $s)
@@ -494,7 +506,7 @@
                                                 <x-icons.circle />
                                             </span>
                                             <select x-model="status"
-                                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-9"
+                                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-10 pr-2 py-1"
                                                     style="border:none;box-shadow:none;"
                                                     @change="Livewire.dispatch('task-status-changed', { taskId: {{ $g['id'] ?? 0 }}, newStatus: status })">
                                                 @foreach($boardStatuses as $s)
@@ -560,7 +572,7 @@
             'Low'       => 'badge-info',
         ];
     @endphp
-    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full pb-4">
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto">
         @foreach($boardStatuses as $status)
         @php $statusJs = addslashes($status); @endphp
         <div x-data="{ dragOver: false }"

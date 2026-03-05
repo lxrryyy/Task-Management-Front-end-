@@ -45,11 +45,23 @@ class CsharpApiService
     public function post(string $endpoint, array $data = []): array
     {
         $response = $this->client()->post($endpoint, $data)->throw();
+
+        // Many endpoints return 204 or an empty/non-JSON body on success.
         if ($response->status() === 204) {
             return [];
         }
-        $result = $response->json();
-        return is_array($result) ? $result : [];
+
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     public function patch(string $endpoint, array $data = []): array
@@ -59,8 +71,16 @@ class CsharpApiService
         if ($response->status() === 204) {
             return [];
         }
-        $result = $response->json();
-        return is_array($result) ? $result : [];
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**
@@ -95,12 +115,23 @@ class CsharpApiService
             'name'        => 'name',
             'Name'        => 'name',
             '$.name'      => 'name',
+            'title'       => 'name',
+            'Title'       => 'name',
+            '$.title'     => 'name',
             'description' => 'description',
             'Description' => 'description',
-            'assigneeIds' => 'memberIds',
-            'AssigneeIds' => 'memberIds',
+            'assigneeIds' => 'assigneeIds',
+            'AssigneeIds' => 'assigneeIds',
             'memberIds'   => 'memberIds',
             'MemberIds'   => 'memberIds',
+            'priority'    => 'priorityId',
+            'Priority'    => 'priorityId',
+            'priorityId'  => 'priorityId',
+            'PriorityId'  => 'priorityId',
+            'storyPoints' => 'storyPoints',
+            'StoryPoints' => 'storyPoints',
+            'projectId'   => 'api_error',
+            'ProjectId'   => 'api_error',
         ];
 
         // Human-readable translations for common .NET technical messages
@@ -116,6 +147,7 @@ class CsharpApiService
                     'startDate'   => 'Start date',
                     'endDate'     => 'End date',
                     'memberIds'   => 'Members',
+                    'assigneeIds' => 'Assignees',
                     'description' => 'Description',
                 ];
                 return ($labels[$field] ?? ucfirst($field)) . ' is required.';
@@ -134,7 +166,10 @@ class CsharpApiService
 
                 foreach ((array) $msgs as $msg) {
                     if (is_string($msg) && $msg !== '') {
-                        $fieldMap[$formField][] = $translate($formField, $msg);
+                        $translated = $translate($formField, $msg);
+                        if ($translated !== '') {
+                            $fieldMap[$formField][] = $translated;
+                        }
                     }
                 }
             }
@@ -144,7 +179,10 @@ class CsharpApiService
         foreach (['message', 'Message', 'detail', 'Detail', 'error', 'Error'] as $key) {
             if (!empty($body[$key]) && is_string($body[$key])
                 && stripos($body[$key], 'one or more validation') === false) {
-                $fieldMap['api_error'][] = $translate('api_error', $body[$key]);
+                $translated = $translate('api_error', $body[$key]);
+                if ($translated !== '') {
+                    $fieldMap['api_error'][] = $translated;
+                }
                 break;
             }
         }
@@ -181,13 +219,37 @@ class CsharpApiService
 
     public function put(string $endpoint, array $data = []): array
     {
-        $result = $this->client()->put($endpoint, $data)->throw()->json();
-        return is_array($result) ? $result : [];
+        $response = $this->client()->put($endpoint, $data)->throw();
+        if ($response->status() === 204) {
+            return [];
+        }
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     public function delete(string $endpoint): array
     {
-        $result = $this->client()->delete($endpoint)->throw()->json();
-        return is_array($result) ? $result : [];
+        $response = $this->client()->delete($endpoint)->throw();
+        if ($response->status() === 204) {
+            return [];
+        }
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 }

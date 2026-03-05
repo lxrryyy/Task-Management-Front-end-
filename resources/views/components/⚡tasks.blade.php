@@ -20,7 +20,7 @@ new class extends Component
     public array $statusMap     = [];
     // ordered list of status names for board columns
     public array $taskStatuses  = [];
-    // ordered list of priority names (fetched from GET /api/Task/GetAllTasksPriorities)
+    // priority data: ['map' => [name=>id], 'names' => [...], 'items' => [{id,name}, ...]]
     public array $taskPriorities = [];
 
     // track which tasks' children are expanded (id => bool)
@@ -54,11 +54,16 @@ new class extends Component
             $this->taskStatuses = array_keys($this->statusMap);
         }
 
-        // Fetch all task priorities via TaskController
-        $this->taskPriorities = app(TaskController::class)->getPriorities();
+        // Fetch all task priorities via TaskController (returns map, names, items)
+        $priorityData = app(TaskController::class)->getPriorities();
+        $this->taskPriorities = $priorityData;
 
-        if (empty($this->taskPriorities)) {
-            $this->taskPriorities = ['Urgent', 'Important', 'Medium', 'Low'];
+        if (empty($this->taskPriorities['items'])) {
+            $this->taskPriorities = [
+                'map'   => ['Urgent' => 1, 'Important' => 2, 'Medium' => 3, 'Low' => 4],
+                'names' => ['Urgent', 'Important', 'Medium', 'Low'],
+                'items' => [['id' => 1, 'name' => 'Urgent'], ['id' => 2, 'name' => 'Important'], ['id' => 3, 'name' => 'Medium'], ['id' => 4, 'name' => 'Low']],
+            ];
         }
     }
 
@@ -289,13 +294,25 @@ new class extends Component
             fn($a) => (int) ($a['id'] ?? $a['Id'] ?? 0) !== $creatorId
         ));
 
+        // Build priorityId => name map for resolving task priority display
+        $taskPriorityMap = [];
+        foreach ($this->taskPriorities['items'] ?? [] as $pr) {
+            $pid = is_array($pr) ? ($pr['id'] ?? $pr['Id'] ?? null) : null;
+            $pname = is_array($pr) ? ($pr['name'] ?? $pr['Name'] ?? '') : '';
+            if ($pid !== null) {
+                $taskPriorityMap[(int) $pid] = $pname;
+            }
+        }
+
         return view('livewire.tasks', [
             'filteredTasks'      => $filtered,
             'boardStatuses'      => $statuses,
             'boardGrouped'       => $grouped,
             'accountMap'         => $accountMap,
             'assignableAccounts' => $assignableAccounts,
-            'taskPriorities'     => $this->taskPriorities,
+            'taskPriorities'     => $this->taskPriorities['items'] ?? [],
+            'taskPriorityNames'  => $this->taskPriorities['names'] ?? [],
+            'taskPriorityMap'    => $taskPriorityMap,
         ]);
     }
 };

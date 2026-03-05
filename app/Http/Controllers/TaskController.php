@@ -129,22 +129,35 @@ class TaskController extends Controller
 
     /**
      * Response shape: [{id, name, description, active, createdAt}, ...]
-     * Returns an ordered list of priority name strings.
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...], 'items' => [{id, name}, ...]]
      */
     public function getPriorities(): array
     {
         try {
-            $list = $this->api->get('/api/Task/GetAllTasksPriorities');
+            $raw = $this->api->get('/api/Task/GetAllTasksPriorities');
 
+            // Unwrap common API response shapes: { data: [...] } or raw array [...]
+            $list = $raw['data'] ?? $raw['Data'] ?? $raw['items'] ?? $raw['Items'] ?? $raw['value'] ?? $raw['Value'] ?? $raw;
+            $list = is_array($list) ? $list : [];
+
+            $map   = [];
             $names = [];
-            foreach ((array) $list as $p) {
-                if (isset($p['name'])) {
-                    $names[] = $p['name'];
+            $items = [];
+            foreach ($list as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $id   = $p['id']   ?? $p['Id']   ?? null;
+                $name = $p['name'] ?? $p['Name'] ?? $p['priorityName'] ?? $p['PriorityName'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $map[$name] = (int) $id;
+                    $names[]    = $name;
+                    $items[]    = ['id' => (int) $id, 'name' => $name];
                 }
             }
-            return $names;
+            return ['map' => $map, 'names' => $names, 'items' => $items];
         } catch (\Throwable) {
-            return [];
+            return ['map' => [], 'names' => [], 'items' => []];
         }
     }
 
@@ -165,8 +178,12 @@ class TaskController extends Controller
         $creatorId = $user['id'] ?? $user['Id'] ?? null;
 
         $request->validate([
-            'name'       => 'required|string|max:255',
-            'assigneeId' => 'nullable|integer',
+            'name'        => 'required|string|max:255',
+            'priorityId'  => 'required|integer|min:1',
+            'assigneeIds' => 'nullable|string',
+        ], [
+            'priorityId.required' => 'Please select a priority.',
+            'priorityId.min'       => 'Please select a valid priority.',
         ]);
 
         $toDate = static function (mixed $v): ?string {
@@ -176,19 +193,25 @@ class TaskController extends Controller
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
-        $assigneeId   = $request->integer('assigneeId')   ?: null;
+        // Support both comma-separated string (Alpine) and array (fallback)
+        $raw = $request->input('assigneeIds');
+        $assigneeIds = is_array($raw)
+            ? array_values(array_filter(array_map('intval', $raw)))
+            : array_values(array_filter(array_map('intval', array_filter(explode(',', (string) $raw)))));
 
-        // Build body matching the C# API spec
+        $priorityId = $request->integer('priorityId');
+
+        // Build body matching the C# API spec (priorityId, not priority)
         $payload = [
             'title'        => $request->input('name'),
             'description'  => $request->input('description') ?? '',
-            'priority'     => $request->input('priority') ?? '',
+            'priorityId'   => $priorityId,
             'storyPoints'  => $request->integer('storyPoints') ?: 0,
             'projectId'    => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate'    => $toDate($request->input('startDate')),
             'dueDate'      => $toDate($request->input('dueDate')),
-            'assigneeIds'  => $assigneeId ? [$assigneeId] : [],
+            'assigneeIds'  => $assigneeIds,
         ];
 
         // Remove null date values so we don't send null strings
@@ -200,8 +223,70 @@ class TaskController extends Controller
             // creatorId passed as query parameter per the API spec
             $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
         } catch (RequestException $e) {
-            $fieldErrors = $this->api->extractFieldErrors($e->response);
-            Log::warning('Task create failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            $response = $e->response;
+            $status   = $response?->status();
+            $body     = $response?->body();
+
+            $fieldErrors = $this->api->extractFieldErrors($response);
+
+            // Sanitize: never pass empty/falsey error strings to the view (they render as a blank banner).
+            $fieldErrors = array_map(function ($msgs) {
+                $clean = [];
+                foreach ((array) $msgs as $m) {
+                    if (!is_string($m)) continue;
+                    $t = trim($m);
+                    if ($t === '' || $t === '0') continue;
+                    $clean[] = $t;
+                }
+                return array_values(array_unique($clean));
+            }, $fieldErrors);
+            $fieldErrors = array_filter($fieldErrors, fn ($msgs) => !empty($msgs));
+
+            Log::warning('Task create failed', [
+                'projectId' => $projectId,
+                'status'    => $status,
+                'body'      => is_string($body) ? mb_substr($body, 0, 5000) : null,
+                'errors'    => $fieldErrors,
+            ]);
+
+            // Some backend implementations create the task but still return an error
+            // (e.g., partial failure after persisting). If we can't extract meaningful
+            // errors, do a quick re-fetch to confirm creation and avoid showing a false error.
+            if (empty($fieldErrors) && $creatorId) {
+                try {
+                    $projectResponse = $this->api->get(
+                        "/api/Task/GetTasksByProject/{$projectId}",
+                        ['requesterId' => $creatorId]
+                    );
+                    $allTasks = is_array($projectResponse)
+                        ? $projectResponse
+                        : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+
+                    $needleTitle = mb_strtolower(trim((string) ($payload['title'] ?? '')));
+                    $needlePrio  = (int) ($payload['priorityId'] ?? 0);
+
+                    foreach ((array) $allTasks as $t) {
+                        if (!is_array($t)) continue;
+                        $tTitle = mb_strtolower(trim((string) ($t['title'] ?? $t['name'] ?? '')));
+                        $tPrio  = (int) ($t['priorityId'] ?? $t['PriorityId'] ?? 0);
+
+                        if ($needleTitle !== '' && $tTitle === $needleTitle && ($needlePrio === 0 || $tPrio === $needlePrio)) {
+                            return redirect()->route('projects.tasks', $projectId)
+                                ->with('success', 'Task created successfully.');
+                        }
+                    }
+                } catch (\Throwable) {
+                    // fall through to normal error handling
+                }
+            }
+
+            if (empty($fieldErrors)) {
+                $hint = $status ? " (HTTP {$status})" : '';
+                return back()->withInput()->withErrors([
+                    'api_error' => ["Failed to create task{$hint}. Please try again."],
+                ]);
+            }
+
             return back()->withInput()->withErrors($fieldErrors);
         } catch (\Throwable $e) {
             Log::error('Task create exception', ['message' => $e->getMessage()]);
