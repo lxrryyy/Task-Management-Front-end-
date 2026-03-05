@@ -34,6 +34,8 @@ new class extends Component
     // Simple form fields for editing
     public $formName = '';
     public $formDescription = '';
+    public $formStartDate = '';
+    public $formEndDate = '';
 
     public function mount(
         $projects = [],
@@ -55,8 +57,21 @@ new class extends Component
             $oldIds = old('memberIds');
             if (is_array($oldIds) && !empty($oldIds)) {
                 $this->selectedMemberIds = array_values(array_map('intval', $oldIds));
-                $this->formName = (string) old('name', '');
+                $this->formName        = (string) old('name', '');
                 $this->formDescription = (string) old('description', '');
+                $this->formStartDate   = (string) old('startDate', '');
+                $this->formEndDate     = (string) old('endDate', '');
+
+                // Restore scrum master and roles from old input
+                $oldScrumMasterId = (int) old('scrumMasterId', 0);
+                $this->selectedScrumMasterId = $oldScrumMasterId;
+                $this->memberRoles = [];
+                foreach ($this->selectedMemberIds as $mid) {
+                    $mid = (int) $mid;
+                    $this->memberRoles[$mid] = ($oldScrumMasterId > 0 && $mid === $oldScrumMasterId)
+                        ? 'Scrum Master'
+                        : 'Member';
+                }
             } else {
                 $this->startEdit((int) $editingProjectId);
             }
@@ -71,6 +86,8 @@ new class extends Component
         $this->editingProjectId = null;
         $this->formName = '';
         $this->formDescription = '';
+        $this->formStartDate = '';
+        $this->formEndDate = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -84,6 +101,8 @@ new class extends Component
         $this->editingProjectId = null;
         $this->formName = '';
         $this->formDescription = '';
+        $this->formStartDate = '';
+        $this->formEndDate = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -105,6 +124,8 @@ new class extends Component
         $this->editingProjectId = null;
         $this->formName = '';
         $this->formDescription = '';
+        $this->formStartDate = '';
+        $this->formEndDate = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -135,6 +156,12 @@ new class extends Component
 
         $this->formName = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '';
         $this->formDescription = $project['description'] ?? '';
+
+        // Dates: store as Y-m-d for HTML date inputs
+        $rawStart = $project['startDate'] ?? $project['StartDate'] ?? null;
+        $rawEnd   = $project['endDate']   ?? $project['EndDate']   ?? null;
+        $this->formStartDate = $rawStart ? \Carbon\Carbon::parse($rawStart)->format('Y-m-d') : '';
+        $this->formEndDate   = $rawEnd   ? \Carbon\Carbon::parse($rawEnd)->format('Y-m-d')   : '';
 
         // Derive member IDs. API currently returns memberNames, not raw IDs.
         $memberIds = $project['memberIds'] ?? $project['MemberIds'] ?? [];
@@ -169,6 +196,37 @@ new class extends Component
         // Exclude creator from members completely (they are project manager, not a member)
         $creatorIdInt = (int) $this->creatorId;
         $this->selectedMemberIds = array_values(array_filter($this->selectedMemberIds, static fn ($id) => (int) $id !== $creatorIdInt));
+
+        // Resolve Scrum Master from backend response
+        $scrumMasterId = $project['scrumMasterId'] ?? $project['ScrumMasterId'] ?? null;
+
+        // If backend returns a name instead of an ID, resolve it to an ID
+        if (!$scrumMasterId) {
+            $scrumMasterName = $project['scrumMasterName'] ?? $project['ScrumMasterName'] ?? null;
+            if ($scrumMasterName) {
+                $normalizedSM = trim((string) $scrumMasterName);
+                foreach ($this->accounts as $account) {
+                    $aid   = $account['id']   ?? $account['Id']   ?? null;
+                    $aname = $account['name'] ?? $account['Name'] ?? '';
+                    if ($aid !== null && trim((string) $aname) === $normalizedSM) {
+                        $scrumMasterId = (int) $aid;
+                        break;
+                    }
+                }
+            }
+        }
+
+        $scrumMasterIdInt = $scrumMasterId ? (int) $scrumMasterId : 0;
+        $this->selectedScrumMasterId = $scrumMasterIdInt;
+
+        // Build memberRoles from backend data
+        $this->memberRoles = [];
+        foreach ($this->selectedMemberIds as $mid) {
+            $mid = (int) $mid;
+            $this->memberRoles[$mid] = ($scrumMasterIdInt > 0 && $mid === $scrumMasterIdInt)
+                ? 'Scrum Master'
+                : 'Member';
+        }
     }
 
     // Set role for a member; when role is Scrum Master, use as project scrum master.
@@ -223,7 +281,24 @@ new class extends Component
 
     public function render()
     {
-        return view('livewire.projects');
+        $query = mb_strtolower(trim((string) $this->search));
+
+        if ($query === '') {
+            $filtered = $this->projects;
+        } else {
+            $filtered = array_values(array_filter($this->projects, function ($p) use ($query) {
+                $name    = mb_strtolower($p['name'] ?? $p['projectName'] ?? $p['title'] ?? '');
+                $leader  = mb_strtolower($p['createdByName'] ?? '');
+                $status  = mb_strtolower($p['status'] ?? '');
+                $members = mb_strtolower(implode(' ', (array) ($p['memberNames'] ?? [])));
+                return str_contains($name, $query)
+                    || str_contains($leader, $query)
+                    || str_contains($status, $query)
+                    || str_contains($members, $query);
+            }));
+        }
+
+        return view('livewire.projects', ['filteredProjects' => $filtered]);
     }
 
     public function navigateToTasks()

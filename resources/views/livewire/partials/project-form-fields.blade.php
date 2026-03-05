@@ -1,9 +1,22 @@
 @php
     $isEdit = ($formContext ?? 'add') === 'edit';
     $ctx = (string) ($formContext ?? 'add');
-    $nameValue = $isEdit ? old('name', $formName ?? '') : old('name');
-    $descValue = $isEdit ? old('description', $formDescription ?? '') : old('description');
+    $nameValue      = $isEdit ? old('name',        $formName        ?? '') : old('name');
+    $descValue      = $isEdit ? old('description', $formDescription ?? '') : old('description');
+    $startDateValue = $isEdit ? old('startDate',   $formStartDate   ?? '') : old('startDate');
+    $endDateValue   = $isEdit ? old('endDate',     $formEndDate     ?? '') : old('endDate');
 @endphp
+@if($errors->has('api_error'))
+    <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mb-4 text-sm text-red-700">
+        <p class="font-semibold mb-1">Please fix the following:</p>
+        <ul class="list-disc list-inside space-y-0.5">
+            @foreach($errors->get('api_error') as $apiMsg)
+                <li>{{ $apiMsg }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 <div class="flex flex-col gap-4 my-4">
     <span>Project Name</span>
     <input
@@ -14,22 +27,32 @@
         value="{{ $nameValue }}"
         required
     />
-    @error('name')
-        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
-    @enderror
+    @foreach($errors->get('name') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
+    @endforeach
 </div>
 <div class="flex flex-col gap-4 my-4">
     <span>Description</span>
     <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Project Description">{{ $descValue }}</textarea>
 </div>
 <div class="flex flex-row gap-4 my-4">
-    <div class="flex flex-col gap-4 my-4">
+    <div class="flex flex-col gap-2 my-4">
         <span>Start Date</span>
-        <input name="startDate" type="date" class="input input-bordered" />
+        <input name="startDate" type="date"
+               class="input input-bordered {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
+               value="{{ $startDateValue }}" />
+        @foreach($errors->get('startDate') as $msg)
+            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+        @endforeach
     </div>
-    <div class="flex flex-col gap-4 my-4">
+    <div class="flex flex-col gap-2 my-4">
         <span>End Date</span>
-        <input name="endDate" type="date" class="input input-bordered" />
+        <input name="endDate" type="date"
+               class="input input-bordered {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
+               value="{{ $endDateValue }}" />
+        @foreach($errors->get('endDate') as $msg)
+            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+        @endforeach
     </div>
 </div>
 
@@ -90,12 +113,19 @@
             @endforelse
         </ul>
     </div>
-    @error('memberIds')
-        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
-    @enderror
-    @foreach(array_values((array) ($selectedMemberIds ?? [])) as $id)
-        <input wire:key="{{ $ctx }}-member-hidden-{{ (int) $id }}" type="hidden" name="memberIds[]" value="{{ (int) $id }}" />
+    @foreach($errors->get('memberIds') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
     @endforeach
+    @php
+        $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
+        $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
+    @endphp
+    {{-- wire:key changes whenever selectedMemberIds changes, forcing Livewire to fully replace this div --}}
+    <div wire:key="{{ $hiddenKey }}">
+        @foreach($hiddenIds as $id)
+            <input type="hidden" name="memberIds[]" value="{{ $id }}" />
+        @endforeach
+    </div>
     <input type="hidden" name="scrumMasterId" value="{{ $selectedScrumMasterId ?: $creatorId }}" />
     @if($isEdit && !empty($editingProjectId))
         <input type="hidden" name="_edit_project_id" value="{{ $editingProjectId }}" />

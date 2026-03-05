@@ -36,6 +36,10 @@ Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
     ->middleware(['api.auth'])
     ->name('projects.tasks');
 
+Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
+    ->middleware(['api.auth'])
+    ->name('tasks.store');
+
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');

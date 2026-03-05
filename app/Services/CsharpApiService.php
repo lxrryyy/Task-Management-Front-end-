@@ -44,19 +44,139 @@ class CsharpApiService
 
     public function post(string $endpoint, array $data = []): array
     {
-        $result = $this->client()->post($endpoint, $data)->throw()->json();
+        $response = $this->client()->post($endpoint, $data)->throw();
+        if ($response->status() === 204) {
+            return [];
+        }
+        $result = $response->json();
         return is_array($result) ? $result : [];
     }
 
     public function patch(string $endpoint, array $data = []): array
     {
         $response = $this->client()->patch($endpoint, $data)->throw();
-        // API returns 204 No Content on success (no body) — treat as success, return empty array
+        // 204 No Content — success but no body
         if ($response->status() === 204) {
             return [];
         }
         $result = $response->json();
         return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Extract field-mapped errors from a C# API error response.
+     *
+     * Returns a keyed array suitable for Laravel's withErrors():
+     *   [
+     *     'startDate' => ['Start date must be a valid date.'],
+     *     'name'      => ['Project name is required.'],
+     *     'api_error' => ['Request could not be processed.'],
+     *   ]
+     *
+     * Handles ASP.NET Core ValidationProblemDetails and plain message shapes.
+     */
+    public function extractFieldErrors(\Illuminate\Http\Client\Response $response): array
+    {
+        if ($response->successful()) {
+            return [];
+        }
+
+        $body      = $response->json() ?? [];
+        $fieldMap  = [];
+
+        // Map JSON paths / .NET field names → Laravel form field names
+        $pathToField = [
+            'startDate'   => 'startDate',
+            'StartDate'   => 'startDate',
+            '$.startDate' => 'startDate',
+            'endDate'     => 'endDate',
+            'EndDate'     => 'endDate',
+            '$.endDate'   => 'endDate',
+            'name'        => 'name',
+            'Name'        => 'name',
+            '$.name'      => 'name',
+            'description' => 'description',
+            'Description' => 'description',
+            'assigneeIds' => 'memberIds',
+            'AssigneeIds' => 'memberIds',
+            'memberIds'   => 'memberIds',
+            'MemberIds'   => 'memberIds',
+        ];
+
+        // Human-readable translations for common .NET technical messages
+        $translate = function (string $field, string $raw): string {
+            if (stripos($raw, 'could not be converted to System.DateTime') !== false
+                || stripos($raw, 'was not recognized as a valid DateTime') !== false) {
+                $labels = ['startDate' => 'Start date', 'endDate' => 'End date'];
+                return ($labels[$field] ?? ucfirst($field)) . ' must be a valid date (e.g. 2026-03-05).';
+            }
+            if (stripos($raw, 'is required') !== false) {
+                $labels = [
+                    'name'        => 'Project name',
+                    'startDate'   => 'Start date',
+                    'endDate'     => 'End date',
+                    'memberIds'   => 'Members',
+                    'description' => 'Description',
+                ];
+                return ($labels[$field] ?? ucfirst($field)) . ' is required.';
+            }
+            // Strip internal .NET path noise (Path: $.x | LineNumber: 0 | BytePosition...)
+            $clean = preg_replace('/\s*Path:\s*\S+\s*\|\s*LineNumber:.*$/i', '', $raw);
+            return trim($clean ?: $raw);
+        };
+
+        // ASP.NET Core ValidationProblemDetails: { errors: { "Field": ["msg"], "$.field": ["msg"] } }
+        if (!empty($body['errors']) && is_array($body['errors'])) {
+            foreach ($body['errors'] as $rawField => $msgs) {
+                // Resolve field name; strip leading $. for path-style keys
+                $normalised = ltrim($rawField, '$.');
+                $formField  = $pathToField[$rawField] ?? $pathToField[$normalised] ?? 'api_error';
+
+                foreach ((array) $msgs as $msg) {
+                    if (is_string($msg) && $msg !== '') {
+                        $fieldMap[$formField][] = $translate($formField, $msg);
+                    }
+                }
+            }
+        }
+
+        // Top-level message / detail (add to api_error unless already have field-specific errors for context)
+        foreach (['message', 'Message', 'detail', 'Detail', 'error', 'Error'] as $key) {
+            if (!empty($body[$key]) && is_string($body[$key])
+                && stripos($body[$key], 'one or more validation') === false) {
+                $fieldMap['api_error'][] = $translate('api_error', $body[$key]);
+                break;
+            }
+        }
+
+        // Fallback: "dto field is required" → generic human message
+        if (!empty($body['errors']['dto']) || !empty($body['errors']['Dto'])) {
+            $fieldMap['api_error'][] = 'The request could not be processed. Please check all fields and try again.';
+        }
+
+        if (empty($fieldMap)) {
+            $raw = $response->body();
+            $fieldMap['api_error'][] = (is_string($raw) && strlen($raw) < 300)
+                ? strip_tags($raw)
+                : 'An error occurred (HTTP ' . $response->status() . '). Please try again.';
+        }
+
+        // Deduplicate each field's messages
+        return array_map(fn ($msgs) => array_values(array_unique($msgs)), $fieldMap);
+    }
+
+    /** Flat array of all error strings (used for logging). */
+    public function extractErrors(\Illuminate\Http\Client\Response $response): array
+    {
+        $fieldErrors = $this->extractFieldErrors($response);
+        return array_values(array_merge(...array_values($fieldErrors)));
+    }
+
+    /** @deprecated Use extractFieldErrors() */
+    public function extractError(\Illuminate\Http\Client\Response $response): ?string
+    {
+        $errors = $this->extractErrors($response);
+        return $errors ? implode(' ', $errors) : null;
     }
 
     public function put(string $endpoint, array $data = []): array

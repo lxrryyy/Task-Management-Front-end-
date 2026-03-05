@@ -17,9 +17,153 @@
                     <li><a href="#">Date (Oldest first)</a></li>
                 </ul>
             </div>
-            <button class="btn clr-bg-primary text-base-100 p-4">+ Add Task</button>
+            <button wire:click="openAddTaskModal" class="btn clr-bg-primary text-base-100 p-4">+ Add Task</button>
         </div>
     </div>
+
+    {{-- Add Task Modal --}}
+    <dialog class="{{ $showAddTaskModal ? 'modal modal-open' : 'modal' }}">
+        <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
+            <div class="modal-action mt-0 mb-2">
+                <button type="button" wire:click="closeAddTaskModal" class="btn btn-sm">✕</button>
+            </div>
+            <h3 class="font-bold text-lg">{{ $taskParentId ? 'New Subtask' : 'New Task' }}</h3>
+
+            @if($errors->any())
+                <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mt-3 text-sm text-red-700">
+                    <p class="font-semibold mb-1">Please fix the following:</p>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        @foreach($errors->get('api_error') as $msg)
+                            <li>{{ $msg }}</li>
+                        @endforeach
+                        @foreach($errors->all() as $msg)
+                            @if(!in_array($msg, $errors->get('api_error', [])))
+                                <li>{{ $msg }}</li>
+                            @endif
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('tasks.store', $projectId) }}" class="mt-4 flex flex-col gap-4">
+                @csrf
+                @if($taskParentId)
+                    <input type="hidden" name="parentTaskId" value="{{ $taskParentId }}" />
+                @endif
+
+                {{-- Task Name --}}
+                <div class="flex flex-col gap-1">
+                    <label class="font-medium text-sm">Task Name</label>
+                    <input
+                        name="name"
+                        type="text"
+                        placeholder="Enter task name"
+                        class="input input-bordered w-full {{ $errors->has('name') ? 'border-red-500' : '' }}"
+                        value="{{ old('name') }}"
+                        required
+                    />
+                    @foreach($errors->get('name') as $msg)
+                        <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+                    @endforeach
+                </div>
+
+                {{-- Assignee --}}
+                <div class="flex flex-col gap-1">
+                    <label class="font-medium text-sm">Assignee</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                            </svg>
+                        </span>
+                        <select name="assigneeId" class="select select-bordered w-full pl-10">
+                            <option value="">— Unassigned —</option>
+                            @foreach($accounts as $account)
+                                @php
+                                    $aid   = $account['id']    ?? $account['Id']    ?? null;
+                                    $aname = $account['name']  ?? $account['Name']  ?? 'Unknown';
+                                @endphp
+                                @if($aid !== null)
+                                    <option value="{{ $aid }}" {{ old('assigneeId') == $aid ? 'selected' : '' }}>
+                                        {{ $aname }}
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                {{-- Priority | Story Point | Start Date | Due Date --}}
+                <div class="flex flex-wrap gap-4">
+                    <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
+                        <label class="font-medium text-sm">Priority</label>
+                        <select name="priority" class="select select-bordered w-full">
+                            <option value="">Priority</option>
+                            <option value="Low"      {{ old('priority') === 'Low'      ? 'selected' : '' }}>Low</option>
+                            <option value="Medium"   {{ old('priority') === 'Medium'   ? 'selected' : '' }}>Medium</option>
+                            <option value="High"     {{ old('priority') === 'High'     ? 'selected' : '' }}>High</option>
+                            <option value="Critical" {{ old('priority') === 'Critical' ? 'selected' : '' }}>Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
+                        <label class="font-medium text-sm">Story Point</label>
+                        <input
+                            name="storyPoints"
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            class="input input-bordered w-full"
+                            value="{{ old('storyPoints') }}"
+                        />
+                    </div>
+
+                    <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
+                        <label class="font-medium text-sm">Start Date</label>
+                        <input
+                            name="startDate"
+                            type="date"
+                            class="input input-bordered w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
+                            value="{{ old('startDate') }}"
+                        />
+                        @foreach($errors->get('startDate') as $msg)
+                            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+                        @endforeach
+                    </div>
+
+                    <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
+                        <label class="font-medium text-sm">Due Date</label>
+                        <input
+                            name="dueDate"
+                            type="date"
+                            class="input input-bordered w-full {{ $errors->has('dueDate') ? 'border-red-500' : '' }}"
+                            value="{{ old('dueDate') }}"
+                        />
+                        @foreach($errors->get('dueDate') as $msg)
+                            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+                        @endforeach
+                    </div>
+                </div>
+
+                {{-- Description --}}
+                <div class="flex flex-col gap-1">
+                    <label class="font-medium text-sm">Description</label>
+                    <textarea
+                        name="description"
+                        class="textarea textarea-bordered w-full h-32"
+                        placeholder="Task description"
+                    >{{ old('description') }}</textarea>
+                </div>
+
+                <div class="modal-action">
+                    <button type="submit" class="btn clr-bg-primary text-base-100 px-6">+ Add tasks</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="button" wire:click="closeAddTaskModal">close</button>
+        </form>
+    </dialog>
 
     <div class="overflow-x-auto max-h-[500px] relative">
         <table class="table w-full table-fixed">
@@ -28,9 +172,9 @@
                 <col class="w-10"><!-- checkbox -->
                 <col class="w-1/3"><!-- Task Name -->
                 <col class="w-1/5"><!-- Assignee -->
-                <col class="w-24"><!-- Due Date -->
-                <col class="w-20"><!-- Story Point -->
-                <col class="w-24"><!-- Status -->
+                <col class="w-28"><!-- Due Date -->
+                <col class="w-24"><!-- Story Point -->
+                <col class="w-30"><!-- Status -->
                 <col class="w-24"><!-- Priority -->
                 <col class="w-20"><!-- Action -->
             </colgroup>
@@ -51,7 +195,7 @@
             @php
                 // Group tasks by parentTaskId (null => parents)
                 $byParent = [];
-                foreach ($tasks as $task) {
+                foreach ($filteredTasks as $task) {
                     $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
                     $key = $pid ?? '__root__';
                     $byParent[$key][] = $task;
@@ -82,7 +226,7 @@
                 <!-- Parent task -->
                 <tr class="hover:bg-gray-50">
                     <td>
-                        @if($hasChildren && $parentId !== null)
+                        @if($parentId !== null)
                             <button
                                 type="button"
                                 class="btn btn-ghost btn-xs"
@@ -110,7 +254,7 @@
                     </td>
                     <td>{{ $p['storyPoints'] ?? '—' }}</td>
                     <td>
-                        <span class="badge badge-success w-24">{{ $p['status'] }}</span>
+                        <span class="badge badge-success w-30">{{ $p['status'] }}</span>
                     </td>
                     <td>
                         <span class="badge badge-warning">{{ $p['priority'] }}</span>
@@ -132,7 +276,7 @@
                         <!-- Subtask row -->
                         <tr class="hover:bg-gray-50">
                             <td>
-                                @if($childHasChildren && $childId !== null)
+                                @if($childId !== null)
                                     <button
                                         type="button"
                                         class="btn btn-ghost btn-xs"
@@ -204,8 +348,28 @@
                                     </td>
                                 </tr>
                             @endforeach
+                            {{-- Always show "+ Add subtask" at the bottom of expanded subtask --}}
+                            <tr class="hover:bg-blue-50 cursor-pointer"
+                                wire:click="addSubtask({{ $childId }})">
+                                <td></td>
+                                <td></td>
+                                <td class="pl-16">
+                                    <span class="text-sm clr-primary font-medium">+ Add subtask</span>
+                                </td>
+                                <td colspan="6"></td>
+                            </tr>
                         @endif
                     @endforeach
+                    {{-- Always show "+ Add subtask" at the bottom of expanded parent --}}
+                    <tr class="hover:bg-blue-50 cursor-pointer"
+                        wire:click="addSubtask({{ $parentId }})">
+                        <td></td>
+                        <td></td>
+                        <td class="pl-10">
+                            <span class="text-sm clr-primary font-medium">+ Add subtask</span>
+                        </td>
+                        <td colspan="6"></td>
+                    </tr>
                 @endif
             @empty
                 <tr>

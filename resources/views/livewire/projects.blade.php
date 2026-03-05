@@ -29,7 +29,7 @@
                     </div>
 
                     {{-- Add Project modal (create only) --}}
-                    <dialog class="{{ $showAddModal ? 'modal modal-open' : 'modal' }}">
+                    <dialog id="addProjectDialog" class="{{ $showAddModal ? 'modal modal-open' : 'modal' }}">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeAddModal" class="btn">X</button>
@@ -49,7 +49,7 @@
                     </dialog>
 
                     {{-- Edit Project modal (update only) --}}
-                    <dialog class="{{ $showEditModal ? 'modal modal-open' : 'modal' }}">
+                    <dialog id="editProjectDialog" class="{{ $showEditModal ? 'modal modal-open' : 'modal' }}">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeEditModal" class="btn">X</button>
@@ -90,7 +90,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @forelse(($projects ?? []) as $project)
+                @forelse(($filteredProjects ?? []) as $project)
                     @php
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
@@ -143,7 +143,11 @@
                             </span>
                         </th>
                         <th>
-                            @if($projectId)
+                            @php
+                                $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
+                                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
+                            @endphp
+                            @if($isLeader && $projectId)
                                 <button
                                     type="button"
                                     class="btn btn-sm bg-warning text-base-100 border-none hover:opacity-90 p-2"
@@ -152,7 +156,7 @@
                                     Edit
                                 </button>
                             @else
-                                <span class="">Edit</span>
+                                <span class="text-gray-400">—</span>
                             @endif
                         </th>
                     </tr>
@@ -165,3 +169,4 @@
             </table>
             </div>
     </div>
+

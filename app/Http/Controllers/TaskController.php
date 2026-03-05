@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class TaskController extends Controller
@@ -74,11 +76,76 @@ class TaskController extends Controller
             $tasks = [];
         }
 
+        // Fetch all accounts for the assignee dropdown in the Add Task modal
+        $accounts = [];
+        try {
+            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accounts = is_array($accountsRaw)
+                ? $accountsRaw
+                : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+        } catch (\Exception $e) {
+            $accounts = [];
+        }
+
         return view('tasks', [
             'projectId' => $projectId,
             'project'   => $project ?? null,
             'tasks'     => $tasks,
+            'accounts'  => $accounts,
         ]);
+    }
+
+    public function store(int $projectId, Request $request)
+    {
+        $user      = Session::get('user', []);
+        $creatorId = $user['id'] ?? $user['Id'] ?? null;
+
+        $request->validate([
+            'name'       => 'required|string|max:255',
+            'assigneeId' => 'nullable|integer',
+        ]);
+
+        $toDate = static function (mixed $v): ?string {
+            if (!$v) return null;
+            try { return \Carbon\Carbon::parse($v)->format('Y-m-d\TH:i:s.v\Z'); }
+            catch (\Throwable) { return null; }
+        };
+
+        $parentTaskId = $request->integer('parentTaskId') ?: null;
+        $assigneeId   = $request->integer('assigneeId')   ?: null;
+
+        // Build body matching the C# API spec
+        $payload = [
+            'title'        => $request->input('name'),
+            'description'  => $request->input('description') ?? '',
+            'priority'     => $request->input('priority') ?? '',
+            'storyPoints'  => $request->integer('storyPoints') ?: 0,
+            'projectId'    => $projectId,
+            'parentTaskId' => $parentTaskId,
+            'startDate'    => $toDate($request->input('startDate')),
+            'dueDate'      => $toDate($request->input('dueDate')),
+            'assigneeIds'  => $assigneeId ? [$assigneeId] : [],
+        ];
+
+        // Remove null date values so we don't send null strings
+        if ($payload['startDate'] === null) unset($payload['startDate']);
+        if ($payload['dueDate']   === null) unset($payload['dueDate']);
+        if ($payload['parentTaskId'] === null) unset($payload['parentTaskId']);
+
+        try {
+            // creatorId passed as query parameter per the API spec
+            $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Task create failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            return back()->withInput()->withErrors($fieldErrors);
+        } catch (\Throwable $e) {
+            Log::error('Task create exception', ['message' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['api_error' => ['Failed to create task. Please try again.']]);
+        }
+
+        return redirect()->route('projects.tasks', $projectId)
+            ->with('success', 'Task created successfully.');
     }
 }
 

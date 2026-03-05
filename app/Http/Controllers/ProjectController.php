@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class ProjectController extends Controller
@@ -85,20 +87,25 @@ class ProjectController extends Controller
         $projectManagerId = (int) ($user['id'] ?? $user['Id'] ?? 0);
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
 
-        // Payload per PATCH /api/Project/UpdateProject/{projectId}; send MemberIds (PascalCase) for .NET binding
+        // C# backend uses AssigneeIds (not MemberIds) for updating the member list
         $payload = [
-            'name' => $request->name,
-            'description' => $request->description ?? '',
-            'status' => $request->status ?? null,
+            'name'             => $request->name,
+            'description'      => $request->description ?? '',
+            'status'           => $request->status ?? null,
             'projectManagerId' => $projectManagerId,
-            'scrumMasterId' => $scrumMasterId,
-            'memberIds' => $memberIds,
-            'MemberIds' => $memberIds,
-            'startDate' => $this->toIso8601OrNull($request->input('startDate')),
-            'endDate' => $this->toIso8601OrNull($request->input('endDate')),
+            'scrumMasterId'    => $scrumMasterId,
+            'assigneeIds'      => $memberIds,
+            'startDate'        => $this->toIso8601OrNull($request->input('startDate')),
+            'endDate'          => $this->toIso8601OrNull($request->input('endDate')),
         ];
 
-        $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+        try {
+            $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project update failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            return back()->withInput()->withErrors($fieldErrors);
+        }
 
         // Re-fetch updated project (including members) via GetProjectById for the list
         $updated = $this->api->get("/api/Project/GetProjectById/{$projectId}");
@@ -149,8 +156,13 @@ class ProjectController extends Controller
             'endDate' => $request->endDate,
         ];
 
-        // API requires creatorId query parameter
-        $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
+        try {
+            $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project create failed', ['errors' => $fieldErrors]);
+            return back()->withInput()->withErrors($fieldErrors);
+        }
 
         return redirect()->route('Projects');
     }
