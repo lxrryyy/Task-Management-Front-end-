@@ -25,23 +25,28 @@
         type="text"
         placeholder="Type here"
         class="input input-bordered w-full"
-        value="{{ $nameValue }}"
+        @if($isEdit) wire:model.lazy="formName" @else value="{{ $nameValue }}" @endif
         required
     />
     @foreach($errors->get('name') as $msg)
         <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
     @endforeach
 </div>
+@php
+    $descriptionContent = $isEdit ? '' : (string) ($descValue ?? '');
+@endphp
 <div class="flex flex-col gap-4 my-4">
     <span>Description</span>
-    <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Project Description">{{ $descValue }}</textarea>
+    <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Project Description"
+        @if($isEdit) wire:model.lazy="formDescription" @endif
+    >{{ $descriptionContent }}</textarea>
 </div>
 <div class="flex flex-col gap-2 my-4">
     <span>Status</span>
-    <select name="status" class="select select-bordered w-full">
+    <select name="status" class="select select-bordered w-full" @if($isEdit) wire:model.lazy="formStatus" @endif>
         <option value="">-- Select Status --</option>
         @foreach(($projectStatuses ?? []) as $ps)
-            <option value="{{ $ps }}" {{ $statusValue === $ps ? 'selected' : '' }}>{{ $ps }}</option>
+            <option value="{{ $ps }}" {{ (!$isEdit && $statusValue === $ps) ? 'selected' : '' }}>{{ $ps }}</option>
         @endforeach
     </select>
 </div>
@@ -50,7 +55,7 @@
         <span>Start Date</span>
         <input name="startDate" type="date"
                class="input input-bordered {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
-               value="{{ $startDateValue }}" />
+               @if($isEdit) wire:model.lazy="formStartDate" @else value="{{ $startDateValue }}" @endif />
         @foreach($errors->get('startDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
         @endforeach
@@ -59,7 +64,7 @@
         <span>End Date</span>
         <input name="endDate" type="date"
                class="input input-bordered {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
-               value="{{ $endDateValue }}" />
+               @if($isEdit) wire:model.lazy="formEndDate" @else value="{{ $endDateValue }}" @endif />
         @foreach($errors->get('endDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
         @endforeach
@@ -119,8 +124,12 @@
         $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
         $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
     @endphp
+    @if($isEdit)
+        {{-- Current selection as JSON so "Yes, Update" can sync into form before submit (fixes removed members not persisting) --}}
+        <div id="edit-form-member-ids-data" data-member-ids="{{ json_encode($hiddenIds) }}" class="hidden" aria-hidden="true"></div>
+    @endif
     {{-- wire:key changes whenever selectedMemberIds changes, forcing Livewire to fully replace this div --}}
-    <div wire:key="{{ $hiddenKey }}">
+    <div wire:key="{{ $hiddenKey }}" id="{{ $isEdit ? 'edit-form-member-ids-inputs' : '' }}">
         @foreach($hiddenIds as $id)
             <input type="hidden" name="memberIds[]" value="{{ $id }}" />
         @endforeach

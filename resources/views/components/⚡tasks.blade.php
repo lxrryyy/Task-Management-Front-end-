@@ -54,17 +54,9 @@ new class extends Component
             $this->taskStatuses = array_keys($this->statusMap);
         }
 
-        // Fetch all task priorities via TaskController (returns map, names, items)
-        $priorityData = app(TaskController::class)->getPriorities();
-        $this->taskPriorities = $priorityData;
-
-        if (empty($this->taskPriorities['items'])) {
-            $this->taskPriorities = [
-                'map'   => ['Urgent' => 1, 'Important' => 2, 'Medium' => 3, 'Low' => 4],
-                'names' => ['Urgent', 'Important', 'Medium', 'Low'],
-                'items' => [['id' => 1, 'name' => 'Urgent'], ['id' => 2, 'name' => 'Important'], ['id' => 3, 'name' => 'Medium'], ['id' => 4, 'name' => 'Low']],
-            ];
-        }
+        // Fetch all task priorities via TaskController (returns map, names, items).
+        // No hardcoded fallback — if API returns nothing, dropdown will be empty so you can see it.
+        $this->taskPriorities = app(TaskController::class)->getPriorities();
     }
 
     public function switchView(string $mode): void
@@ -191,7 +183,10 @@ new class extends Component
 
     public function openAddTaskModal(): void
     {
-        $this->taskParentId     = null;
+        $this->taskParentId = null;
+        // Refresh priorities when opening the modal so the dropdown always has options
+        // (avoids empty dropdown when initial page load had no session/API data)
+        $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }
 
@@ -203,7 +198,8 @@ new class extends Component
 
     public function addSubtask(int $parentTaskId): void
     {
-        $this->taskParentId     = $parentTaskId;
+        $this->taskParentId = $parentTaskId;
+        $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }
 

@@ -136,9 +136,23 @@ class TaskController extends Controller
         try {
             $raw = $this->api->get('/api/Task/GetAllTasksPriorities');
 
-            // Unwrap common API response shapes: { data: [...] } or raw array [...]
-            $list = $raw['data'] ?? $raw['Data'] ?? $raw['items'] ?? $raw['Items'] ?? $raw['value'] ?? $raw['Value'] ?? $raw;
-            $list = is_array($list) ? $list : [];
+            // Unwrap common API response shapes: wrapped object or raw array
+            $list = $raw['data'] ?? $raw['Data']
+                ?? $raw['items'] ?? $raw['Items']
+                ?? $raw['value'] ?? $raw['Value']
+                ?? $raw['priorities'] ?? $raw['Priorities']
+                ?? $raw['result'] ?? $raw['Result']
+                ?? $raw['results'] ?? $raw['Results']
+                ?? $raw;
+
+            if (!is_array($list)) {
+                $list = [];
+            }
+
+            // If $list is associative (object-style), it might be a single item — wrap it
+            if (!empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
+                $list = [$list];
+            }
 
             $map   = [];
             $names = [];
@@ -147,16 +161,31 @@ class TaskController extends Controller
                 if (!is_array($p)) {
                     continue;
                 }
-                $id   = $p['id']   ?? $p['Id']   ?? null;
+                $id   = $p['id'] ?? $p['Id'] ?? $p['priorityId'] ?? $p['PriorityId'] ?? null;
                 $name = $p['name'] ?? $p['Name'] ?? $p['priorityName'] ?? $p['PriorityName'] ?? null;
                 if ($id !== null && $name !== null) {
-                    $map[$name] = (int) $id;
-                    $names[]    = $name;
-                    $items[]    = ['id' => (int) $id, 'name' => $name];
+                    $id   = (int) $id;
+                    $name = (string) trim($name);
+                    if ($name !== '') {
+                        $map[$name]   = $id;
+                        $names[]      = $name;
+                        $items[]      = ['id' => $id, 'name' => $name];
+                    }
                 }
             }
+
+            if (empty($items) && !empty($raw)) {
+                Log::warning('GetAllTasksPriorities returned data but no priorities parsed', [
+                    'topLevelKeys' => array_keys($raw),
+                    'rawSample'    => is_array($raw) ? array_slice($raw, 0, 2) : null,
+                ]);
+            } elseif (!empty($items)) {
+                Log::debug('GetAllTasksPriorities ok', ['count' => count($items), 'names' => $names]);
+            }
+
             return ['map' => $map, 'names' => $names, 'items' => $items];
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('GetAllTasksPriorities failed', ['message' => $e->getMessage(), 'url' => config('services.csharp_api.url') . '/api/Task/GetAllTasksPriorities']);
             return ['map' => [], 'names' => [], 'items' => []];
         }
     }
@@ -246,6 +275,7 @@ class TaskController extends Controller
                 'projectId' => $projectId,
                 'status'    => $status,
                 'body'      => is_string($body) ? mb_substr($body, 0, 5000) : null,
+                'payload'   => $payload,
                 'errors'    => $fieldErrors,
             ]);
 

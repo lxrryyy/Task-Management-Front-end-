@@ -136,6 +136,13 @@ class CsharpApiService
 
         // Human-readable translations for common .NET technical messages
         $translate = function (string $field, string $raw): string {
+            $raw = trim($raw);
+            if ($raw === '') {
+                return '';
+            }
+            if (stripos($raw, 'Invalid PriorityId') !== false || stripos($raw, 'invalid priority') !== false) {
+                return $field === 'priorityId' ? 'Please select a valid priority.' : 'Invalid priority. Please select a valid priority.';
+            }
             if (stripos($raw, 'could not be converted to System.DateTime') !== false
                 || stripos($raw, 'was not recognized as a valid DateTime') !== false) {
                 $labels = ['startDate' => 'Start date', 'endDate' => 'End date'];
@@ -194,13 +201,22 @@ class CsharpApiService
 
         if (empty($fieldMap)) {
             $raw = $response->body();
-            $fieldMap['api_error'][] = (is_string($raw) && strlen($raw) < 300)
-                ? strip_tags($raw)
+            $fallback = (is_string($raw) && trim($raw) !== '' && strlen($raw) < 300)
+                ? trim(strip_tags($raw))
                 : 'An error occurred (HTTP ' . $response->status() . '). Please try again.';
+            if ($fallback !== '') {
+                $fieldMap['api_error'][] = $fallback;
+            }
         }
 
-        // Deduplicate each field's messages
-        return array_map(fn ($msgs) => array_values(array_unique($msgs)), $fieldMap);
+        // Deduplicate and drop empty messages
+        $fieldMap = array_map(function ($msgs) {
+            $filtered = array_values(array_unique(array_filter((array) $msgs, function ($m) {
+                return is_string($m) && trim($m) !== '';
+            })));
+            return array_values(array_unique(array_map('trim', $filtered)));
+        }, $fieldMap);
+        return array_filter($fieldMap, fn ($msgs) => !empty($msgs));
     }
 
     /** Flat array of all error strings (used for logging). */

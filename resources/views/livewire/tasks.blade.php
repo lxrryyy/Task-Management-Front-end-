@@ -36,8 +36,8 @@
         </div>
     </div>
 
-    {{-- Add Task Modal --}}
-    <dialog class="{{ $showAddTaskModal ? 'modal modal-open' : 'modal' }}">
+    {{-- Add Task Modal (wire:key forces re-render when priority count changes so dropdown gets fresh options) --}}
+    <dialog class="{{ $showAddTaskModal ? 'modal modal-open' : 'modal' }}" wire:key="add-task-modal-{{ count($taskPriorityMap ?? []) }}">
         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
             <div class="modal-action mt-0 mb-2">
                 <button type="button" wire:click="closeAddTaskModal" class="btn btn-sm">✕</button>
@@ -87,42 +87,10 @@
                 <div class="flex flex-wrap gap-4">
                     <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
                         <label class="font-medium text-sm">Priority <span class="text-red-500">*</span></label>
-                        <select name="priorityId" class="select select-bordered w-full text-gray-900 bg-white {{ $errors->has('priorityId') ? 'border-red-500' : '' }}" required>
-                            <option value="" class="text-gray-500">Select priority</option>
-                            @php
-                                // Normalize priorities into a list of {id, name}.
-                                // If API data is present but malformed (e.g. missing keys),
-                                // fall back to the known defaults so the dropdown is never empty.
-                                $normalizedPriorities = [];
-                                foreach ((array) ($taskPriorities ?? []) as $pr) {
-                                    if (is_array($pr)) {
-                                        $prId = $pr['id'] ?? $pr['Id'] ?? null;
-                                        $prName = $pr['name'] ?? $pr['Name'] ?? $pr['priorityName'] ?? $pr['PriorityName'] ?? '';
-                                        $prName = is_string($prName) ? trim($prName) : '';
-                                        if ($prId !== null && $prName !== '') {
-                                            $normalizedPriorities[] = ['id' => $prId, 'name' => $prName];
-                                        }
-                                    } elseif (is_string($pr) || is_int($pr)) {
-                                        $v = (string) $pr;
-                                        if (trim($v) !== '') {
-                                            $normalizedPriorities[] = ['id' => $v, 'name' => $v];
-                                        }
-                                    }
-                                }
-
-                                if (empty($normalizedPriorities)) {
-                                    $normalizedPriorities = [
-                                        ['id' => 1, 'name' => 'Urgent'],
-                                        ['id' => 2, 'name' => 'Important'],
-                                        ['id' => 3, 'name' => 'Medium'],
-                                        ['id' => 4, 'name' => 'Low'],
-                                    ];
-                                }
-                            @endphp
-                            @foreach($normalizedPriorities as $pr)
-                                <option value="{{ $pr['id'] }}" {{ (string) old('priorityId') === (string) $pr['id'] ? 'selected' : '' }}>
-                                    {{ $pr['name'] }}
-                                </option>
+                        <select name="priorityId" class="select select-bordered w-full text-gray-900 bg-white {{ $errors->has('priorityId') ? 'border-red-500' : '' }}" required wire:key="priority-select-{{ count($taskPriorityMap ?? []) }}">
+                            <option value="">Select priority</option>
+                            @foreach($taskPriorityMap ?? [] as $pid => $pname)
+                                <option value="{{ $pid }}" {{ (string) old('priorityId') === (string) $pid ? 'selected' : '' }}>{{ $pname }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -572,30 +540,30 @@
             'Low'       => 'badge-info',
         ];
     @endphp
-    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto">
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-hidden min-h-0 max-h-[calc(100vh-11rem)] rounded-lg">
         @foreach($boardStatuses as $status)
         @php $statusJs = addslashes($status); @endphp
         <div x-data="{ dragOver: false }"
-             class="flex flex-col gap-3 flex-1 min-w-0 rounded-lg transition-all duration-150"
+             class="flex flex-col flex-1 min-w-[260px] max-w-[320px] min-h-0 rounded-lg transition-all duration-150 shrink-0"
              :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''"
              @dragover.prevent
              @dragenter.prevent="dragOver = true"
              @dragleave="if (!$event.relatedTarget || !$el.contains($event.relatedTarget)) dragOver = false"
              @drop.prevent="dragOver = false; var id = parseInt($event.dataTransfer.getData('text/plain')); if (id) Livewire.dispatch('task-status-changed', { taskId: id, newStatus: '{{ $statusJs }}' })">
-            <div class="flex items-center justify-between px-3 py-2 rounded-lg border {{ $colStyles[$status] ?? 'bg-gray-100 border-gray-300' }}">
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg border shrink-0 {{ $colStyles[$status] ?? 'bg-gray-100 border-gray-300' }}">
                 <span class="font-semibold text-sm">{{ $status }}</span>
                 <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
             </div>
-            <div class="flex flex-col gap-2 min-h-[100px]">
+            <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 <div x-data="{ dragging: false }"
-                     class="bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex flex-col gap-2 hover:shadow-md transition-shadow cursor-grab"
+                     class="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow cursor-grab"
                      draggable="true"
                      :style="dragging ? 'opacity:0.4' : ''"
                      @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ (int)($task['id'] ?? $task['Id'] ?? 0) }}'); $event.dataTransfer.effectAllowed = 'move'"
                      @dragend="dragging = false">
-                    <span class="font-medium text-sm leading-tight">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
-                    <div class="flex flex-wrap gap-1 items-center">
+                    <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
+                    <div class="flex flex-wrap gap-1.5 items-center">
                         @if(!empty($task['priority']))
                             <span class="badge badge-sm {{ $priorityBadge[$task['priority']] ?? 'badge-ghost' }}">{{ $task['priority'] }}</span>
                         @endif
@@ -603,7 +571,7 @@
                             <span class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }} pts</span>
                         @endif
                     </div>
-                    <div class="flex items-center justify-between text-xs text-gray-500 mt-1">
+                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
                         @php
                             $boardAssignee = $task['assigneeName'] ?? $task['assignedToName'] ?? null;
                             if (!$boardAssignee) {
