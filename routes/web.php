@@ -47,6 +47,9 @@ Route::patch('/projects/{project}/tasks/{task}/status', [TaskController::class, 
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    // Archive view (must be before /projects/{id} to avoid route collision)
+    Route::get('/projects/archive', [ProjectController::class, 'archive'])->name('projects.archive');
     Route::get('/projects/{id}', [ProjectController::class, 'show'])->name('projects.show');
 });
 
