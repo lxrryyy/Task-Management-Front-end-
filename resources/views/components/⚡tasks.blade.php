@@ -30,6 +30,10 @@ new class extends Component
     public bool $showAddTaskModal = false;
     public ?int $taskParentId     = null;
 
+    // Task detail modal (view task info from list/board)
+    public bool $showTaskDetailModal = false;
+    public ?array $detailTask = null;
+
     public function mount(
         ?int $projectId        = null,
         array $tasks           = [],
@@ -62,6 +66,19 @@ new class extends Component
     public function switchView(string $mode): void
     {
         $this->viewMode = $mode;
+    }
+
+    public function openTaskDetail(int $taskId): void
+    {
+        $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
+        $this->detailTask = $task ?: null;
+        $this->showTaskDetailModal = $this->detailTask !== null;
+    }
+
+    public function closeTaskDetail(): void
+    {
+        $this->showTaskDetailModal = false;
+        $this->detailTask = null;
     }
 
     #[On('task-status-changed')]
@@ -300,6 +317,10 @@ new class extends Component
             }
         }
 
+        $user = Session::get('user', []);
+        $currentUserName = $user['name'] ?? $user['Name'] ?? $user['fullName'] ?? trim(($user['firstName'] ?? '') . ' ' . ($user['lastName'] ?? '')) ?: null;
+        $currentUserId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+
         return view('livewire.tasks', [
             'filteredTasks'      => $filtered,
             'boardStatuses'      => $statuses,
@@ -309,6 +330,8 @@ new class extends Component
             'taskPriorities'     => $this->taskPriorities['items'] ?? [],
             'taskPriorityNames'  => $this->taskPriorities['names'] ?? [],
             'taskPriorityMap'    => $taskPriorityMap,
+            'currentUserName'    => $currentUserName,
+            'currentUserId'      => $currentUserId,
         ]);
     }
 };

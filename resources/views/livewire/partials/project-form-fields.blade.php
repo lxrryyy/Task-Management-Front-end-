@@ -170,6 +170,15 @@
                     $name = $acc['name'] ?? $acc['Name'] ?? 'Unknown';
                     $email = $acc['email'] ?? $acc['Email'] ?? '';
                     $pos = $memberRoles[$memberId] ?? 'Member';
+                    // Only one Scrum Master among table members:
+                    // disable "Scrum Master" only if SOME OTHER member row is already Scrum Master.
+                    $scrumMasterAlreadyTaken = false;
+                    foreach (($memberRoles ?? []) as $rid => $rrole) {
+                        if ($rrole === 'Scrum Master' && (int) $rid !== $memberId) {
+                            $scrumMasterAlreadyTaken = true;
+                            break;
+                        }
+                    }
                 @endphp
                 <tr wire:key="{{ $ctx }}-member-row-{{ $memberId }}">
                     <td><span>{{ $name }}</span></td>
@@ -178,7 +187,7 @@
                         <select class="select h-9 select-bordered select-sm w-full max-w-xs"
                                 x-on:change="$wire.setMemberRole({{ $memberId }}, $event.target.value)">
                             <option value="Member" {{ $pos === 'Member' ? 'selected' : '' }}>Member</option>
-                            <option value="Scrum Master" {{ $pos === 'Scrum Master' ? 'selected' : '' }}>Scrum Master</option>
+                            <option value="Scrum Master" {{ $pos === 'Scrum Master' ? 'selected' : '' }} {{ $scrumMasterAlreadyTaken ? 'disabled' : '' }}>Scrum Master</option>
                         </select>
                     </td>
                     <th>

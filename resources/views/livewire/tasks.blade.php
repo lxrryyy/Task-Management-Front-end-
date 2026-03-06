@@ -209,6 +209,110 @@
         </form>
     </dialog>
 
+    {{-- Task detail modal --}}
+    <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
+        <div class="modal-box w-11/12 max-w-3xl overflow-y-auto rounded-2xl shadow-xl">
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <h2 class="font-bold text-2xl text-gray-900 leading-tight flex-1 min-w-0">
+                    @if($detailTask)
+                        {{ $detailTask['name'] ?? $detailTask['title'] ?? 'Task details' }}
+                    @else
+                        Task details
+                    @endif
+                </h2>
+                <button type="button" wire:click="closeTaskDetail" class="btn btn-ghost btn-sm btn-circle w-8 h-8 min-h-0 shrink-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full">✕</button>
+            </div>
+            @if($detailTask)
+            @php
+                $t = $detailTask;
+                $dName = $t['name'] ?? $t['title'] ?? '—';
+                $dDesc = trim((string)($t['description'] ?? ''));
+                $dStatus = $t['statusName'] ?? $t['status'] ?? '—';
+                $dPriority = $t['priorityName'] ?? $t['priority'] ?? '';
+                if ($dPriority === '' && isset($t['priorityId'])) {
+                    $dPriority = $taskPriorityMap[(int)($t['priorityId'] ?? $t['PriorityId'] ?? 0)] ?? '';
+                }
+                $dStoryPoints = $t['storyPoints'] ?? $t['storyPoint'] ?? null;
+                $dStart = $t['startDate'] ?? $t['StartDate'] ?? null;
+                $dDue = $t['dueDate'] ?? $t['dueAt'] ?? null;
+                $dAssignee = $t['assigneeName'] ?? $t['assignedToName'] ?? null;
+                if ($dAssignee === null || $dAssignee === '') {
+                    $aids = $t['assigneeIds'] ?? $t['assigneeId'] ?? [];
+                    if (!is_array($aids)) $aids = $aids ? [$aids] : [];
+                    $dAssignee = implode(', ', array_filter(array_map(fn($id) => $accountMap[(int)$id] ?? null, $aids))) ?: '—';
+                }
+                // Assigned by = task creator (who created the task)
+                $dAssignedBy = $t['createdByName'] ?? $t['creatorName'] ?? $t['createdBy'] ?? $t['assignedByName'] ?? null;
+                if (($dAssignedBy === null || $dAssignedBy === '') && isset($t['createdById'])) {
+                    $dAssignedBy = $accountMap[(int)($t['createdById'])] ?? null;
+                }
+                if (($dAssignedBy === null || $dAssignedBy === '') && isset($t['creatorId'])) {
+                    $dAssignedBy = $accountMap[(int)($t['creatorId'])] ?? null;
+                }
+                if ($dAssignedBy === null || $dAssignedBy === '') {
+                    $dAssignedBy = $currentUserName ?? '—';
+                }
+                $dStartFmt = $dStart ? \Carbon\Carbon::parse($dStart)->format('m/d/Y') : '';
+                $dDueFmt = $dDue ? \Carbon\Carbon::parse($dDue)->format('m/d/Y') : '';
+            @endphp
+            {{-- Task metadata grid --}}
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+                <div class="flex flex-row justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Story point</p>
+                        <p class="text-base text-gray-900">{{ $dStoryPoints !== null && $dStoryPoints !== '' ? $dStoryPoints : '—' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Start date</p>
+                        <p class="text-base text-gray-900">{{ $dStartFmt ?: '—' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Due date</p>
+                        <p class="text-base text-gray-900">{{ $dDueFmt ?: '—' }}</p>
+                    </div>
+                </div>
+                <div class="flex flex-row justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Priority</p>
+                        <p class="text-base text-gray-900">{{ $dPriority !== '' ? $dPriority : '—' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</p>
+                        <p class="text-base text-gray-900">{{ $dStatus }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Assigned by</p>
+                        <p class="text-base text-gray-900">{{ $dAssignedBy ?? '—' }}</p>
+                    </div>
+                </div>
+                <div class="sm:col-span-2">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Assigned to</p>
+                    <p class="text-base text-gray-900">{{ $dAssignee }}</p>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Description</p>
+                <div class="border border-gray-300 rounded-lg bg-gray-50/50 p-4 min-h-[120px] text-sm text-gray-800 whitespace-pre-wrap">{{ $dDesc !== '' ? $dDesc : 'Description...' }}</div>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Comment</p>
+                <div class="border border-gray-300 rounded-lg bg-white p-4 min-h-[80px] flex items-center">
+                    <span class="text-gray-400 text-sm cursor-pointer hover:text-gray-600">Write a comment..</span>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button type="button" class="btn clr-bg-primary text-base-100 px-6">Send</button>
+            </div>
+            @endif
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="button" wire:click="closeTaskDetail">close</button>
+        </form>
+    </dialog>
+
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
         <table class="table w-full table-fixed border-separate [border-spacing:0_0.25rem]">
             <colgroup>
@@ -310,19 +414,19 @@
                     $isExpanded = $parentId !== null && ($expanded[$parentId] ?? false);
                 @endphp
                 <!-- Parent task -->
-                <tr class="hover:bg-gray-50">
-                    <td>
+                <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">
+                    <td wire:click.stop>
                         @if($parentId !== null)
                             <button
                                 type="button"
                                 class="btn btn-ghost btn-xs"
-                                wire:click="toggle({{ $parentId }})"
+                                wire:click.stop="toggle({{ $parentId }})"
                             >
                                 {{ $isExpanded ? 'v' : '>' }}
                             </button>
                         @endif
                     </td>
-                    <td>
+                    <td wire:click.stop>
                         <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
                     </td>
                     <td>
@@ -335,7 +439,7 @@
                         @endif
                     </td>
                     <td>{{ $p['storyPoints'] ?? '' }}</td>
-                    <td>
+                    <td wire:click.stop>
                         <div x-data="{
                                  status: '{{ addslashes($p['status']) }}',
                                  styles: {
@@ -364,8 +468,8 @@
                     <td>
                         <span class="badge {{ $p['priorityBadge'] }}">{{ $p['priority'] }}</span>
                     </td>
-                    <td>
-                        <button class="btn btn-ghost btn-xs">details</button>
+                    <td wire:click.stop>
+                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">details</button>
                     </td>
                 </tr>
 
@@ -379,19 +483,19 @@
                             $childExpanded = $childId !== null && ($expanded[$childId] ?? false);
                         @endphp
                         <!-- Subtask row -->
-                        <tr class="hover:bg-gray-50">
-                            <td>
+                        <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
+                            <td wire:click.stop>
                                 @if($childId !== null)
                                     <button
                                         type="button"
                                         class="btn btn-ghost btn-xs"
-                                        wire:click="toggle({{ $childId }})"
+                                        wire:click.stop="toggle({{ $childId }})"
                                     >
                                         {{ $childExpanded ? 'v' : '>' }}
                                     </button>
                                 @endif
                             </td>
-                            <td>
+                            <td wire:click.stop>
                                 <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
                             </td>
                             <td class="pl-10">
@@ -404,7 +508,7 @@
                                 @endif
                             </td>
                             <td>{{ $c['storyPoints'] ?? '' }}</td>
-                            <td>
+                            <td wire:click.stop>
                                 <div x-data="{
                                          status: '{{ addslashes($c['status']) }}',
                                          styles: {
@@ -433,8 +537,8 @@
                             <td>
                                 <span class="badge badge-sm {{ $c['priorityBadge'] }}">{{ $c['priority'] }}</span>
                             </td>
-                            <td>
-                                <button class="btn btn-ghost btn-xs">Edit</button>
+                            <td wire:click.stop>
+                                <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">Edit</button>
                             </td>
                         </tr>
 
@@ -442,9 +546,9 @@
                             @foreach($grandChildren as $gc)
                                 @php $g = $fmt($gc); @endphp
                                 <!-- Grandchild task rows -->
-                                <tr class="hover:bg-gray-50">
-                                    <td></td>
-                                    <td>
+                                <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
+                                    <td wire:click.stop></td>
+                                    <td wire:click.stop>
                                         <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
                                     <td class="pl-16 text-xs">
@@ -457,7 +561,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $g['storyPoints'] ?? '' }}</td>
-                                    <td>
+                                    <td wire:click.stop>
                                         <div x-data="{
                                                  status: '{{ addslashes($g['status']) }}',
                                                  styles: {
@@ -486,8 +590,8 @@
                                     <td>
                                         <span class="badge badge-sm {{ $g['priorityBadge'] }}">{{ $g['priority'] }}</span>
                                     </td>
-                                    <td>
-                                        <button class="btn btn-ghost btn-xs">Edit</button>
+                                    <td wire:click.stop>
+                                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">Edit</button>
                                     </td>
                                 </tr>
                             @endforeach
@@ -556,36 +660,40 @@
             </div>
             <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
+                @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                 <div x-data="{ dragging: false }"
-                     class="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow cursor-grab"
+                     class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
                      draggable="true"
                      :style="dragging ? 'opacity:0.4' : ''"
-                     @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ (int)($task['id'] ?? $task['Id'] ?? 0) }}'); $event.dataTransfer.effectAllowed = 'move'"
+                     @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
                      @dragend="dragging = false">
-                    <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
-                    <div class="flex flex-wrap gap-1.5 items-center">
-                        @if(!empty($task['priority']))
-                            <span class="badge badge-sm {{ $priorityBadge[$task['priority']] ?? 'badge-ghost' }}">{{ $task['priority'] }}</span>
-                        @endif
-                        @if(isset($task['storyPoints']) || isset($task['storyPoint']))
-                            <span class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }} pts</span>
-                        @endif
-                    </div>
-                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
-                        @php
-                            $boardAssignee = $task['assigneeName'] ?? $task['assignedToName'] ?? null;
-                            if (!$boardAssignee) {
-                                $bids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
-                                if (!is_array($bids)) $bids = [$bids];
-                                $bnames = array_filter(array_map(fn($id) => $accountMap[(int)$id] ?? null, $bids));
-                                $boardAssignee = implode(', ', $bnames) ?: 'Unassigned';
-                            }
-                        @endphp
-                        <span>{{ $boardAssignee }}</span>
-                        @if(!empty($task['dueDate']) || !empty($task['dueAt']))
-                            <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
-                        @endif
-                    </div>
+                    <a href="#" class="block p-4 flex flex-col gap-3 cursor-pointer min-h-full no-underline text-inherit hover:bg-gray-50/50"
+                       wire:click.prevent="openTaskDetail({{ $boardTaskId }})">
+                        <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
+                        <div class="flex flex-wrap gap-1.5 items-center">
+                            @if(!empty($task['priority']))
+                                <span class="badge badge-sm {{ $priorityBadge[$task['priority']] ?? 'badge-ghost' }}">{{ $task['priority'] }}</span>
+                            @endif
+                            @if(isset($task['storyPoints']) || isset($task['storyPoint']))
+                                <span class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }} pts</span>
+                            @endif
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
+                            @php
+                                $boardAssignee = $task['assigneeName'] ?? $task['assignedToName'] ?? null;
+                                if (!$boardAssignee) {
+                                    $bids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
+                                    if (!is_array($bids)) $bids = [$bids];
+                                    $bnames = array_filter(array_map(fn($id) => $accountMap[(int)$id] ?? null, $bids));
+                                    $boardAssignee = implode(', ', $bnames) ?: 'Unassigned';
+                                }
+                            @endphp
+                            <span>{{ $boardAssignee }}</span>
+                            @if(!empty($task['dueDate']) || !empty($task['dueAt']))
+                                <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
+                            @endif
+                        </div>
+                    </a>
                 </div>
                 @endforeach
                 @if(empty($boardGrouped[$status]))
