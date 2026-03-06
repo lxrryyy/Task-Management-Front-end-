@@ -56,14 +56,35 @@
                             </div>
                             <h3 class="font-bold text-lg">Edit Project</h3>
                             @if($editingProjectId)
-                            <form method="POST" action="{{ route('projects.update', $editingProjectId) }}" class="mt-4">
-                                @csrf
-                                @method('PATCH')
-                                @include('livewire.partials.project-form-fields', ['formContext' => 'edit'])
-                                <div class="modal-action">
-                                    <button type="submit" class="btn clr-bg-primary text-base-100 px-2">Update Project</button>
+                            <div x-data="{ confirmOpen: false }">
+                                <form x-ref="editProjectForm" method="POST" action="{{ route('projects.update', $editingProjectId) }}" class="mt-4">
+                                    @csrf
+                                    @method('PATCH')
+                                    @include('livewire.partials.project-form-fields', ['formContext' => 'edit'])
+                                    <div class="modal-action">
+                                        <button type="button" class="btn clr-bg-primary text-base-100 px-2"
+                                                @click="confirmOpen = true">
+                                            Update Project
+                                        </button>
+                                    </div>
+                                </form>
+
+                                {{-- Centered card; invisible backdrop blocks clicks without adding extra darkness --}}
+                                <div x-show="confirmOpen"
+                                     style="display:none"
+                                     class="fixed inset-0 z-[9999] flex items-center justify-center">
+                                    <div class="absolute inset-0" @click="confirmOpen = false"></div>
+                                    <div class="relative bg-gray-100 rounded-2xl shadow-2xl border border-gray-200 p-6 w-94">
+                                        <h3 class="text-lg font-bold">Confirm Update</h3>
+                                        <p class="py-4 text-sm text-gray-600">Are you sure you want to save the changes to this project?</p>
+                                        <div class="flex justify-end gap-2">
+                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" @click="confirmOpen = false">Cancel</button>
+                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2"
+                                                    @click="$refs.editProjectForm.submit()">Yes, Update</button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </form>
+                            </div>
                             @endif
                         </div>
                         <form method="dialog" class="modal-backdrop">
@@ -94,7 +115,7 @@
                     @php
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
-                        $status = $project['status'] ?? '—';
+                        $status = $project['statusName'] ?? $project['status'] ?? '';
                         $createdAt = $project['createdAt'] ?? null;
 
                         // Leader name comes from createdByName
@@ -119,7 +140,7 @@
                     @endphp
                     <tr class="hover:bg-gray-50 cursor-pointer"
                         @if($projectId)
-                            onclick="window.location='{{ route('projects.tasks', $projectId) }}'"
+                            @click="window.location='{{ route('projects.tasks', $projectId) }}'"
                         @endif
                     >
                         <td><span class="underline-offset-2">{{ $name }}</span></td>
@@ -132,10 +153,18 @@
                             @endif
                         </td>
                         <th>
-                            <progress class="progress w-24" value="{{ $project['progress'] ?? 0 }}" max="100"></progress>
+                            <progress class="progress w-24" value="{{ $project['completionPercentage'] ?? $project['progress'] ?? 0 }}" max="100"></progress>
                         </th>
                         <th>
-                            <span class="badge badge-success">{{ $status }}</span>
+                            @php
+                            $statusBadge = match($status) {
+                                'Not Started' => 'badge-ghost',
+                                'Active'      => 'badge-info',
+                                'Completed'   => 'badge-success',
+                                default       => 'badge-ghost',
+                            };
+                        @endphp
+                        <span class="badge {{ $statusBadge }}">{{ $status ?: 'Unknown' }}</span>
                         </th>
                         <th>
                             <span>

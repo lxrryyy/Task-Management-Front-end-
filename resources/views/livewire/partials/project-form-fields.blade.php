@@ -5,6 +5,7 @@
     $descValue      = $isEdit ? old('description', $formDescription ?? '') : old('description');
     $startDateValue = $isEdit ? old('startDate',   $formStartDate   ?? '') : old('startDate');
     $endDateValue   = $isEdit ? old('endDate',     $formEndDate     ?? '') : old('endDate');
+    $statusValue    = $isEdit ? old('status',      $formStatus      ?? '') : old('status', '');
 @endphp
 @if($errors->has('api_error'))
     <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mb-4 text-sm text-red-700">
@@ -34,6 +35,15 @@
 <div class="flex flex-col gap-4 my-4">
     <span>Description</span>
     <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Project Description">{{ $descValue }}</textarea>
+</div>
+<div class="flex flex-col gap-2 my-4">
+    <span>Status</span>
+    <select name="status" class="select select-bordered w-full">
+        <option value="">-- Select Status --</option>
+        @foreach(($projectStatuses ?? []) as $ps)
+            <option value="{{ $ps }}" {{ $statusValue === $ps ? 'selected' : '' }}>{{ $ps }}</option>
+        @endforeach
+    </select>
 </div>
 <div class="flex flex-row gap-4 my-4">
     <div class="flex flex-col gap-2 my-4">
@@ -82,30 +92,19 @@
             class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
             @forelse(($accounts ?? []) as $account)
                 @php
-                    $aid = $account['id'] ?? $account['Id'] ?? null;
-                    $aname = $account['name'] ?? $account['Name'] ?? 'Unknown';
-                    $aemail = $account['email'] ?? $account['Email'] ?? '';
-                    $checked = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
+                    $aid      = $account['id']    ?? $account['Id']    ?? null;
+                    $aname    = $account['name']   ?? $account['Name']  ?? 'Unknown';
+                    $aemail   = $account['email']  ?? $account['Email'] ?? '';
+                    $checked  = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
                     $isCreator = $creatorId && (int) $creatorId === (int) $aid;
                 @endphp
                 @if($aid !== null && !$isCreator)
                     <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
-                        <button type="button"
-                                class="w-full flex items-center gap-3 cursor-pointer hover:bg-base-300/50 p-2 rounded"
-                                wire:click="toggleMember({{ (int) $aid }})">
-                            <span class="inline-flex items-center justify-center h-4 w-4 rounded border border-gray-400 bg-white">
-                                @if($checked)
-                                    <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
-                                        <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                @endif
-                            </span>
-                            <span class="font-medium text-sm flex-1 text-left">{{ $aname }}</span>
-                            @if($aemail)
-                                <span class="text-xs text-gray-500">{{ $aemail }}</span>
-                            @endif
-                        </button>
+                        <x-person-option
+                            :checked="$checked"
+                            :name="$aname"
+                            :email="$aemail"
+                            wire:click="toggleMember({{ (int) $aid }})" />
                     </li>
                 @endif
             @empty

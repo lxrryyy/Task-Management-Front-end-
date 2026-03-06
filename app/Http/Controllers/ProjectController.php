@@ -167,6 +167,41 @@ class ProjectController extends Controller
         return redirect()->route('Projects');
     }
 
+    /**
+     * Fetch a single project by ID from the C# API.
+     * Returns the raw project array, or [] on failure.
+     */
+    public function getProjectData(int $projectId): array
+    {
+        try {
+            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+            return is_array($project) ? $project : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Response shape: [{id, name, description, active, createdAt}, ...]
+     * Returns an ordered list of project status name strings.
+     */
+    public function getStatuses(): array
+    {
+        try {
+            $list = $this->api->get('/api/Project/GetAllProjectsStatus');
+
+            $names = [];
+            foreach ((array) $list as $s) {
+                if (isset($s['name'])) {
+                    $names[] = $s['name'];
+                }
+            }
+            return $names;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     private function normalizeProjects($response): array
     {
         if (!is_array($response)) {

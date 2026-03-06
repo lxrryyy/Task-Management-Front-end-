@@ -48,18 +48,39 @@
                 <x-icons.time-logs classes="w-6 h-6" />
                 <span class="hidden group-hover:block">Time Logs</span>
             </a>
-
         </nav>
 
-        <div class="p-2 border-t border-white/20">
-            <form method="POST" action="{{ route('logout') }}">
+        <div class="px-2 pb-1">
+            <a href="/settings"
+               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('settings') ? 'focus-clr-accent' : '' }} hover-clr-accent">
+                <x-icons.settings classes="w-6 h-6" />
+                <span class="hidden group-hover:block">Settings</span>
+            </a>
+        </div>
+
+        <div class="p-2 border-t border-white/20" x-data="{ open: false }">
+            <button type="button" @click="open = true"
+                class="w-full flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap hover-clr-accent">
+                <x-icons.logout classes="w-6 h-6" />
+                <span class="hidden group-hover:block">Logout</span>
+            </button>
+
+            <form x-ref="logoutForm" method="POST" action="{{ route('logout') }}" class="hidden">
                 @csrf
-                <button type="submit"
-                    class="w-full flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap hover-clr-accent">
-                     <x-icons.logout classes="w-6 h-6" />
-                     <span class="hidden group-hover:block">Logout</span>
-                </button>
             </form>
+
+            <dialog :class="open ? 'modal modal-open' : 'modal'">
+                <div class="modal-box max-w-sm">
+                    <h3 class="text-lg font-bold clr-primary">Confirm Logout</h3>
+                    <p class="py-4 text-sm clr-primary">Are you sure you want to log out?</p>
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" @click="open = false">Cancel</button>
+                        <button type="button" class="btn clr-bg-primary text-base-100 p-2"
+                                @click="$refs.logoutForm.submit()">Logout</button>
+                    </div>
+                </div>
+                <div class="modal-backdrop" @click="open = false"></div>
+            </dialog>
         </div>
     </div>
 

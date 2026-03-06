@@ -1,7 +1,7 @@
 <?php
 
 use Livewire\Component;
-use App\Services\CsharpApiService;
+use App\Http\Controllers\ProjectController;
 
 new class extends Component
 {
@@ -36,6 +36,10 @@ new class extends Component
     public $formDescription = '';
     public $formStartDate = '';
     public $formEndDate = '';
+    public $formStatus = '';
+
+    // Ordered list of project status names from GET /api/Project/GetAllProjectsStatus
+    public array $projectStatuses = [];
 
     public function mount(
         $projects = [],
@@ -61,6 +65,7 @@ new class extends Component
                 $this->formDescription = (string) old('description', '');
                 $this->formStartDate   = (string) old('startDate', '');
                 $this->formEndDate     = (string) old('endDate', '');
+                $this->formStatus      = (string) old('status', '');
 
                 // Restore scrum master and roles from old input
                 $oldScrumMasterId = (int) old('scrumMasterId', 0);
@@ -76,6 +81,13 @@ new class extends Component
                 $this->startEdit((int) $editingProjectId);
             }
         }
+
+        // Fetch project statuses via ProjectController
+        $this->projectStatuses = app(ProjectController::class)->getStatuses();
+
+        if (empty($this->projectStatuses)) {
+            $this->projectStatuses = ['Not Started', 'Active', 'Completed'];
+        }
     }
 
     /** Open the Add Project modal only; clears form state. */
@@ -88,6 +100,7 @@ new class extends Component
         $this->formDescription = '';
         $this->formStartDate = '';
         $this->formEndDate = '';
+        $this->formStatus = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -103,6 +116,7 @@ new class extends Component
         $this->formDescription = '';
         $this->formStartDate = '';
         $this->formEndDate = '';
+        $this->formStatus = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -112,6 +126,7 @@ new class extends Component
     public function closeAddModal()
     {
         $this->showAddModal = false;
+        $this->formStatus = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -126,6 +141,7 @@ new class extends Component
         $this->formDescription = '';
         $this->formStartDate = '';
         $this->formEndDate = '';
+        $this->formStatus = '';
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -138,24 +154,19 @@ new class extends Component
         $this->showAddModal = false;
         $this->showEditModal = true;
 
-        // Prefer fresh project data from API (includes memberIds), fall back to cached list.
-        $project = null;
-        try {
-            $api = app(CsharpApiService::class);
-            $project = $api->get("/api/Project/GetProjectById/{$projectId}");
-        } catch (\Throwable $e) {
-            $project = null;
-        }
+        // Prefer fresh project data from API via ProjectController, fall back to cached list.
+        $project = app(ProjectController::class)->getProjectData($projectId);
 
-        if (!$project || !is_array($project)) {
+        if (empty($project)) {
             $project = collect($this->projects)->first(function ($p) use ($projectId) {
                 $id = $p['id'] ?? $p['Id'] ?? null;
                 return (int) $id === (int) $projectId;
             }) ?? [];
         }
 
-        $this->formName = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '';
+        $this->formName        = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '';
         $this->formDescription = $project['description'] ?? '';
+        $this->formStatus      = $project['statusName'] ?? $project['status'] ?? '';
 
         // Dates: store as Y-m-d for HTML date inputs
         $rawStart = $project['startDate'] ?? $project['StartDate'] ?? null;
@@ -289,7 +300,7 @@ new class extends Component
             $filtered = array_values(array_filter($this->projects, function ($p) use ($query) {
                 $name    = mb_strtolower($p['name'] ?? $p['projectName'] ?? $p['title'] ?? '');
                 $leader  = mb_strtolower($p['createdByName'] ?? '');
-                $status  = mb_strtolower($p['status'] ?? '');
+                $status  = mb_strtolower($p['statusName'] ?? $p['status'] ?? '');
                 $members = mb_strtolower(implode(' ', (array) ($p['memberNames'] ?? [])));
                 return str_contains($name, $query)
                     || str_contains($leader, $query)
@@ -298,7 +309,10 @@ new class extends Component
             }));
         }
 
-        return view('livewire.projects', ['filteredProjects' => $filtered]);
+        return view('livewire.projects', [
+            'filteredProjects' => $filtered,
+            'projectStatuses'  => $this->projectStatuses,
+        ]);
     }
 
     public function navigateToTasks()

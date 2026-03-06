@@ -76,13 +76,16 @@ class TaskController extends Controller
             $tasks = [];
         }
 
-        // Fetch all accounts for the assignee dropdown in the Add Task modal
+        // Fetch all accounts then narrow down to project members for the assignee dropdown
         $accounts = [];
         try {
             $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
-            $accounts = is_array($accountsRaw)
+            $allAccounts = is_array($accountsRaw)
                 ? $accountsRaw
                 : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+
+            // Keep only accounts that belong to this project
+            $accounts = $this->projectMemberAccounts($project ?? [], $allAccounts);
         } catch (\Exception $e) {
             $accounts = [];
         }
@@ -95,14 +98,92 @@ class TaskController extends Controller
         ]);
     }
 
+    /**
+     * Fetch all task statuses from the C# API.
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
+     */
+    /**
+     * Response shape: [{id, name, description, active, createdAt}, ...]
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
+     */
+    public function getStatuses(): array
+    {
+        try {
+            $list = $this->api->get('/api/Task/GetAllTasksStatuses');
+
+            $map   = [];
+            $names = [];
+            foreach ((array) $list as $s) {
+                $id   = $s['id']   ?? null;
+                $name = $s['name'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $map[$name] = (int) $id;
+                    $names[]    = $name;
+                }
+            }
+            return ['map' => $map, 'names' => $names];
+        } catch (\Throwable) {
+            return ['map' => [], 'names' => []];
+        }
+    }
+
+    /**
+     * Response shape: [{id, name, description, active, createdAt}, ...]
+     * Returns ['map' => [name => id, ...], 'names' => [name, ...], 'items' => [{id, name}, ...]]
+     */
+    public function getPriorities(): array
+    {
+        try {
+            $raw = $this->api->get('/api/Task/GetAllTasksPriorities');
+
+            // Unwrap common API response shapes: { data: [...] } or raw array [...]
+            $list = $raw['data'] ?? $raw['Data'] ?? $raw['items'] ?? $raw['Items'] ?? $raw['value'] ?? $raw['Value'] ?? $raw;
+            $list = is_array($list) ? $list : [];
+
+            $map   = [];
+            $names = [];
+            $items = [];
+            foreach ($list as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $id   = $p['id']   ?? $p['Id']   ?? null;
+                $name = $p['name'] ?? $p['Name'] ?? $p['priorityName'] ?? $p['PriorityName'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $map[$name] = (int) $id;
+                    $names[]    = $name;
+                    $items[]    = ['id' => (int) $id, 'name' => $name];
+                }
+            }
+            return ['map' => $map, 'names' => $names, 'items' => $items];
+        } catch (\Throwable) {
+            return ['map' => [], 'names' => [], 'items' => []];
+        }
+    }
+
+    public function updateStatus(int $projectId, int $taskId, int $statusId): void
+    {
+        $user        = Session::get('user', []);
+        $requesterId = $user['id'] ?? $user['Id'] ?? null;
+
+        $this->api->patch(
+            "/api/Task/UpdateTaskStatus/{$taskId}?requesterId={$requesterId}",
+            ['statusId' => $statusId]
+        );
+    }
+
     public function store(int $projectId, Request $request)
     {
         $user      = Session::get('user', []);
         $creatorId = $user['id'] ?? $user['Id'] ?? null;
 
         $request->validate([
-            'name'       => 'required|string|max:255',
-            'assigneeId' => 'nullable|integer',
+            'name'        => 'required|string|max:255',
+            'priorityId'  => 'required|integer|min:1',
+            'assigneeIds' => 'nullable|string',
+        ], [
+            'priorityId.required' => 'Please select a priority.',
+            'priorityId.min'       => 'Please select a valid priority.',
         ]);
 
         $toDate = static function (mixed $v): ?string {
@@ -112,19 +193,25 @@ class TaskController extends Controller
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
-        $assigneeId   = $request->integer('assigneeId')   ?: null;
+        // Support both comma-separated string (Alpine) and array (fallback)
+        $raw = $request->input('assigneeIds');
+        $assigneeIds = is_array($raw)
+            ? array_values(array_filter(array_map('intval', $raw)))
+            : array_values(array_filter(array_map('intval', array_filter(explode(',', (string) $raw)))));
 
-        // Build body matching the C# API spec
+        $priorityId = $request->integer('priorityId');
+
+        // Build body matching the C# API spec (priorityId, not priority)
         $payload = [
             'title'        => $request->input('name'),
             'description'  => $request->input('description') ?? '',
-            'priority'     => $request->input('priority') ?? '',
+            'priorityId'   => $priorityId,
             'storyPoints'  => $request->integer('storyPoints') ?: 0,
             'projectId'    => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate'    => $toDate($request->input('startDate')),
             'dueDate'      => $toDate($request->input('dueDate')),
-            'assigneeIds'  => $assigneeId ? [$assigneeId] : [],
+            'assigneeIds'  => $assigneeIds,
         ];
 
         // Remove null date values so we don't send null strings
@@ -136,8 +223,70 @@ class TaskController extends Controller
             // creatorId passed as query parameter per the API spec
             $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
         } catch (RequestException $e) {
-            $fieldErrors = $this->api->extractFieldErrors($e->response);
-            Log::warning('Task create failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            $response = $e->response;
+            $status   = $response?->status();
+            $body     = $response?->body();
+
+            $fieldErrors = $this->api->extractFieldErrors($response);
+
+            // Sanitize: never pass empty/falsey error strings to the view (they render as a blank banner).
+            $fieldErrors = array_map(function ($msgs) {
+                $clean = [];
+                foreach ((array) $msgs as $m) {
+                    if (!is_string($m)) continue;
+                    $t = trim($m);
+                    if ($t === '' || $t === '0') continue;
+                    $clean[] = $t;
+                }
+                return array_values(array_unique($clean));
+            }, $fieldErrors);
+            $fieldErrors = array_filter($fieldErrors, fn ($msgs) => !empty($msgs));
+
+            Log::warning('Task create failed', [
+                'projectId' => $projectId,
+                'status'    => $status,
+                'body'      => is_string($body) ? mb_substr($body, 0, 5000) : null,
+                'errors'    => $fieldErrors,
+            ]);
+
+            // Some backend implementations create the task but still return an error
+            // (e.g., partial failure after persisting). If we can't extract meaningful
+            // errors, do a quick re-fetch to confirm creation and avoid showing a false error.
+            if (empty($fieldErrors) && $creatorId) {
+                try {
+                    $projectResponse = $this->api->get(
+                        "/api/Task/GetTasksByProject/{$projectId}",
+                        ['requesterId' => $creatorId]
+                    );
+                    $allTasks = is_array($projectResponse)
+                        ? $projectResponse
+                        : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+
+                    $needleTitle = mb_strtolower(trim((string) ($payload['title'] ?? '')));
+                    $needlePrio  = (int) ($payload['priorityId'] ?? 0);
+
+                    foreach ((array) $allTasks as $t) {
+                        if (!is_array($t)) continue;
+                        $tTitle = mb_strtolower(trim((string) ($t['title'] ?? $t['name'] ?? '')));
+                        $tPrio  = (int) ($t['priorityId'] ?? $t['PriorityId'] ?? 0);
+
+                        if ($needleTitle !== '' && $tTitle === $needleTitle && ($needlePrio === 0 || $tPrio === $needlePrio)) {
+                            return redirect()->route('projects.tasks', $projectId)
+                                ->with('success', 'Task created successfully.');
+                        }
+                    }
+                } catch (\Throwable) {
+                    // fall through to normal error handling
+                }
+            }
+
+            if (empty($fieldErrors)) {
+                $hint = $status ? " (HTTP {$status})" : '';
+                return back()->withInput()->withErrors([
+                    'api_error' => ["Failed to create task{$hint}. Please try again."],
+                ]);
+            }
+
             return back()->withInput()->withErrors($fieldErrors);
         } catch (\Throwable $e) {
             Log::error('Task create exception', ['message' => $e->getMessage()]);
@@ -146,6 +295,70 @@ class TaskController extends Controller
 
         return redirect()->route('projects.tasks', $projectId)
             ->with('success', 'Task created successfully.');
+    }
+
+    /**
+     * Given the raw project array and the full accounts list, return only
+     * the accounts that are members of the project (PM, Scrum Master, members).
+     *
+     * Falls back to the full list when the project data carries no member info.
+     */
+    private function projectMemberAccounts(array $project, array $allAccounts): array
+    {
+        if (empty($project)) {
+            return $allAccounts;
+        }
+
+        // Collect every person ID associated with the project
+        $memberIds = [];
+
+        // Project manager / creator
+        foreach (['projectManagerId', 'createdById', 'createdBy'] as $key) {
+            if (!empty($project[$key])) {
+                $memberIds[(int) $project[$key]] = true;
+                break;
+            }
+        }
+
+        // Scrum master
+        foreach (['scrumMasterId', 'ScrumMasterId'] as $key) {
+            if (!empty($project[$key])) {
+                $memberIds[(int) $project[$key]] = true;
+                break;
+            }
+        }
+
+        // Regular members by ID array
+        foreach (['memberIds', 'MemberIds', 'assigneeIds'] as $key) {
+            if (!empty($project[$key]) && is_array($project[$key])) {
+                foreach ($project[$key] as $mid) {
+                    if ($mid) $memberIds[(int) $mid] = true;
+                }
+                break;
+            }
+        }
+
+        // If member IDs are unavailable, fall back to matching memberNames against the account list
+        $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
+        if (!empty($memberNames) && is_array($memberNames)) {
+            $normalised = array_map('mb_strtolower', array_map('trim', $memberNames));
+            foreach ($allAccounts as $account) {
+                $aid   = $account['id']   ?? $account['Id']   ?? null;
+                $aname = mb_strtolower(trim($account['name'] ?? $account['Name'] ?? ''));
+                if ($aid && in_array($aname, $normalised, true)) {
+                    $memberIds[(int) $aid] = true;
+                }
+            }
+        }
+
+        // If we still couldn't identify any members, return the full list
+        if (empty($memberIds)) {
+            return $allAccounts;
+        }
+
+        return array_values(
+            array_filter($allAccounts, fn ($a) => isset($memberIds[(int) ($a['id'] ?? $a['Id'] ?? 0)])
+        ));
     }
 }
 
