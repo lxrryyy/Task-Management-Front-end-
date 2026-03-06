@@ -2,6 +2,10 @@
 
 use Livewire\Component;
 use App\Http\Controllers\ProjectController;
+use App\Services\CsharpApiService;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 
 new class extends Component
 {
@@ -24,6 +28,12 @@ new class extends Component
 
     // @var int[] IDs of selected members (source of truth for selection)
     public $selectedMemberIds = [];
+
+    /** Locked member IDs when user clicks "Update Project" (used for PATCH so removal is not lost). */
+    public array $confirmedMemberIds = [];
+
+    /** Show the "Confirm Update" overlay (set after prepareEditSubmit so list is locked). */
+    public bool $showConfirmDialog = false;
 
     // @var array<int, string> memberId => role ('Member' or 'Scrum Master')
     public $memberRoles = [];
@@ -136,6 +146,8 @@ new class extends Component
     public function closeEditModal()
     {
         $this->showEditModal = false;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
         $this->editingProjectId = null;
         $this->formName = '';
         $this->formDescription = '';
@@ -153,6 +165,8 @@ new class extends Component
         $this->editingProjectId = $projectId;
         $this->showAddModal = false;
         $this->showEditModal = true;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
 
         // Prefer fresh project data from API via ProjectController, fall back to cached list.
         $project = app(ProjectController::class)->getProjectData($projectId);
@@ -288,6 +302,102 @@ new class extends Component
     public function removeMember(int $id): void
     {
         $this->toggleMember($id);
+    }
+
+    /** Return current selected member IDs for the edit form (used by "Yes, Update" to sync before submit). */
+    public function getEditMemberIds(): array
+    {
+        return array_values(array_map('intval', $this->selectedMemberIds));
+    }
+
+    /** Lock in current member selection when user clicks "Update Project", then show confirm dialog. */
+    public function prepareEditSubmit(): void
+    {
+        $this->confirmedMemberIds = array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
+        $this->showConfirmDialog = true;
+    }
+
+    public function cancelConfirmDialog(): void
+    {
+        $this->showConfirmDialog = false;
+    }
+
+    /** Submit project update using locked member list (confirmedMemberIds) so removal is not lost. */
+    public function submitEditProject(): mixed
+    {
+        $projectId = (int) $this->editingProjectId;
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        $user = Session::get('user', []);
+        $requesterId = $user['id'] ?? $user['Id'] ?? null;
+        if (!$requesterId) {
+            return $this->redirect(route('login'));
+        }
+
+        // Use locked-in list from "Update Project" click; fallback to current selection
+        $memberIds = !empty($this->confirmedMemberIds)
+            ? array_values(array_map('intval', $this->confirmedMemberIds))
+            : array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
+        if (empty($memberIds)) {
+            $this->addError('memberIds', 'At least one member is required.');
+            return null;
+        }
+
+        $projectManagerId = (int) $this->creatorId;
+        $scrumMasterId = (int) $this->selectedScrumMasterId ?: $projectManagerId;
+
+        $toIso = static function ($v): ?string {
+            if ($v === null || $v === '') return null;
+            try {
+                return \Carbon\Carbon::parse($v)->format('Y-m-d\TH:i:s.v\Z');
+            } catch (\Throwable) {
+                return null;
+            }
+        };
+
+        $payload = [
+            'name'             => trim((string) $this->formName) ?: 'Project',
+            'description'      => (string) $this->formDescription,
+            'status'           => $this->formStatus ?: null,
+            'projectManagerId' => $projectManagerId,
+            'scrumMasterId'    => $scrumMasterId,
+            'assigneeIds'      => $memberIds,
+            'startDate'        => $toIso($this->formStartDate),
+            'endDate'          => $toIso($this->formEndDate),
+        ];
+        if ($payload['startDate'] === null) unset($payload['startDate']);
+        if ($payload['endDate'] === null) unset($payload['endDate']);
+
+        Log::info('Project update payload', ['projectId' => $projectId, 'assigneeIds' => $memberIds, 'assigneeCount' => count($memberIds)]);
+
+        $api = app(CsharpApiService::class);
+        try {
+            $api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+        } catch (RequestException $e) {
+            $fieldErrors = $api->extractFieldErrors($e->response);
+            Log::warning('Project update failed', ['projectId' => $projectId, 'errors' => $fieldErrors, 'payload' => $payload]);
+            foreach ($fieldErrors as $field => $msgs) {
+                foreach ((array) $msgs as $m) {
+                    if (trim((string) $m) !== '') {
+                        $this->addError($field, $m);
+                    }
+                }
+            }
+            return null;
+        }
+
+        $updated = app(ProjectController::class)->getProjectData($projectId);
+        if (!empty($updated) && is_array($updated)) {
+            Session::put('refreshed_project', $updated);
+        }
+
+        $this->showEditModal = false;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
+        $this->editingProjectId = null;
+        return $this->redirect(route('Projects'));
     }
 
     public function render()

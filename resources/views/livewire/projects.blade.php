@@ -56,34 +56,31 @@
                             </div>
                             <h3 class="font-bold text-lg">Edit Project</h3>
                             @if($editingProjectId)
-                            <div x-data="{ confirmOpen: false }">
-                                <form x-ref="editProjectForm" method="POST" action="{{ route('projects.update', $editingProjectId) }}" class="mt-4">
-                                    @csrf
-                                    @method('PATCH')
+                            <div>
+                                <form class="mt-4" @submit.prevent>
                                     @include('livewire.partials.project-form-fields', ['formContext' => 'edit'])
                                     <div class="modal-action">
                                         <button type="button" class="btn clr-bg-primary text-base-100 px-2"
-                                                @click="confirmOpen = true">
+                                                wire:click="prepareEditSubmit">
                                             Update Project
                                         </button>
                                     </div>
                                 </form>
 
-                                {{-- Centered card; invisible backdrop blocks clicks without adding extra darkness --}}
-                                <div x-show="confirmOpen"
-                                     style="display:none"
-                                     class="fixed inset-0 z-[9999] flex items-center justify-center">
-                                    <div class="absolute inset-0" @click="confirmOpen = false"></div>
+                                {{-- Confirmation: shown after prepareEditSubmit locks member list (fixes member removal) --}}
+                                @if($showConfirmDialog ?? false)
+                                <div class="fixed inset-0 z-[9999] flex items-center justify-center">
+                                    <div class="absolute inset-0" wire:click="cancelConfirmDialog"></div>
                                     <div class="relative bg-gray-100 rounded-2xl shadow-2xl border border-gray-200 p-6 w-94">
                                         <h3 class="text-lg font-bold">Confirm Update</h3>
                                         <p class="py-4 text-sm text-gray-600">Are you sure you want to save the changes to this project?</p>
                                         <div class="flex justify-end gap-2">
-                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" @click="confirmOpen = false">Cancel</button>
-                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2"
-                                                    @click="$refs.editProjectForm.submit()">Yes, Update</button>
+                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" wire:click="cancelConfirmDialog">Cancel</button>
+                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2" wire:click="submitEditProject">Yes, Update</button>
                                         </div>
                                     </div>
                                 </div>
+                                @endif
                             </div>
                             @endif
                         </div>
@@ -102,7 +99,7 @@
                 <thead>
                     <tr>
                         <th>Project Name</th>
-                        <th>Leader</th>
+                        <th>Project Manager</th>
                         <th>Members</th>
                         <th>Progress</th>
                         <th>Status</th>
@@ -131,6 +128,8 @@
                                     static fn ($m) => trim((string) $m) !== trim((string) $leaderDisplay)
                                 ));
                             }
+                            // Deduplicate: API sometimes returns same name multiple times
+                            $memberNames = array_values(array_unique(array_map('trim', $memberNames)));
                             $membersDisplay = $memberNames ? implode(', ', $memberNames) : '—';
                             $memberCount = count($memberNames);
                         } else {
