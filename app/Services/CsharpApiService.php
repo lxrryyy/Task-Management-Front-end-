@@ -83,17 +83,34 @@ class CsharpApiService
         }
     }
 
+    public function delete(string $endpoint, array $data = []): array
+    {
+        $response = $this->client()->delete($endpoint, $data)->throw();
+
+        if ($response->status() === 204) {
+            return [];
+        }
+
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     /**
-     * Extract field-mapped errors from a C# API error response.
-     *
-     * Returns a keyed array suitable for Laravel's withErrors():
      *   [
      *     'startDate' => ['Start date must be a valid date.'],
      *     'name'      => ['Project name is required.'],
      *     'api_error' => ['Request could not be processed.'],
      *   ]
      *
-     * Handles ASP.NET Core ValidationProblemDetails and plain message shapes.
      */
     public function extractFieldErrors(\Illuminate\Http\Client\Response $response): array
     {
@@ -251,21 +268,5 @@ class CsharpApiService
         }
     }
 
-    public function delete(string $endpoint): array
-    {
-        $response = $this->client()->delete($endpoint)->throw();
-        if ($response->status() === 204) {
-            return [];
-        }
-        $body = $response->body();
-        if (!is_string($body) || trim($body) === '') {
-            return [];
-        }
-        try {
-            $result = $response->json();
-            return is_array($result) ? $result : [];
-        } catch (\Throwable) {
-            return [];
-        }
-    }
+    // NOTE: delete() is defined earlier with optional $data param.
 }

@@ -2,8 +2,6 @@
 
 use Livewire\Component;
 use App\Http\Controllers\ProjectController;
-use App\Services\CsharpApiService;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
@@ -34,6 +32,15 @@ new class extends Component
 
     /** Show the "Confirm Update" overlay (set after prepareEditSubmit so list is locked). */
     public bool $showConfirmDialog = false;
+
+    /** Show the "Confirm Delete" overlay. */
+    public bool $showDeleteConfirmDialog = false;
+
+    /** Project ID pending deletion. */
+    public ?int $deletingProjectId = null;
+
+    /** Project name pending deletion (for confirmation text). */
+    public string $deletingProjectName = '';
 
     // @var array<int, string> memberId => role ('Member' or 'Scrum Master')
     public $memberRoles = [];
@@ -116,6 +123,69 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
+    /**
+     * Archive button handler.
+     *
+     * NOTE: No archive endpoint is wired yet in this frontend.
+     * This method exists so the UI button works and can be extended
+     * once the backend API route/behavior is confirmed.
+     */
+    public function archiveSelected(): mixed
+    {
+        return $this->redirect(route('projects.archive'));
+    }
+
+    public function confirmDelete(int $projectId): void
+    {
+        $project = collect($this->projects)->first(function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id === (int) $projectId;
+        }) ?? [];
+
+        $this->deletingProjectId = (int) $projectId;
+        $this->deletingProjectName = (string) ($project['name'] ?? $project['projectName'] ?? $project['title'] ?? 'this project');
+        $this->showDeleteConfirmDialog = true;
+    }
+
+    public function cancelDelete(): void
+    {
+        $this->showDeleteConfirmDialog = false;
+        $this->deletingProjectId = null;
+        $this->deletingProjectName = '';
+    }
+
+    public function deleteProject(): mixed
+    {
+        $projectId = (int) ($this->deletingProjectId ?? 0);
+        if ($projectId <= 0) {
+            $this->cancelDelete();
+            return null;
+        }
+
+        $user = Session::get('user', []);
+        $accountId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($accountId <= 0) {
+            return $this->redirect(route('login'));
+        }
+
+        $ok = app(ProjectController::class)->deleteProjectApi($projectId, $accountId);
+        if (!$ok) {
+            $this->addError('api_error', 'Failed to delete project. Please try again.');
+            $this->showDeleteConfirmDialog = false;
+            return null;
+        }
+
+        // Remove from local list so UI updates immediately
+        $this->projects = array_values(array_filter($this->projects, function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id !== $projectId;
+        }));
+
+        $this->cancelDelete();
+        session()->flash('message', 'Project deleted successfully.');
+        return null;
+    }
+
     /** Close both modals and clear form state. */
     public function closeModal()
     {
@@ -188,8 +258,8 @@ new class extends Component
         $this->formStartDate = $rawStart ? \Carbon\Carbon::parse($rawStart)->format('Y-m-d') : '';
         $this->formEndDate   = $rawEnd   ? \Carbon\Carbon::parse($rawEnd)->format('Y-m-d')   : '';
 
-        // Derive member IDs. API currently returns memberNames, not raw IDs.
-        $memberIds = $project['memberIds'] ?? $project['MemberIds'] ?? [];
+        // Prefer assigneeIds/memberIds from API (source of truth). If backend returns wrong memberNames after PATCH, only assigneeIds is reliable.
+        $memberIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? $project['memberIds'] ?? $project['MemberIds'] ?? [];
         $this->selectedMemberIds = [];
 
         if (is_array($memberIds) && !empty($memberIds)) {
@@ -372,12 +442,9 @@ new class extends Component
 
         Log::info('Project update payload', ['projectId' => $projectId, 'assigneeIds' => $memberIds, 'assigneeCount' => count($memberIds)]);
 
-        $api = app(CsharpApiService::class);
-        try {
-            $api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
-        } catch (RequestException $e) {
-            $fieldErrors = $api->extractFieldErrors($e->response);
-            Log::warning('Project update failed', ['projectId' => $projectId, 'errors' => $fieldErrors, 'payload' => $payload]);
+        $result = app(ProjectController::class)->updateProjectApi($projectId, $payload, (int) $requesterId);
+        if (!($result['ok'] ?? false)) {
+            $fieldErrors = $result['errors'] ?? [];
             foreach ($fieldErrors as $field => $msgs) {
                 foreach ((array) $msgs as $m) {
                     if (trim((string) $m) !== '') {
