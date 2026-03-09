@@ -140,6 +140,7 @@ class ProjectController extends Controller
             'name' => ['required', 'string'],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', 'string'],
+            'statusId' => ['nullable', 'integer'],
             'memberIds' => ['required', 'array', 'min:1'],
             'memberIds.*' => ['integer'],
             'scrumMasterId' => ['nullable', 'integer'],
@@ -154,6 +155,13 @@ class ProjectController extends Controller
         }
         $memberIds = array_values(array_filter(array_map('intval', $rawMemberIds), static fn ($id) => $id > 0));
 
+        // Resolve status: prefer statusId -> name, fallback to status string
+        $status = $request->status;
+        if ($status === null && $request->filled('statusId')) {
+            $statusData = $this->getStatuses();
+            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
+        }
+
         // Creator is project manager; scrum master from request or creator
         $projectManagerId = (int) ($user['id'] ?? $user['Id'] ?? 0);
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
@@ -162,7 +170,7 @@ class ProjectController extends Controller
         $payload = [
             'name'             => $request->name,
             'description'      => $request->description ?? '',
-            'status'           => $request->status ?? null,
+            'status'           => $status,
             'projectManagerId' => $projectManagerId,
             'scrumMasterId'    => $scrumMasterId,
             'assigneeIds'      => $memberIds,
@@ -203,6 +211,19 @@ class ProjectController extends Controller
         }
     }
 
+    /**
+     * Update only the project status (for table inline dropdown). Resolves statusId to name and PATCHes.
+     */
+    public function updateProjectStatusApi(int $projectId, int $statusId, int $requesterId): array
+    {
+        $statusData = $this->getStatuses();
+        $statusName = $statusData['mapById'][$statusId] ?? null;
+        if ($statusName === null) {
+            return ['ok' => false, 'errors' => ['status' => ['Invalid status selected.']]];
+        }
+        return $this->updateProjectApi($projectId, ['status' => $statusName], $requesterId);
+    }
+
     public function store(Request $request)
     {
         $user = Session::get('user', []);
@@ -214,6 +235,7 @@ class ProjectController extends Controller
         $request->validate([
             'name' => ['required', 'string'],
             'description' => ['nullable', 'string'],
+            'statusId' => ['nullable', 'integer'],
             'memberIds' => ['required', 'array', 'min:1'],
             'memberIds.*' => ['integer'],
             'scrumMasterId' => ['nullable', 'integer'],
@@ -225,6 +247,13 @@ class ProjectController extends Controller
         $memberIds = [];
         if (!empty($request->memberIds) && is_array($request->memberIds)) {
             $memberIds = array_values(array_filter(array_map('intval', $request->memberIds)));
+        }
+
+        // Resolve status name from statusId for API
+        $status = null;
+        if ($request->filled('statusId')) {
+            $statusData = $this->getStatuses();
+            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
         }
 
         // Creator is always project manager; scrum master is creator unless a member is chosen in the table
@@ -242,6 +271,9 @@ class ProjectController extends Controller
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
         ];
+        if ($status !== null) {
+            $payload['status'] = $status;
+        }
 
         try {
             $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
@@ -270,22 +302,53 @@ class ProjectController extends Controller
 
     /**
      * Response shape: [{id, name, description, active, createdAt}, ...]
-     * Returns an ordered list of project status name strings.
+     * Returns ['items' => [{id, name}, ...], 'names' => [...], 'map' => [name => id], 'mapById' => [id => name]].
      */
     public function getStatuses(): array
     {
         try {
-            $list = $this->api->get('/api/Project/GetAllProjectsStatus');
+            $raw = $this->api->get('/api/Project/GetAllProjectsStatus');
 
-            $names = [];
-            foreach ((array) $list as $s) {
-                if (isset($s['name'])) {
-                    $names[] = $s['name'];
+            $list = $raw['data'] ?? $raw['Data']
+                ?? $raw['items'] ?? $raw['Items']
+                ?? $raw['value'] ?? $raw['Value']
+                ?? $raw['statuses'] ?? $raw['Statuses']
+                ?? $raw['result'] ?? $raw['Result']
+                ?? $raw;
+
+            if (!is_array($list)) {
+                $list = [];
+            }
+
+            if (!empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
+                $list = [$list];
+            }
+
+            $map     = [];
+            $mapById = [];
+            $names   = [];
+            $items   = [];
+            foreach ($list as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+                $id   = $s['id'] ?? $s['Id'] ?? $s['statusId'] ?? $s['StatusId'] ?? null;
+                $name = $s['name'] ?? $s['Name'] ?? $s['statusName'] ?? $s['StatusName'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $id   = (int) $id;
+                    $name = (string) trim($name);
+                    if ($name !== '') {
+                        $map[$name]   = $id;
+                        $mapById[$id] = $name;
+                        $names[]      = $name;
+                        $items[]      = ['id' => $id, 'name' => $name];
+                    }
                 }
             }
-            return $names;
+
+            return ['items' => $items, 'names' => $names, 'map' => $map, 'mapById' => $mapById];
         } catch (\Throwable) {
-            return [];
+            return ['items' => [], 'names' => [], 'map' => [], 'mapById' => []];
         }
     }
 
