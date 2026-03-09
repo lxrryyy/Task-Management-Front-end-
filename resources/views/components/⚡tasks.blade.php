@@ -61,6 +61,10 @@ new class extends Component
         // Fetch all task priorities via TaskController (returns map, names, items).
         // No hardcoded fallback — if API returns nothing, dropdown will be empty so you can see it.
         $this->taskPriorities = app(TaskController::class)->getPriorities();
+
+        // Ensure project status reflects current task statuses on initial load.
+        // (Status can be stale if tasks were completed elsewhere or before this UI change.)
+        $this->syncProjectStatusFromTasks();
     }
 
     public function switchView(string $mode): void
@@ -190,7 +194,104 @@ new class extends Component
         }
         if (!empty($errors)) {
             $this->moveError = 'Some updates failed: ' . implode(' | ', $errors);
+            return;
         }
+
+        // Project status depends on tasks:
+        // - Completed if 100% tasks are Completed
+        // - Not Started if all tasks are Not Started
+        // - Active otherwise (any task has started)
+        $this->syncProjectStatusFromTasks();
+    }
+
+    private function computeProjectStatusFromTasks(): string
+    {
+        if (empty($this->tasks)) {
+            return 'Not Started';
+        }
+
+        // Derive project status from LEAF tasks (tasks with no children).
+        // This avoids cases where parent tasks are still "Not Started" even though
+        // every real work item (leaf) is completed (progress shows 100%).
+        $childrenMap = [];
+        $allIds = [];
+        foreach ($this->tasks as $t) {
+            $tid = (int) ($t['id'] ?? $t['Id'] ?? 0);
+            if ($tid <= 0) continue;
+            $allIds[$tid] = true;
+            $pid = (int) ($t['parentTaskId'] ?? $t['parentId'] ?? $t['parentID'] ?? 0);
+            if ($pid > 0) {
+                $childrenMap[$pid][] = $tid;
+            }
+        }
+
+        $leafTasks = [];
+        foreach ($this->tasks as $t) {
+            $tid = (int) ($t['id'] ?? $t['Id'] ?? 0);
+            if ($tid <= 0) continue;
+            if (empty($childrenMap[$tid])) {
+                $leafTasks[] = $t;
+            }
+        }
+        if (empty($leafTasks)) {
+            // If everything is a parent (edge case), fall back to using all tasks.
+            $leafTasks = $this->tasks;
+        }
+
+        $allCompleted  = true;
+        $allNotStarted = true;
+
+        foreach ($leafTasks as $t) {
+            $raw = (string) ($t['statusName'] ?? $t['status'] ?? 'Not Started');
+            $s = mb_strtolower(trim($raw));
+            if ($s === 'notstarted') $s = 'not started';
+            if ($s === '') $s = 'not started';
+
+            if ($s !== 'completed') {
+                $allCompleted = false;
+            }
+            if ($s !== 'not started') {
+                $allNotStarted = false;
+            }
+        }
+
+        if ($allCompleted) return 'Completed';
+        if ($allNotStarted) return 'Not Started';
+        return 'Active';
+    }
+
+    private function syncProjectStatusFromTasks(): void
+    {
+        $projectId = (int) ($this->projectId ?? 0);
+        if ($projectId <= 0) return;
+
+        $user = Session::get('user', []);
+        $requesterId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($requesterId <= 0) return;
+
+        $derived = $this->computeProjectStatusFromTasks();
+
+        // Avoid extra PATCH if backend already matches
+        try {
+            $project = app(ProjectController::class)->getProjectData($projectId);
+            $current = (string) ($project['statusName'] ?? $project['status'] ?? '');
+            if (mb_strtolower(trim($current)) === mb_strtolower($derived)) {
+                return;
+            }
+        } catch (\Throwable) {
+            // If read fails, still attempt to patch.
+        }
+
+        $statusData = app(ProjectController::class)->getStatuses();
+        $statusId = (int) (($statusData['map'][$derived] ?? 0));
+
+        if ($statusId > 0) {
+            app(ProjectController::class)->updateProjectStatusApi($projectId, $statusId, $requesterId);
+            return;
+        }
+
+        // Fallback if map is missing: patch by name
+        app(ProjectController::class)->updateProjectApi($projectId, ['status' => $derived], $requesterId);
     }
 
     public function toggle(int $taskId): void

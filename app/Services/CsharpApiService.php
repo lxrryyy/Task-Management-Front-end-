@@ -268,5 +268,4 @@ class CsharpApiService
         }
     }
 
-    // NOTE: delete() is defined earlier with optional $data param.
 }
