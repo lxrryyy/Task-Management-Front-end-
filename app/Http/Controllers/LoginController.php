@@ -18,13 +18,13 @@ class LoginController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required',
         ]);
 
         try {
             $response = $this->api->post('/api/Auth/login', [
-                'email'    => $request->email,
+                'email' => $request->email,
                 'password' => $request->password,
             ]);
 
@@ -39,14 +39,13 @@ class LoginController extends Controller
             Session::put('user', $user);
 
             return redirect()->route('dashboard');
-
         } catch (\Illuminate\Http\Client\RequestException $e) {
             $status = $e->response->status();
-            $body   = $e->response->json();
-            return back()->withErrors(['email' => 'Error: ' . json_encode($body)]);
-
+            $body = $e->response->json();
+            $message = $body['message'] ?? 'Invalid credentials';
+            return back()->withErrors(['email' => $message]);
         } catch (\Exception $e) {
-            return back()->withErrors(['email' => 'Exception: ' . $e->getMessage()]);
+            return back()->withErrors(['email' => $e->getMessage()]);
         }
     }
 
