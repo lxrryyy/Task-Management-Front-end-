@@ -54,4 +54,8 @@ select:focus {
     background-color: #102B3C;
 }
 
+.hover-clr-primary:hover {
+    color: #102B3C;
+}
+
 

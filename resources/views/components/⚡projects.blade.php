@@ -2,6 +2,8 @@
 
 use Livewire\Component;
 use App\Http\Controllers\ProjectController;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 
 new class extends Component
 {
@@ -24,6 +26,21 @@ new class extends Component
 
     // @var int[] IDs of selected members (source of truth for selection)
     public $selectedMemberIds = [];
+
+    /** Locked member IDs when user clicks "Update Project" (used for PATCH so removal is not lost). */
+    public array $confirmedMemberIds = [];
+
+    /** Show the "Confirm Update" overlay (set after prepareEditSubmit so list is locked). */
+    public bool $showConfirmDialog = false;
+
+    /** Show the "Confirm Delete" overlay. */
+    public bool $showDeleteConfirmDialog = false;
+
+    /** Project ID pending deletion. */
+    public ?int $deletingProjectId = null;
+
+    /** Project name pending deletion (for confirmation text). */
+    public string $deletingProjectName = '';
 
     // @var array<int, string> memberId => role ('Member' or 'Scrum Master')
     public $memberRoles = [];
@@ -106,6 +123,69 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
+    /**
+     * Archive button handler.
+     *
+     * NOTE: No archive endpoint is wired yet in this frontend.
+     * This method exists so the UI button works and can be extended
+     * once the backend API route/behavior is confirmed.
+     */
+    public function archiveSelected(): mixed
+    {
+        return $this->redirect(route('projects.archive'));
+    }
+
+    public function confirmDelete(int $projectId): void
+    {
+        $project = collect($this->projects)->first(function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id === (int) $projectId;
+        }) ?? [];
+
+        $this->deletingProjectId = (int) $projectId;
+        $this->deletingProjectName = (string) ($project['name'] ?? $project['projectName'] ?? $project['title'] ?? 'this project');
+        $this->showDeleteConfirmDialog = true;
+    }
+
+    public function cancelDelete(): void
+    {
+        $this->showDeleteConfirmDialog = false;
+        $this->deletingProjectId = null;
+        $this->deletingProjectName = '';
+    }
+
+    public function deleteProject(): mixed
+    {
+        $projectId = (int) ($this->deletingProjectId ?? 0);
+        if ($projectId <= 0) {
+            $this->cancelDelete();
+            return null;
+        }
+
+        $user = Session::get('user', []);
+        $accountId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($accountId <= 0) {
+            return $this->redirect(route('login'));
+        }
+
+        $ok = app(ProjectController::class)->deleteProjectApi($projectId, $accountId);
+        if (!$ok) {
+            $this->addError('api_error', 'Failed to delete project. Please try again.');
+            $this->showDeleteConfirmDialog = false;
+            return null;
+        }
+
+        // Remove from local list so UI updates immediately
+        $this->projects = array_values(array_filter($this->projects, function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id !== $projectId;
+        }));
+
+        $this->cancelDelete();
+        session()->flash('message', 'Project deleted successfully.');
+        return null;
+    }
+
     /** Close both modals and clear form state. */
     public function closeModal()
     {
@@ -136,6 +216,8 @@ new class extends Component
     public function closeEditModal()
     {
         $this->showEditModal = false;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
         $this->editingProjectId = null;
         $this->formName = '';
         $this->formDescription = '';
@@ -153,6 +235,8 @@ new class extends Component
         $this->editingProjectId = $projectId;
         $this->showAddModal = false;
         $this->showEditModal = true;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
 
         // Prefer fresh project data from API via ProjectController, fall back to cached list.
         $project = app(ProjectController::class)->getProjectData($projectId);
@@ -174,8 +258,8 @@ new class extends Component
         $this->formStartDate = $rawStart ? \Carbon\Carbon::parse($rawStart)->format('Y-m-d') : '';
         $this->formEndDate   = $rawEnd   ? \Carbon\Carbon::parse($rawEnd)->format('Y-m-d')   : '';
 
-        // Derive member IDs. API currently returns memberNames, not raw IDs.
-        $memberIds = $project['memberIds'] ?? $project['MemberIds'] ?? [];
+        // Prefer assigneeIds/memberIds from API (source of truth). If backend returns wrong memberNames after PATCH, only assigneeIds is reliable.
+        $memberIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? $project['memberIds'] ?? $project['MemberIds'] ?? [];
         $this->selectedMemberIds = [];
 
         if (is_array($memberIds) && !empty($memberIds)) {
@@ -288,6 +372,99 @@ new class extends Component
     public function removeMember(int $id): void
     {
         $this->toggleMember($id);
+    }
+
+    /** Return current selected member IDs for the edit form (used by "Yes, Update" to sync before submit). */
+    public function getEditMemberIds(): array
+    {
+        return array_values(array_map('intval', $this->selectedMemberIds));
+    }
+
+    /** Lock in current member selection when user clicks "Update Project", then show confirm dialog. */
+    public function prepareEditSubmit(): void
+    {
+        $this->confirmedMemberIds = array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
+        $this->showConfirmDialog = true;
+    }
+
+    public function cancelConfirmDialog(): void
+    {
+        $this->showConfirmDialog = false;
+    }
+
+    /** Submit project update using locked member list (confirmedMemberIds) so removal is not lost. */
+    public function submitEditProject(): mixed
+    {
+        $projectId = (int) $this->editingProjectId;
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        $user = Session::get('user', []);
+        $requesterId = $user['id'] ?? $user['Id'] ?? null;
+        if (!$requesterId) {
+            return $this->redirect(route('login'));
+        }
+
+        // Use locked-in list from "Update Project" click; fallback to current selection
+        $memberIds = !empty($this->confirmedMemberIds)
+            ? array_values(array_map('intval', $this->confirmedMemberIds))
+            : array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
+        if (empty($memberIds)) {
+            $this->addError('memberIds', 'At least one member is required.');
+            return null;
+        }
+
+        $projectManagerId = (int) $this->creatorId;
+        $scrumMasterId = (int) $this->selectedScrumMasterId ?: $projectManagerId;
+
+        $toIso = static function ($v): ?string {
+            if ($v === null || $v === '') return null;
+            try {
+                return \Carbon\Carbon::parse($v)->format('Y-m-d\TH:i:s.v\Z');
+            } catch (\Throwable) {
+                return null;
+            }
+        };
+
+        $payload = [
+            'name'             => trim((string) $this->formName) ?: 'Project',
+            'description'      => (string) $this->formDescription,
+            'status'           => $this->formStatus ?: null,
+            'projectManagerId' => $projectManagerId,
+            'scrumMasterId'    => $scrumMasterId,
+            'assigneeIds'      => $memberIds,
+            'startDate'        => $toIso($this->formStartDate),
+            'endDate'          => $toIso($this->formEndDate),
+        ];
+        if ($payload['startDate'] === null) unset($payload['startDate']);
+        if ($payload['endDate'] === null) unset($payload['endDate']);
+
+        Log::info('Project update payload', ['projectId' => $projectId, 'assigneeIds' => $memberIds, 'assigneeCount' => count($memberIds)]);
+
+        $result = app(ProjectController::class)->updateProjectApi($projectId, $payload, (int) $requesterId);
+        if (!($result['ok'] ?? false)) {
+            $fieldErrors = $result['errors'] ?? [];
+            foreach ($fieldErrors as $field => $msgs) {
+                foreach ((array) $msgs as $m) {
+                    if (trim((string) $m) !== '') {
+                        $this->addError($field, $m);
+                    }
+                }
+            }
+            return null;
+        }
+
+        $updated = app(ProjectController::class)->getProjectData($projectId);
+        if (!empty($updated) && is_array($updated)) {
+            Session::put('refreshed_project', $updated);
+        }
+
+        $this->showEditModal = false;
+        $this->showConfirmDialog = false;
+        $this->confirmedMemberIds = [];
+        $this->editingProjectId = null;
+        return $this->redirect(route('Projects'));
     }
 
     public function render()

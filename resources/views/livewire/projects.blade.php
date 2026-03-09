@@ -9,7 +9,12 @@
             </div>
             <hr class="border-2 clr-bg-primary">
             <div>
-                <div class="flex items-center justify-end p-2 flex-shrink-0">
+                <div class="flex items-center justify-between p-2 flex-shrink-0">
+                    <div>
+                        <button type="button" class="btn w-36 border-2 border-gray clr-primary rounded-xl m-1 hover-clr-bg-primary hover:text-white " wire:click="archiveSelected">
+                            <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
+                        </button>
+                    </div>
                     <div class="flex items-center gap-4">
                         <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
                             <input wire:model.live.debounce.300ms="search" class="w-96 bg-transparent focus:outline-none rounded-xl" type="search" placeholder="Search" />
@@ -28,8 +33,9 @@
                         <a wire:click="openModal" class="btn clr-bg-primary text-base-100 rounded-xl p-4">+ Add Project</a>
                     </div>
 
-                    {{-- Add Project modal (create only) --}}
-                    <dialog id="addProjectDialog" class="{{ $showAddModal ? 'modal modal-open' : 'modal' }}">
+                    {{-- Add Project modal (create only) — only in DOM when open to avoid stacked backdrops --}}
+                    @if($showAddModal)
+                    <dialog id="addProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeAddModal" class="btn">X</button>
@@ -47,43 +53,42 @@
                             <button type="button" wire:click="closeAddModal">close</button>
                         </form>
                     </dialog>
+                    @endif
 
-                    {{-- Edit Project modal (update only) --}}
-                    <dialog id="editProjectDialog" class="{{ $showEditModal ? 'modal modal-open' : 'modal' }}">
+                    {{-- Edit Project modal (update only) — only in DOM when open to avoid stacked backdrops --}}
+                    @if($showEditModal)
+                    <dialog id="editProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                             <div class="modal-action">
                                 <button type="button" wire:click="closeEditModal" class="btn">X</button>
                             </div>
                             <h3 class="font-bold text-lg">Edit Project</h3>
                             @if($editingProjectId)
-                            <div x-data="{ confirmOpen: false }">
-                                <form x-ref="editProjectForm" method="POST" action="{{ route('projects.update', $editingProjectId) }}" class="mt-4">
-                                    @csrf
-                                    @method('PATCH')
+                            <div>
+                                <form class="mt-4" @submit.prevent>
                                     @include('livewire.partials.project-form-fields', ['formContext' => 'edit'])
                                     <div class="modal-action">
                                         <button type="button" class="btn clr-bg-primary text-base-100 px-2"
-                                                @click="confirmOpen = true">
+                                                wire:click="prepareEditSubmit">
                                             Update Project
                                         </button>
                                     </div>
                                 </form>
 
-                                {{-- Centered card; invisible backdrop blocks clicks without adding extra darkness --}}
-                                <div x-show="confirmOpen"
-                                     style="display:none"
-                                     class="fixed inset-0 z-[9999] flex items-center justify-center">
-                                    <div class="absolute inset-0" @click="confirmOpen = false"></div>
+                                {{-- Confirmation: shown after prepareEditSubmit locks member list (fixes member removal) --}}
+                                @if($showConfirmDialog ?? false)
+                                <div class="fixed inset-0 z-[9999] flex items-center justify-center">
+                                    <div class="absolute inset-0" wire:click="cancelConfirmDialog"></div>
                                     <div class="relative bg-gray-100 rounded-2xl shadow-2xl border border-gray-200 p-6 w-94">
                                         <h3 class="text-lg font-bold">Confirm Update</h3>
                                         <p class="py-4 text-sm text-gray-600">Are you sure you want to save the changes to this project?</p>
                                         <div class="flex justify-end gap-2">
-                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" @click="confirmOpen = false">Cancel</button>
-                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2"
-                                                    @click="$refs.editProjectForm.submit()">Yes, Update</button>
+                                            <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" wire:click="cancelConfirmDialog">Cancel</button>
+                                            <button type="button" class="btn clr-bg-primary text-base-100 p-2" wire:click="submitEditProject">Yes, Update</button>
                                         </div>
                                     </div>
                                 </div>
+                                @endif
                             </div>
                             @endif
                         </div>
@@ -91,6 +96,27 @@
                             <button type="button" wire:click="closeEditModal">close</button>
                         </form>
                     </dialog>
+                    @endif
+
+                    {{-- Delete confirmation — only in DOM when open to avoid stacked backdrops --}}
+                    @if($showDeleteConfirmDialog ?? false)
+                    <dialog id="deleteProjectDialog" class="modal modal-open">
+                        <div class="modal-box w-11/12 max-w-md">
+                            <h3 class="font-bold text-lg">Confirm Delete</h3>
+                            <p class="py-4 text-sm text-gray-700">
+                                Are you sure you want to delete
+                                <span class="font-semibold break-words">{{ $deletingProjectName ?? 'this project' }}</span>?
+                            </p>
+                            <div class="modal-action">
+                                <button type="button" class="btn clr-bg-primary text-base-100 p-2" wire:click="cancelDelete">Cancel</button>
+                                <button type="button" class="btn bg-red-600 hover:bg-red-700 text-base-100 border-none p-2" wire:click="deleteProject">Delete</button>
+                            </div>
+                        </div>
+                        <form method="dialog" class="modal-backdrop">
+                            <button type="button" wire:click="cancelDelete">close</button>
+                        </form>
+                    </dialog>
+                    @endif
                     </div>
                 </div>
             </div>
@@ -102,7 +128,7 @@
                 <thead>
                     <tr>
                         <th>Project Name</th>
-                        <th>Leader</th>
+                        <th>Project Manager</th>
                         <th>Members</th>
                         <th>Progress</th>
                         <th>Status</th>
@@ -121,22 +147,35 @@
                         // Leader name comes from createdByName
                         $leaderDisplay = $project['createdByName'] ?? '—';
 
-                        // Members: prefer names array, fall back to count
-                        $memberNames = $project['memberNames'] ?? $project['members'] ?? [];
-                        if (is_array($memberNames)) {
-                            // Exclude leader from members list to avoid duplicate display
-                            if ($leaderDisplay !== '—') {
-                                $memberNames = array_values(array_filter(
-                                    $memberNames,
-                                    static fn ($m) => trim((string) $m) !== trim((string) $leaderDisplay)
-                                ));
+                        // Members: if API returns assigneeIds use that (source of truth); else use memberNames (backend sometimes returns stale list after PATCH)
+                        $memberNames = [];
+                        $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
+                        if (is_array($assigneeIds) && !empty($assigneeIds)) {
+                            $creatorIdInt = (int)($creatorId ?? 0);
+                            foreach ($assigneeIds as $aid) {
+                                $aid = (int) $aid;
+                                if ($aid === $creatorIdInt) continue;
+                                $acc = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $aid);
+                                if ($acc) {
+                                    $memberNames[] = trim($acc['name'] ?? $acc['Name'] ?? '');
+                                }
                             }
-                            $membersDisplay = $memberNames ? implode(', ', $memberNames) : '—';
-                            $memberCount = count($memberNames);
-                        } else {
-                            $membersDisplay = $memberNames ?: '—';
-                            $memberCount = $project['memberCount'] ?? '—';
                         }
+                        if (empty($memberNames)) {
+                            $raw = $project['memberNames'] ?? $project['members'] ?? [];
+                            $memberNames = is_array($raw) ? $raw : [];
+                            if (!empty($memberNames)) {
+                                if ($leaderDisplay !== '—') {
+                                    $memberNames = array_values(array_filter(
+                                        $memberNames,
+                                        static fn ($m) => trim((string) $m) !== trim((string) $leaderDisplay)
+                                    ));
+                                }
+                                $memberNames = array_values(array_unique(array_map('trim', $memberNames)));
+                            }
+                        }
+                        $membersDisplay = is_array($memberNames) && !empty($memberNames) ? implode(', ', $memberNames) : '—';
+                        $memberCount = is_array($memberNames) ? count($memberNames) : ($project['memberCount'] ?? '—');
                     @endphp
                     <tr class="hover:bg-gray-50 cursor-pointer"
                         @if($projectId)
@@ -177,6 +216,7 @@
                                 $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
                             @endphp
                             @if($isLeader && $projectId)
+                            <div>
                                 <button
                                     type="button"
                                     class="btn btn-sm bg-warning text-base-100 border-none hover:opacity-90 p-2"
@@ -184,6 +224,14 @@
                                 >
                                     Edit
                                 </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm clr-bg-accent text-base-100 border-none hover:opacity-90 p-2"
+                                    wire:click.stop="confirmDelete({{ (int) $projectId }})"
+                                >
+                                    Delete
+                                </button>
+                            </div>
                             @else
                                 <span class="text-gray-400">—</span>
                             @endif

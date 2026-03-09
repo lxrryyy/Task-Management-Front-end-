@@ -50,6 +50,77 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function archive()
+    {
+        $user = Session::get('user', []);
+        $accountId = $user['id'] ?? $user['Id'] ?? null;
+
+        if (!$accountId) {
+            return view('projects-archive', ['projects' => [], 'accounts' => [], 'creatorId' => 0]);
+        }
+
+        // Fetch deleted (archived) projects
+        try {
+            $response = $this->api->get('/api/Project/GetDeletedProjects');
+            $projects = $this->normalizeProjects($response);
+        } catch (\Throwable) {
+            $projects = [];
+        }
+
+        // Accounts are useful for resolving member names when API returns assigneeIds
+        try {
+            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accounts = $this->normalizeAccounts($accountsResponse);
+        } catch (\Throwable) {
+            $accounts = [];
+        }
+
+        return view('projects-archive', [
+            'projects'  => $projects,
+            'accounts'  => $accounts,
+            'creatorId' => (int) $accountId,
+        ]);
+    }
+
+    /**
+     * DELETE a project via the C# API.
+     * Endpoint: DELETE /api/Project/DeleteProject/{id}?accountId={accountId}
+     */
+    public function destroy(int $projectId)
+    {
+        $user = Session::get('user', []);
+        $accountId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+
+        if ($accountId <= 0) {
+            return redirect()->route('login');
+        }
+
+        try {
+            $this->api->delete("/api/Project/DeleteProject/{$projectId}?accountId={$accountId}");
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project delete failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            return back()->withErrors(['api_error' => 'Failed to delete project. Please try again.']);
+        }
+
+        return redirect()->route('Projects')->with('message', 'Project deleted successfully.');
+    }
+
+    /**
+     * Same delete behavior, usable from Livewire without an HTTP form submit.
+     */
+    public function deleteProjectApi(int $projectId, int $accountId): bool
+    {
+        try {
+            $this->api->delete("/api/Project/DeleteProject/{$projectId}?accountId={$accountId}");
+            return true;
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project delete failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
+            return false;
+        }
+    }
+
     public function show($id)
     {
         $project = $this->api->get("/api/Project/GetProjectById/{$id}");
@@ -114,6 +185,22 @@ class ProjectController extends Controller
         }
 
         return redirect()->route('Projects');
+    }
+
+    /**
+     * Update a project via the C# API, usable from Livewire.
+     * Expects a ready-to-send $payload shaped for the backend UpdateProject endpoint.
+     */
+    public function updateProjectApi(int $projectId, array $payload, int $requesterId): array
+    {
+        try {
+            $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+            return ['ok' => true, 'errors' => []];
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project update (Livewire) failed', ['projectId' => $projectId, 'errors' => $fieldErrors, 'payload' => $payload]);
+            return ['ok' => false, 'errors' => $fieldErrors];
+        }
     }
 
     public function store(Request $request)

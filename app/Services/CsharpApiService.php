@@ -83,17 +83,34 @@ class CsharpApiService
         }
     }
 
+    public function delete(string $endpoint, array $data = []): array
+    {
+        $response = $this->client()->delete($endpoint, $data)->throw();
+
+        if ($response->status() === 204) {
+            return [];
+        }
+
+        $body = $response->body();
+        if (!is_string($body) || trim($body) === '') {
+            return [];
+        }
+
+        try {
+            $result = $response->json();
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     /**
-     * Extract field-mapped errors from a C# API error response.
-     *
-     * Returns a keyed array suitable for Laravel's withErrors():
      *   [
      *     'startDate' => ['Start date must be a valid date.'],
      *     'name'      => ['Project name is required.'],
      *     'api_error' => ['Request could not be processed.'],
      *   ]
      *
-     * Handles ASP.NET Core ValidationProblemDetails and plain message shapes.
      */
     public function extractFieldErrors(\Illuminate\Http\Client\Response $response): array
     {
@@ -136,6 +153,13 @@ class CsharpApiService
 
         // Human-readable translations for common .NET technical messages
         $translate = function (string $field, string $raw): string {
+            $raw = trim($raw);
+            if ($raw === '') {
+                return '';
+            }
+            if (stripos($raw, 'Invalid PriorityId') !== false || stripos($raw, 'invalid priority') !== false) {
+                return $field === 'priorityId' ? 'Please select a valid priority.' : 'Invalid priority. Please select a valid priority.';
+            }
             if (stripos($raw, 'could not be converted to System.DateTime') !== false
                 || stripos($raw, 'was not recognized as a valid DateTime') !== false) {
                 $labels = ['startDate' => 'Start date', 'endDate' => 'End date'];
@@ -194,13 +218,22 @@ class CsharpApiService
 
         if (empty($fieldMap)) {
             $raw = $response->body();
-            $fieldMap['api_error'][] = (is_string($raw) && strlen($raw) < 300)
-                ? strip_tags($raw)
+            $fallback = (is_string($raw) && trim($raw) !== '' && strlen($raw) < 300)
+                ? trim(strip_tags($raw))
                 : 'An error occurred (HTTP ' . $response->status() . '). Please try again.';
+            if ($fallback !== '') {
+                $fieldMap['api_error'][] = $fallback;
+            }
         }
 
-        // Deduplicate each field's messages
-        return array_map(fn ($msgs) => array_values(array_unique($msgs)), $fieldMap);
+        // Deduplicate and drop empty messages
+        $fieldMap = array_map(function ($msgs) {
+            $filtered = array_values(array_unique(array_filter((array) $msgs, function ($m) {
+                return is_string($m) && trim($m) !== '';
+            })));
+            return array_values(array_unique(array_map('trim', $filtered)));
+        }, $fieldMap);
+        return array_filter($fieldMap, fn ($msgs) => !empty($msgs));
     }
 
     /** Flat array of all error strings (used for logging). */
@@ -235,21 +268,5 @@ class CsharpApiService
         }
     }
 
-    public function delete(string $endpoint): array
-    {
-        $response = $this->client()->delete($endpoint)->throw();
-        if ($response->status() === 204) {
-            return [];
-        }
-        $body = $response->body();
-        if (!is_string($body) || trim($body) === '') {
-            return [];
-        }
-        try {
-            $result = $response->json();
-            return is_array($result) ? $result : [];
-        } catch (\Throwable) {
-            return [];
-        }
-    }
+    // NOTE: delete() is defined earlier with optional $data param.
 }
