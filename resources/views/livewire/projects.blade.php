@@ -33,7 +33,7 @@
                         <a wire:click="openModal" class="btn clr-bg-primary text-base-100 rounded-xl p-4">+ Add Project</a>
                     </div>
 
-                    {{-- Add Project modal (create only) — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Add Project modal (create only) --}}
                     @if($showAddModal)
                     <dialog id="addProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
@@ -55,7 +55,7 @@
                     </dialog>
                     @endif
 
-                    {{-- Edit Project modal (update only) — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Edit Project modal (update only) --}}
                     @if($showEditModal)
                     <dialog id="editProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
@@ -98,7 +98,7 @@
                     </dialog>
                     @endif
 
-                    {{-- Delete confirmation — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Delete confirmation --}}
                     @if($showDeleteConfirmDialog ?? false)
                     <dialog id="deleteProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-md">
@@ -142,12 +142,13 @@
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
                         $status = $project['statusName'] ?? $project['status'] ?? '';
+                        $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
                         $createdAt = $project['createdAt'] ?? null;
 
                         // Leader name comes from createdByName
                         $leaderDisplay = $project['createdByName'] ?? '—';
 
-                        // Members: if API returns assigneeIds use that (source of truth); else use memberNames (backend sometimes returns stale list after PATCH)
+                        // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
                         $memberNames = [];
                         $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
                         if (is_array($assigneeIds) && !empty($assigneeIds)) {
@@ -176,6 +177,8 @@
                         }
                         $membersDisplay = is_array($memberNames) && !empty($memberNames) ? implode(', ', $memberNames) : '—';
                         $memberCount = is_array($memberNames) ? count($memberNames) : ($project['memberCount'] ?? '—');
+                        $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
+                        $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
                     @endphp
                     <tr class="hover:bg-gray-50 cursor-pointer"
                         @if($projectId)
@@ -195,15 +198,45 @@
                             <progress class="progress w-24" value="{{ $project['completionPercentage'] ?? $project['progress'] ?? 0 }}" max="100"></progress>
                         </th>
                         <th>
-                            @php
-                            $statusBadge = match($status) {
-                                'Not Started' => 'badge-ghost',
-                                'Active'      => 'badge-info',
-                                'Completed'   => 'badge-success',
-                                default       => 'badge-ghost',
-                            };
-                        @endphp
-                        <span class="badge {{ $statusBadge }}">{{ $status ?: 'Unknown' }}</span>
+                            @if($isLeader && $projectId && !empty($projectStatusItems))
+                                @php
+                                    $statusPillStyle = match($status) {
+                                        'Not Started' => 'background:#f3f4f6;color:#374151;',
+                                        'Active'      => 'background:#dbeafe;color:#1d4ed8;',
+                                        'Completed'   => 'background:#d1fae5;color:#065f46;',
+                                        default       => 'background:#f3f4f6;color:#374151;',
+                                    };
+                                @endphp
+                                <div class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-[8rem] overflow-visible" style="{{ $statusPillStyle }}" wire:click.stop>
+                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                        <svg width="5" height="5" viewBox="0 0 5 5" fill="currentColor" class="text-current"><circle cx="2.5" cy="2.5" r="2.5" fill="currentColor"/></svg>
+                                    </span>
+                                    <select
+                                        class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                        style="border:none;box-shadow:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 24 24%22 stroke=%22%236b7280%22%3E%3Cpath stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 0.25rem center;background-size:1rem;"
+                                        x-data
+                                        @change="$wire.updateProjectStatus({{ (int) $projectId }}, parseInt($event.target.value))"
+                                    >
+                                        @foreach($projectStatusItems as $item)
+                                            @php
+                                                $sid = (int) ($item['id'] ?? $item['Id'] ?? 0);
+                                                $sname = $item['name'] ?? $item['Name'] ?? '';
+                                            @endphp
+                                            <option value="{{ $sid }}" {{ $currentStatusId === $sid ? 'selected' : '' }}>{{ $sname }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @else
+                                @php
+                                    $statusBadge = match($status) {
+                                        'Not Started' => 'badge-ghost',
+                                        'Active'      => 'badge-info',
+                                        'Completed'   => 'badge-success',
+                                        default       => 'badge-ghost',
+                                    };
+                                @endphp
+                                <span class="badge {{ $statusBadge }}">{{ $status ?: 'Unknown' }}</span>
+                            @endif
                         </th>
                         <th>
                             <span>
@@ -211,10 +244,6 @@
                             </span>
                         </th>
                         <th>
-                            @php
-                                $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
-                                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
-                            @endphp
                             @if($isLeader && $projectId)
                             <div>
                                 <button
