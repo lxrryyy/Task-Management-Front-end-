@@ -6,6 +6,7 @@
     $startDateValue = $isEdit ? old('startDate',   $formStartDate   ?? '') : old('startDate');
     $endDateValue   = $isEdit ? old('endDate',     $formEndDate     ?? '') : old('endDate');
     $statusValue    = $isEdit ? old('status',      $formStatus      ?? '') : old('status', '');
+    $statusIdValue  = $isEdit ? old('statusId',     $formStatusId    ?? 0)  : old('statusId', 0);
 @endphp
 @if($errors->has('api_error'))
     <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mb-4 text-sm text-red-700">
@@ -41,14 +42,36 @@
         @if($isEdit) wire:model.lazy="formDescription" @endif
     >{{ $descriptionContent }}</textarea>
 </div>
-<div class="flex flex-col gap-2 my-4">
-    <span>Status</span>
-    <select name="status" class="select select-bordered w-full" @if($isEdit) wire:model.lazy="formStatus" @endif>
-        <option value="">-- Select Status --</option>
-        @foreach(($projectStatuses ?? []) as $ps)
-            <option value="{{ $ps }}" {{ (!$isEdit && $statusValue === $ps) ? 'selected' : '' }}>{{ $ps }}</option>
-        @endforeach
-    </select>
+@php
+    $currentStatusId = $isEdit ? (int)($formStatusId ?? 0) : (int)($statusIdValue ?? 0);
+    $currentStatusName = (string)($projectStatusMapById[$currentStatusId] ?? '');
+    $statusPillStyle = match($currentStatusName) {
+        'Not Started' => 'background:#f3f4f6;color:#374151;',
+        'Active'      => 'background:#dbeafe;color:#1d4ed8;',
+        'Completed'   => 'background:#d1fae5;color:#065f46;',
+        default       => 'background:#f3f4f6;color:#374151;',
+    };
+@endphp
+<div class="flex flex-col gap-1 my-4">
+    <label class="font-medium text-sm">Status</label>
+    <div class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-0 overflow-visible max-w-md" style="{{ $statusPillStyle }}">
+        <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+            <svg width="5" height="5" viewBox="0 0 5 5" fill="currentColor" class="text-current"><circle cx="2.5" cy="2.5" r="2.5" fill="currentColor"/></svg>
+        </span>
+        <select name="statusId" class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-7 py-1 w-full min-w-0 {{ $errors->has('statusId') ? 'border-red-500' : '' }}" style="border:none;box-shadow:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 24 24%22 stroke=%22%236b7280%22%3E%3Cpath stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 0.25rem center;background-size:1rem;" @if($isEdit) wire:model.lazy="formStatusId" @endif>
+            <option value="">Select status</option>
+            @foreach(($projectStatusItems ?? []) as $item)
+                @php
+                    $sid = (int) ($item['id'] ?? $item['Id'] ?? 0);
+                    $sname = $item['name'] ?? $item['Name'] ?? '';
+                @endphp
+                <option value="{{ $sid }}" {{ (!$isEdit && (string) $statusIdValue === (string) $sid) ? 'selected' : '' }}>{{ $sname }}</option>
+            @endforeach
+        </select>
+    </div>
+    @foreach($errors->get('statusId') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
+    @endforeach
 </div>
 <div class="flex flex-row gap-4 my-4">
     <div class="flex flex-col gap-2 my-4">

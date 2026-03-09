@@ -54,9 +54,13 @@ new class extends Component
     public $formStartDate = '';
     public $formEndDate = '';
     public $formStatus = '';
+    public $formStatusId = 0;
 
-    // Ordered list of project status names from GET /api/Project/GetAllProjectsStatus
+    // Project statuses from GET /api/Project/GetAllProjectsStatus (same shape as task priorities)
     public array $projectStatuses = [];
+    public array $projectStatusItems = [];
+    public array $projectStatusMapById = [];
+    public array $projectStatusMap = [];
 
     public function mount(
         $projects = [],
@@ -76,13 +80,14 @@ new class extends Component
         if ($showEditModal && $editingProjectId) {
             $this->editingProjectId = (int) $editingProjectId;
             $oldIds = old('memberIds');
-            if (is_array($oldIds) && !empty($oldIds)) {
+                if (is_array($oldIds) && !empty($oldIds)) {
                 $this->selectedMemberIds = array_values(array_map('intval', $oldIds));
                 $this->formName        = (string) old('name', '');
                 $this->formDescription = (string) old('description', '');
                 $this->formStartDate   = (string) old('startDate', '');
                 $this->formEndDate     = (string) old('endDate', '');
                 $this->formStatus      = (string) old('status', '');
+                $this->formStatusId    = (int) old('statusId', 0);
 
                 // Restore scrum master and roles from old input
                 $oldScrumMasterId = (int) old('scrumMasterId', 0);
@@ -99,11 +104,22 @@ new class extends Component
             }
         }
 
-        // Fetch project statuses via ProjectController
-        $this->projectStatuses = app(ProjectController::class)->getStatuses();
+        // Fetch project statuses via ProjectController (same shape as task priorities)
+        $statusData = app(ProjectController::class)->getStatuses();
+        $this->projectStatuses      = $statusData['names'] ?? [];
+        $this->projectStatusItems   = $statusData['items'] ?? [];
+        $this->projectStatusMapById = $statusData['mapById'] ?? [];
+        $this->projectStatusMap     = $statusData['map'] ?? [];
 
-        if (empty($this->projectStatuses)) {
-            $this->projectStatuses = ['Not Started', 'Active', 'Completed'];
+        if (empty($this->projectStatusItems)) {
+            $this->projectStatuses      = ['Not Started', 'Active', 'Completed'];
+            $this->projectStatusItems   = [
+                ['id' => 1, 'name' => 'Not Started'],
+                ['id' => 2, 'name' => 'Active'],
+                ['id' => 3, 'name' => 'Completed'],
+            ];
+            $this->projectStatusMapById = [1 => 'Not Started', 2 => 'Active', 3 => 'Completed'];
+            $this->projectStatusMap     = ['Not Started' => 1, 'Active' => 2, 'Completed' => 3];
         }
     }
 
@@ -118,6 +134,7 @@ new class extends Component
         $this->formStartDate = '';
         $this->formEndDate = '';
         $this->formStatus = '';
+        $this->formStatusId = 0;
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -186,6 +203,39 @@ new class extends Component
         return null;
     }
 
+    /** Update project status from the table dropdown. */
+    public function updateProjectStatus(int $projectId, int $statusId): void
+    {
+        $projectId = (int) $projectId;
+        $statusId  = (int) $statusId;
+        if ($projectId <= 0 || $statusId <= 0) {
+            return;
+        }
+
+        $user = Session::get('user', []);
+        $requesterId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($requesterId <= 0) {
+            return;
+        }
+
+        $result = app(ProjectController::class)->updateProjectStatusApi($projectId, $statusId, $requesterId);
+        if (!($result['ok'] ?? false)) {
+            $this->addError('api_error', 'Failed to update project status. Please try again.');
+            return;
+        }
+
+        $statusName = $this->projectStatusMapById[$statusId] ?? '';
+        foreach ($this->projects as $i => $p) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            if ($id === $projectId) {
+                $this->projects[$i]['statusName'] = $statusName;
+                $this->projects[$i]['status']     = $statusName;
+                $this->projects[$i]['statusId']   = $statusId;
+                break;
+            }
+        }
+    }
+
     /** Close both modals and clear form state. */
     public function closeModal()
     {
@@ -224,6 +274,7 @@ new class extends Component
         $this->formStartDate = '';
         $this->formEndDate = '';
         $this->formStatus = '';
+        $this->formStatusId = 0;
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
@@ -251,6 +302,7 @@ new class extends Component
         $this->formName        = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '';
         $this->formDescription = $project['description'] ?? '';
         $this->formStatus      = $project['statusName'] ?? $project['status'] ?? '';
+        $this->formStatusId    = (int) ($project['statusId'] ?? $project['StatusId'] ?? $this->projectStatusMap[$this->formStatus] ?? 0);
 
         // Dates: store as Y-m-d for HTML date inputs
         $rawStart = $project['startDate'] ?? $project['StartDate'] ?? null;
@@ -430,7 +482,7 @@ new class extends Component
         $payload = [
             'name'             => trim((string) $this->formName) ?: 'Project',
             'description'      => (string) $this->formDescription,
-            'status'           => $this->formStatus ?: null,
+            'status'           => $this->projectStatusMapById[(int) $this->formStatusId] ?? $this->formStatus ?: null,
             'projectManagerId' => $projectManagerId,
             'scrumMasterId'    => $scrumMasterId,
             'assigneeIds'      => $memberIds,
@@ -487,8 +539,12 @@ new class extends Component
         }
 
         return view('livewire.projects', [
-            'filteredProjects' => $filtered,
-            'projectStatuses'  => $this->projectStatuses,
+            'filteredProjects'     => $filtered,
+            'projectStatuses'     => $this->projectStatuses,
+            'projectStatusItems'  => $this->projectStatusItems,
+            'projectStatusMapById' => $this->projectStatusMapById,
+            'projectStatusMap'    => $this->projectStatusMap,
+            'formStatusId'        => $this->formStatusId,
         ]);
     }
 
