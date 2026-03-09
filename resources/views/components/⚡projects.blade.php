@@ -366,6 +366,15 @@ new class extends Component
         $scrumMasterIdInt = $scrumMasterId ? (int) $scrumMasterId : 0;
         $this->selectedScrumMasterId = $scrumMasterIdInt;
 
+        // Ensure the Scrum Master is visible in the members table/selection.
+        // Some backend responses don't include the Scrum Master in assigneeIds/memberIds.
+        if ($scrumMasterIdInt > 0 && $scrumMasterIdInt !== $creatorIdInt) {
+            if (!in_array($scrumMasterIdInt, $this->selectedMemberIds, true)) {
+                $this->selectedMemberIds[] = $scrumMasterIdInt;
+                $this->selectedMemberIds = array_values(array_unique(array_map('intval', $this->selectedMemberIds)));
+            }
+        }
+
         // Build memberRoles from backend data
         $this->memberRoles = [];
         foreach ($this->selectedMemberIds as $mid) {
@@ -482,7 +491,6 @@ new class extends Component
         $payload = [
             'name'             => trim((string) $this->formName) ?: 'Project',
             'description'      => (string) $this->formDescription,
-            'status'           => $this->projectStatusMapById[(int) $this->formStatusId] ?? $this->formStatus ?: null,
             'projectManagerId' => $projectManagerId,
             'scrumMasterId'    => $scrumMasterId,
             'assigneeIds'      => $memberIds,
@@ -491,8 +499,6 @@ new class extends Component
         ];
         if ($payload['startDate'] === null) unset($payload['startDate']);
         if ($payload['endDate'] === null) unset($payload['endDate']);
-
-        Log::info('Project update payload', ['projectId' => $projectId, 'assigneeIds' => $memberIds, 'assigneeCount' => count($memberIds)]);
 
         $result = app(ProjectController::class)->updateProjectApi($projectId, $payload, (int) $requesterId);
         if (!($result['ok'] ?? false)) {

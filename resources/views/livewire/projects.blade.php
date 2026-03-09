@@ -198,45 +198,26 @@
                             <progress class="progress w-24" value="{{ $project['completionPercentage'] ?? $project['progress'] ?? 0 }}" max="100"></progress>
                         </th>
                         <th>
-                            @if($isLeader && $projectId && !empty($projectStatusItems))
-                                @php
-                                    $statusPillStyle = match($status) {
-                                        'Not Started' => 'background:#f3f4f6;color:#374151;',
-                                        'Active'      => 'background:#dbeafe;color:#1d4ed8;',
-                                        'Completed'   => 'background:#d1fae5;color:#065f46;',
-                                        default       => 'background:#f3f4f6;color:#374151;',
-                                    };
-                                @endphp
-                                <div class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-[8rem] overflow-visible" style="{{ $statusPillStyle }}" wire:click.stop>
-                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
-                                        <svg width="5" height="5" viewBox="0 0 5 5" fill="currentColor" class="text-current"><circle cx="2.5" cy="2.5" r="2.5" fill="currentColor"/></svg>
-                                    </span>
-                                    <select
-                                        class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
-                                        style="border:none;box-shadow:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 24 24%22 stroke=%22%236b7280%22%3E%3Cpath stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 0.25rem center;background-size:1rem;"
-                                        x-data
-                                        @change="$wire.updateProjectStatus({{ (int) $projectId }}, parseInt($event.target.value))"
-                                    >
-                                        @foreach($projectStatusItems as $item)
-                                            @php
-                                                $sid = (int) ($item['id'] ?? $item['Id'] ?? 0);
-                                                $sname = $item['name'] ?? $item['Name'] ?? '';
-                                            @endphp
-                                            <option value="{{ $sid }}" {{ $currentStatusId === $sid ? 'selected' : '' }}>{{ $sname }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            @else
-                                @php
-                                    $statusBadge = match($status) {
-                                        'Not Started' => 'badge-ghost',
-                                        'Active'      => 'badge-info',
-                                        'Completed'   => 'badge-success',
-                                        default       => 'badge-ghost',
-                                    };
-                                @endphp
-                                <span class="badge {{ $statusBadge }}">{{ $status ?: 'Unknown' }}</span>
-                            @endif
+                            @php
+                                // Project status is derived from tasks; display-only (no dropdown).
+                                // Derived in ProjectController@index using GetTasksByProject:
+                                // - Completed only when all tasks are completed
+                                // - Not Started when project has no tasks
+                                // - Active when project has tasks but not all completed
+                                $displayStatus = $project['_derivedStatus'] ?? ($status ?: 'Unknown');
+                                $statusPillStyle = match($displayStatus) {
+                                    'Not Started' => 'background:#f3f4f6;color:#374151;',
+                                    'Active'      => 'background:#dbeafe;color:#1d4ed8;',
+                                    'Completed'   => 'background:#d1fae5;color:#065f46;',
+                                    default       => 'background:#f3f4f6;color:#374151;',
+                                };
+                            @endphp
+                            <div class="inline-flex items-center gap-2 rounded-none px-2 py-1 w-[9.5rem] overflow-hidden" style="{{ $statusPillStyle }}">
+                                <span class="shrink-0 text-current">
+                                    <x-icons.circle />
+                                </span>
+                                <span class="text-xs font-medium whitespace-nowrap truncate">{{ $displayStatus }}</span>
+                            </div>
                         </th>
                         <th>
                             <span>

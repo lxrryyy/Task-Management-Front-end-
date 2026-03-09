@@ -40,6 +40,69 @@ class ProjectController extends Controller
             }
         }
 
+        // Derive task-based progress and status for each project using GetTasksByProject.
+        foreach ($projects as $i => $project) {
+            $projectId = $project['id'] ?? $project['Id'] ?? null;
+            if (!$projectId) {
+                continue;
+            }
+
+            // Use project manager / creator as privileged requester so all project tasks are visible,
+            // regardless of who is currently logged in.
+            $pmId = $project['projectManagerId']
+                ?? $project['ProjectManagerId']
+                ?? $project['createdById']
+                ?? $project['CreatedById']
+                ?? $accountId;
+
+            try {
+                $tasksResponse = $this->api->get(
+                    "/api/Task/GetTasksByProject/{$projectId}",
+                    ['requesterId' => $pmId]
+                );
+                $tasks = is_array($tasksResponse)
+                    ? $tasksResponse
+                    : ($tasksResponse['data'] ?? $tasksResponse['tasks'] ?? []);
+
+                $total = 0;
+                $completed = 0;
+                foreach ((array) $tasks as $t) {
+                    if (!is_array($t)) {
+                        continue;
+                    }
+                    $status = mb_strtolower(trim((string) ($t['statusName'] ?? $t['status'] ?? '')));
+                    if ($status === '') {
+                        $status = 'not started';
+                    }
+                    $total++;
+                    if ($status === 'completed') {
+                        $completed++;
+                    }
+                }
+
+                $projects[$i]['_taskTotal']     = $total;
+                $projects[$i]['_taskCompleted'] = $completed;
+
+                if ($total > 0) {
+                    $projects[$i]['completionPercentage'] = (int) round(($completed / $total) * 100);
+                }
+
+                if ($total === 0) {
+                    $derivedStatus = 'Not Started';
+                } elseif ($completed === $total) {
+                    $derivedStatus = 'Completed';
+                } else {
+                    $derivedStatus = 'Active';
+                }
+                $projects[$i]['_derivedStatus'] = $derivedStatus;
+            } catch (\Throwable $e) {
+                Log::warning('GetTasksByProject for status/progress failed', [
+                    'projectId' => $projectId,
+                    'message'   => $e->getMessage(),
+                ]);
+            }
+        }
+
         $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
         $accounts = $this->normalizeAccounts($accountsResponse);
 
@@ -206,14 +269,12 @@ class ProjectController extends Controller
             return ['ok' => true, 'errors' => []];
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
-            Log::warning('Project update (Livewire) failed', ['projectId' => $projectId, 'errors' => $fieldErrors, 'payload' => $payload]);
             return ['ok' => false, 'errors' => $fieldErrors];
         }
     }
 
-    /**
-     * Update only the project status (for table inline dropdown). Resolves statusId to name and PATCHes.
-     */
+     // Update only the project status. Resolves statusId to name and PATCHes the project.
+     
     public function updateProjectStatusApi(int $projectId, int $statusId, int $requesterId): array
     {
         $statusData = $this->getStatuses();
@@ -221,7 +282,45 @@ class ProjectController extends Controller
         if ($statusName === null) {
             return ['ok' => false, 'errors' => ['status' => ['Invalid status selected.']]];
         }
-        return $this->updateProjectApi($projectId, ['status' => $statusName], $requesterId);
+        // Some backend implementations require a full payload to update.
+        // Fetch the current project and send the minimal required fields + new status.
+        $current = $this->getProjectData($projectId);
+
+        $payload = [
+            'name'        => $current['name'] ?? $current['projectName'] ?? $current['title'] ?? null,
+            'description' => $current['description'] ?? '',
+            'status'      => $statusName,
+        ];
+
+        // Include IDs if present (common backend requirements)
+        $pmId = $current['projectManagerId'] ?? $current['ProjectManagerId'] ?? $current['createdById'] ?? $current['CreatedById'] ?? null;
+        $smId = $current['scrumMasterId'] ?? $current['ScrumMasterId'] ?? null;
+        if ($pmId !== null) $payload['projectManagerId'] = (int) $pmId;
+        if ($smId !== null) $payload['scrumMasterId'] = (int) $smId;
+
+        // Include current members if available so status updates don't accidentally clear them
+        $assigneeIds = $current['assigneeIds'] ?? $current['AssigneeIds'] ?? null;
+        if (is_array($assigneeIds)) {
+            $payload['assigneeIds'] = array_values(array_filter(array_map('intval', $assigneeIds), static fn ($id) => $id > 0));
+        }
+
+        return $this->updateProjectApi($projectId, $payload, $requesterId);
+    }
+
+    /**
+     * Restore (reactivate) a deleted project via the C# API.
+     * Endpoint: PATCH /api/Project/ReactivateProject/{projectId}?accountId={accountId}
+     */
+    public function restoreProjectApi(int $projectId, int $accountId): array
+    {
+        try {
+            $this->api->patch("/api/Project/ReactivateProject/{$projectId}?accountId={$accountId}", []);
+            return ['ok' => true, 'errors' => []];
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project restore failed', ['projectId' => $projectId, 'accountId' => $accountId, 'errors' => $fieldErrors]);
+            return ['ok' => false, 'errors' => $fieldErrors];
+        }
     }
 
     public function store(Request $request)
