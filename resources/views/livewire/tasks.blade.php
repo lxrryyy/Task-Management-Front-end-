@@ -376,6 +376,7 @@
                         $priority = $taskPriorityMap[(int) ($task['priorityId'] ?? $task['PriorityId'] ?? 0)] ?? '';
                     }
 
+                    // Status/priority visual styles
                     $statusBadge = match($status) {
                         'Not Started' => 'badge-ghost rounded-none',
                         'In Progress' => 'badge-info rounded-none',
@@ -383,12 +384,20 @@
                         'Completed'   => 'badge-success rounded-none',
                         default       => 'badge-ghost rounded-none',
                     };
-                    $priorityBadge = match($priority) {
-                        'Urgent'    => 'badge-error rounded-none',
-                        'Important' => 'badge-error rounded-none',
-                        'Medium'    => 'badge-warning rounded-none',
-                        'Low'       => 'badge-info rounded-none',
-                        default     => 'badge-ghost rounded-none',
+
+                    $priorityPillStyle = match($priority) {
+                        'Urgent'    => 'background:#fee2e2;color:#b91c1c;',   // light red bg, dark red text
+                        'Important' => 'background:#ffe4f1;color:#be185d;',   // light pink bg, dark pink text
+                        'Medium'    => 'background:#dbeafe;color:#1d4ed8;',   // light blue bg, blue text
+                        'Low'       => 'background:#e5e7eb;color:#374151;',   // light gray bg, gray text
+                        default     => 'background:#f3f4f6;color:#374151;',
+                    };
+                    $priorityDotColor = match($priority) {
+                        'Urgent'    => '#ef4444',
+                        'Important' => '#ec4899',
+                        'Medium'    => '#3b82f6',
+                        'Low'       => '#6b7280',
+                        default     => '#6b7280',
                     };
 
                     $id = $task['id'] ?? $task['Id'] ?? null;
@@ -401,7 +410,19 @@
                         default       => 'background:#f3f4f6;color:#374151;',
                     };
 
-                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityBadge','statusStyle');
+                    return compact(
+                        'id',
+                        'taskName',
+                        'assignee',
+                        'dueDateRaw',
+                        'storyPoints',
+                        'status',
+                        'priority',
+                        'statusBadge',
+                        'statusStyle',
+                        'priorityPillStyle',
+                        'priorityDotColor'
+                    );
                 };
             @endphp
 
@@ -429,7 +450,7 @@
                     <td wire:click.stop>
                         <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
                     </td>
-                    <td>
+                    <td class="text-center">
                         <span class="font-semibold">{{ $p['taskName'] }}</span>
                     </td>
                     <td>{{ $p['assignee'] }}</td>
@@ -439,7 +460,7 @@
                         @endif
                     </td>
                     <td>{{ $p['storyPoints'] ?? '' }}</td>
-                                    <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
+                                    <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] overflow-visible text-center">
                                         <div x-data="{
                                                 class: {
                                                     'Not Started': 'badge-ghost rounded-none',
@@ -456,13 +477,13 @@
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
-                                             class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-0 overflow-visible"
+                                             class="flex items-center justify-center gap-2 rounded-none px-3 py-1 w-[9.5rem] mx-auto overflow-visible"
                                              :style="pill">
-                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                            <span class="flex items-center shrink-0 w-1.5 h-1.5">
                                                 <x-icons.circle />
                                             </span>
                                             <select x-model="status"
-                                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                                    class="text-xs font-medium text-center border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pr-1 py-1 w-full min-w-0"
                                                     style="border:none;box-shadow:none;"
                                                     @change="Livewire.dispatch('task-status-changed', { taskId: {{ $p['id'] ?? 0 }}, newStatus: status })">
                                                 @foreach($boardStatuses as $s)
@@ -471,11 +492,26 @@
                                             </select>
                                         </div>
                                     </td>
-                                    <td class="min-w-[5rem] pl-1">
-                                        <span class="badge !rounded-none {{ $p['priorityBadge'] }}" style="border-radius: 0;">{{ $p['priority'] }}</span>
+                                    <td class="min-w-[5rem] pl-1 text-center">
+                                        <div class="inline-flex items-center justify-center gap-2 px-3 py-0.5 rounded-none text-xs font-medium mx-auto"
+                                             style="{{ $p['priorityPillStyle'] }}">
+                                            <span class="w-1.5 h-1.5 rounded-full" style="background: {{ $p['priorityDotColor'] }}"></span>
+                                            <span>{{ $p['priority'] ?: '—' }}</span>
+                                        </div>
                                     </td>
                     <td wire:click.stop>
-                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">details</button>
+                        <div class="dropdown dropdown-end" wire:click.stop>
+                            <button tabindex="0" type="button" class="btn btn-ghost btn-xs px-1">
+                                <x-icons.three-dot classes="w-4 h-4" />
+                            </button>
+                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-36 p-2 shadow-lg border">
+                                <li>
+                                    <button type="button" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">
+                                        Details
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </td>
                 </tr>
 
@@ -514,7 +550,7 @@
                                 @endif
                             </td>
                             <td>{{ $c['storyPoints'] ?? '' }}</td>
-                            <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
+                            <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] overflow-visible text-center">
                                 <div x-data="{
                                          status: '{{ addslashes($c['status']) }}',
                                          styles: {
@@ -525,13 +561,13 @@
                                          },
                                          get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                      }"
-                                     class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                     class="flex items-center justify-center gap-2 rounded-none px-3 py-0.5 w-[9.5rem] mx-auto overflow-visible"
                                      :style="pill">
-                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                    <span class="flex items-center shrink-0 w-1.5 h-1.5">
                                         <x-icons.circle />
                                     </span>
                                     <select x-model="status"
-                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                            class="text-xs font-medium text-center border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pr-1 py-1 w-full min-w-0"
                                             style="border:none;box-shadow:none;"
                                             @change="Livewire.dispatch('task-status-changed', { taskId: {{ $c['id'] ?? 0 }}, newStatus: status })">
                                         @foreach($boardStatuses as $s)
@@ -540,11 +576,26 @@
                                     </select>
                                 </div>
                             </td>
-                            <td class="min-w-[5rem] pl-1">
-                                <span class="badge !rounded-none {{ $c['priorityBadge'] }}" style="border-radius: 0;">{{ $c['priority'] }}</span>
+                            <td class="min-w-[5rem] pl-1 text-center">
+                                <div class="inline-flex items-center justify-center gap-2 px-3 py-0.5 rounded-none text-xs font-medium mx-auto"
+                                     style="{{ $c['priorityPillStyle'] }}">
+                                    <span class="w-1.5 h-1.5 rounded-full" style="background: {{ $c['priorityDotColor'] }}"></span>
+                                    <span>{{ $c['priority'] ?: '—' }}</span>
+                                </div>
                             </td>
                             <td wire:click.stop>
-                                <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">Edit</button>
+                                <div class="dropdown dropdown-end" wire:click.stop>
+                                    <button tabindex="0" type="button" class="btn btn-ghost btn-xs px-1">
+                                        <x-icons.three-dot classes="w-4 h-4" />
+                                    </button>
+                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-36 p-2 shadow-lg border">
+                                        <li>
+                                            <button type="button" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
+                                                Details
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </td>
                         </tr>
 
@@ -567,7 +618,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $g['storyPoints'] ?? '' }}</td>
-                                    <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
+                                    <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] overflow-visible text-center">
                                         <div x-data="{
                                                  status: '{{ addslashes($g['status']) }}',
                                                  styles: {
@@ -578,13 +629,13 @@
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
-                                             class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                             class="flex items-center justify-center gap-2 rounded-none px-3 py-0.5 w-[9.5rem] mx-auto overflow-visible"
                                              :style="pill">
-                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                            <span class="flex items-center shrink-0 w-1.5 h-1.5">
                                                 <x-icons.circle />
                                             </span>
                                             <select x-model="status"
-                                                    class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                                    class="text-xs font-medium text-center border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pr-1 py-1 w-full min-w-0"
                                                     style="border:none;box-shadow:none;"
                                                     @change="Livewire.dispatch('task-status-changed', { taskId: {{ $g['id'] ?? 0 }}, newStatus: status })">
                                                 @foreach($boardStatuses as $s)
@@ -593,11 +644,26 @@
                                             </select>
                                         </div>
                                     </td>
-                                    <td class="min-w-[5rem] pl-1">
-                                        <span class="badge !rounded-none {{ $g['priorityBadge'] }}" style="border-radius: 0;">{{ $g['priority'] }}</span>
+                                    <td class="min-w-[5rem] pl-1 text-center">
+                                        <div class="inline-flex items-center justify-center gap-2 px-3 py-0.5 rounded-none text-xs font-medium mx-auto"
+                                             style="{{ $g['priorityPillStyle'] }}">
+                                            <span class="w-1.5 h-1.5 rounded-full" style="background: {{ $g['priorityDotColor'] }}"></span>
+                                            <span>{{ $g['priority'] ?: '—' }}</span>
+                                        </div>
                                     </td>
                                     <td wire:click.stop>
-                                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">Edit</button>
+                                        <div class="dropdown dropdown-end" wire:click.stop>
+                                            <button tabindex="0" type="button" class="btn btn-ghost btn-xs px-1">
+                                                <x-icons.three-dot classes="w-4 h-4" />
+                                            </button>
+                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-36 p-2 shadow-lg border">
+                                                <li>
+                                                    <button type="button" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
+                                                        Details
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

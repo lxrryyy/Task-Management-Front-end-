@@ -226,21 +226,22 @@
                         </th>
                         <th>
                             @if($isLeader && $projectId)
-                            <div>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm bg-warning text-base-100 border-none hover:opacity-90 p-2"
-                                    wire:click.stop="startEdit({{ (int) $projectId }})"
-                                >
-                                    Edit
+                            <div class="dropdown dropdown-end" wire:click.stop>
+                                <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                    <x-icons.three-dot classes="w-5 h-5" />
                                 </button>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm clr-bg-accent text-base-100 border-none hover:opacity-90 p-2"
-                                    wire:click.stop="confirmDelete({{ (int) $projectId }})"
-                                >
-                                    Delete
-                                </button>
+                                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                    <li>
+                                        <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
+                                            Edit
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                </ul>
                             </div>
                             @else
                                 <span class="text-gray-400">—</span>
