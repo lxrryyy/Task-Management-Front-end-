@@ -1,13 +1,14 @@
 <?php
 
-use Livewire\Component;
-use App\Http\Controllers\ProjectController;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Session;
+namespace App\Livewire;
 
-new class extends Component
+use App\Http\Controllers\ProjectController;
+use Illuminate\Support\Facades\Session;
+use Livewire\Component;
+
+class Projects extends Component
 {
-    public $search = '';
+    public string $search = '';
 
     /** Show the "Add Project" modal (create only). */
     public bool $showAddModal = false;
@@ -15,72 +16,67 @@ new class extends Component
     /** Show the "Edit Project" modal (update only). */
     public bool $showEditModal = false;
 
-    public $projects = [];
+    public array $projects = [];
+    public array $accounts = [];
+    public int $creatorId = 0;
 
-    public $accounts = [];
+    /** 0 = creator is scrum master; otherwise member id chosen in table */
+    public int $selectedScrumMasterId = 0;
 
-    public $creatorId = 0;
+    /** @var int[] */
+    public array $selectedMemberIds = [];
 
-    // 0 = creator is scrum master; otherwise member id chosen in table
-    public $selectedScrumMasterId = 0;
-
-    // @var int[] IDs of selected members (source of truth for selection)
-    public $selectedMemberIds = [];
-
-    /** Locked member IDs when user clicks "Update Project" (used for PATCH so removal is not lost). */
+    /** Locked member IDs when user clicks "Update Project". */
     public array $confirmedMemberIds = [];
 
-    /** Show the "Confirm Update" overlay (set after prepareEditSubmit so list is locked). */
+    /** Show the "Confirm Update" overlay. */
     public bool $showConfirmDialog = false;
 
     /** Show the "Confirm Delete" overlay. */
     public bool $showDeleteConfirmDialog = false;
 
-    /** Project ID pending deletion. */
     public ?int $deletingProjectId = null;
-
-    /** Project name pending deletion (for confirmation text). */
     public string $deletingProjectName = '';
 
-    // @var array<int, string> memberId => role ('Member' or 'Scrum Master')
-    public $memberRoles = [];
+    /** @var array<int, string> memberId => role ('Member' or 'Scrum Master') */
+    public array $memberRoles = [];
 
-    // Currently edited project id (null when creating)
-    public $editingProjectId = null;
+    public ?int $editingProjectId = null;
 
-    // Simple form fields for editing
-    public $formName = '';
-    public $formDescription = '';
-    public $formStartDate = '';
-    public $formEndDate = '';
-    public $formStatus = '';
-    public $formStatusId = 0;
+    // Form fields for editing
+    public string $formName = '';
+    public string $formDescription = '';
+    public string $formStartDate = '';
+    public string $formEndDate = '';
+    public string $formStatus = '';
+    public int $formStatusId = 0;
 
-    // Project statuses from GET /api/Project/GetAllProjectsStatus (same shape as task priorities)
+    // Project statuses from GET /api/Project/GetAllProjectsStatus
     public array $projectStatuses = [];
     public array $projectStatusItems = [];
     public array $projectStatusMapById = [];
     public array $projectStatusMap = [];
 
     public function mount(
-        $projects = [],
-        $accounts = [],
-        $creatorId = 0,
-        $selectedMemberIds = [],
-        $showAddModal = false,
-        $showEditModal = false,
+        array $projects = [],
+        array $accounts = [],
+        int $creatorId = 0,
+        array $selectedMemberIds = [],
+        bool $showAddModal = false,
+        bool $showEditModal = false,
         $editingProjectId = null
     ): void {
         $this->projects = $projects;
         $this->accounts = $accounts;
         $this->creatorId = (int) $creatorId;
-        $this->selectedMemberIds = is_array($selectedMemberIds) ? array_values(array_map('intval', $selectedMemberIds)) : [];
+        $this->selectedMemberIds = array_values(array_map('intval', $selectedMemberIds));
         $this->showAddModal = (bool) $showAddModal;
         $this->showEditModal = (bool) $showEditModal;
+
         if ($showEditModal && $editingProjectId) {
             $this->editingProjectId = (int) $editingProjectId;
             $oldIds = old('memberIds');
-                if (is_array($oldIds) && !empty($oldIds)) {
+            if (is_array($oldIds) && !empty($oldIds)) {
                 $this->selectedMemberIds = array_values(array_map('intval', $oldIds));
                 $this->formName        = (string) old('name', '');
                 $this->formDescription = (string) old('description', '');
@@ -89,13 +85,11 @@ new class extends Component
                 $this->formStatus      = (string) old('status', '');
                 $this->formStatusId    = (int) old('statusId', 0);
 
-                // Restore scrum master and roles from old input
                 $oldScrumMasterId = (int) old('scrumMasterId', 0);
                 $this->selectedScrumMasterId = $oldScrumMasterId;
                 $this->memberRoles = [];
                 foreach ($this->selectedMemberIds as $mid) {
-                    $mid = (int) $mid;
-                    $this->memberRoles[$mid] = ($oldScrumMasterId > 0 && $mid === $oldScrumMasterId)
+                    $this->memberRoles[(int) $mid] = ($oldScrumMasterId > 0 && (int) $mid === $oldScrumMasterId)
                         ? 'Scrum Master'
                         : 'Member';
                 }
@@ -104,7 +98,6 @@ new class extends Component
             }
         }
 
-        // Fetch project statuses via ProjectController (same shape as task priorities)
         $statusData = app(ProjectController::class)->getStatuses();
         $this->projectStatuses      = $statusData['names'] ?? [];
         $this->projectStatusItems   = $statusData['items'] ?? [];
@@ -123,8 +116,7 @@ new class extends Component
         }
     }
 
-    /** Open the Add Project modal only; clears form state. */
-    public function openModal()
+    public function openModal(): void
     {
         $this->showAddModal = true;
         $this->showEditModal = false;
@@ -140,13 +132,6 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
-    /**
-     * Archive button handler.
-     *
-     * NOTE: No archive endpoint is wired yet in this frontend.
-     * This method exists so the UI button works and can be extended
-     * once the backend API route/behavior is confirmed.
-     */
     public function archiveSelected(): mixed
     {
         return $this->redirect(route('projects.archive'));
@@ -192,7 +177,6 @@ new class extends Component
             return null;
         }
 
-        // Remove from local list so UI updates immediately
         $this->projects = array_values(array_filter($this->projects, function ($p) use ($projectId) {
             $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
             return $id !== $projectId;
@@ -203,41 +187,7 @@ new class extends Component
         return null;
     }
 
-    /** Update project status from the table dropdown. */
-    public function updateProjectStatus(int $projectId, int $statusId): void
-    {
-        $projectId = (int) $projectId;
-        $statusId  = (int) $statusId;
-        if ($projectId <= 0 || $statusId <= 0) {
-            return;
-        }
-
-        $user = Session::get('user', []);
-        $requesterId = (int) ($user['id'] ?? $user['Id'] ?? 0);
-        if ($requesterId <= 0) {
-            return;
-        }
-
-        $result = app(ProjectController::class)->updateProjectStatusApi($projectId, $statusId, $requesterId);
-        if (!($result['ok'] ?? false)) {
-            $this->addError('api_error', 'Failed to update project status. Please try again.');
-            return;
-        }
-
-        $statusName = $this->projectStatusMapById[$statusId] ?? '';
-        foreach ($this->projects as $i => $p) {
-            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
-            if ($id === $projectId) {
-                $this->projects[$i]['statusName'] = $statusName;
-                $this->projects[$i]['status']     = $statusName;
-                $this->projects[$i]['statusId']   = $statusId;
-                break;
-            }
-        }
-    }
-
-    /** Close both modals and clear form state. */
-    public function closeModal()
+    public function closeModal(): void
     {
         $this->showAddModal = false;
         $this->showEditModal = false;
@@ -252,8 +202,7 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
-    /** Close only the Add modal. */
-    public function closeAddModal()
+    public function closeAddModal(): void
     {
         $this->showAddModal = false;
         $this->formStatus = '';
@@ -262,8 +211,7 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
-    /** Close only the Edit modal. */
-    public function closeEditModal()
+    public function closeEditModal(): void
     {
         $this->showEditModal = false;
         $this->showConfirmDialog = false;
@@ -280,7 +228,6 @@ new class extends Component
         $this->selectedScrumMasterId = 0;
     }
 
-    /** Open the Edit Project modal only; loads project and pre-fills form. */
     public function startEdit(int $projectId): void
     {
         $this->editingProjectId = $projectId;
@@ -289,9 +236,7 @@ new class extends Component
         $this->showConfirmDialog = false;
         $this->confirmedMemberIds = [];
 
-        // Prefer fresh project data from API via ProjectController, fall back to cached list.
         $project = app(ProjectController::class)->getProjectData($projectId);
-
         if (empty($project)) {
             $project = collect($this->projects)->first(function ($p) use ($projectId) {
                 $id = $p['id'] ?? $p['Id'] ?? null;
@@ -299,33 +244,26 @@ new class extends Component
             }) ?? [];
         }
 
-        $this->formName        = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '';
-        $this->formDescription = $project['description'] ?? '';
-        $this->formStatus      = $project['statusName'] ?? $project['status'] ?? '';
-        $this->formStatusId    = (int) ($project['statusId'] ?? $project['StatusId'] ?? $this->projectStatusMap[$this->formStatus] ?? 0);
+        $this->formName        = (string) ($project['name'] ?? $project['projectName'] ?? $project['title'] ?? '');
+        $this->formDescription = (string) ($project['description'] ?? '');
+        $this->formStatus      = (string) ($project['statusName'] ?? $project['status'] ?? '');
+        $this->formStatusId    = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($this->projectStatusMap[$this->formStatus] ?? 0));
 
-        // Dates: store as Y-m-d for HTML date inputs
         $rawStart = $project['startDate'] ?? $project['StartDate'] ?? null;
         $rawEnd   = $project['endDate']   ?? $project['EndDate']   ?? null;
         $this->formStartDate = $rawStart ? \Carbon\Carbon::parse($rawStart)->format('Y-m-d') : '';
         $this->formEndDate   = $rawEnd   ? \Carbon\Carbon::parse($rawEnd)->format('Y-m-d')   : '';
 
-        // Prefer assigneeIds/memberIds from API (source of truth). If backend returns wrong memberNames after PATCH, only assigneeIds is reliable.
         $memberIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? $project['memberIds'] ?? $project['MemberIds'] ?? [];
         $this->selectedMemberIds = [];
-
         if (is_array($memberIds) && !empty($memberIds)) {
             $this->selectedMemberIds = array_values(array_filter(array_map('intval', $memberIds)));
         } else {
-            // Fallback: map memberNames -> account IDs by matching names
             $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
             if (is_array($memberNames) && !empty($memberNames)) {
                 foreach ($memberNames as $memberName) {
                     $normalizedName = trim((string) $memberName);
-                    if ($normalizedName === '') {
-                        continue;
-                    }
-
+                    if ($normalizedName === '') continue;
                     foreach ($this->accounts as $account) {
                         $aid = $account['id'] ?? $account['Id'] ?? null;
                         $aname = $account['name'] ?? $account['Name'] ?? '';
@@ -335,19 +273,14 @@ new class extends Component
                         }
                     }
                 }
-                // De-duplicate and normalize
                 $this->selectedMemberIds = array_values(array_unique(array_map('intval', $this->selectedMemberIds)));
             }
         }
 
-        // Exclude creator from members completely (they are project manager, not a member)
         $creatorIdInt = (int) $this->creatorId;
         $this->selectedMemberIds = array_values(array_filter($this->selectedMemberIds, static fn ($id) => (int) $id !== $creatorIdInt));
 
-        // Resolve Scrum Master from backend response
         $scrumMasterId = $project['scrumMasterId'] ?? $project['ScrumMasterId'] ?? null;
-
-        // If backend returns a name instead of an ID, resolve it to an ID
         if (!$scrumMasterId) {
             $scrumMasterName = $project['scrumMasterName'] ?? $project['ScrumMasterName'] ?? null;
             if ($scrumMasterName) {
@@ -366,8 +299,6 @@ new class extends Component
         $scrumMasterIdInt = $scrumMasterId ? (int) $scrumMasterId : 0;
         $this->selectedScrumMasterId = $scrumMasterIdInt;
 
-        // Ensure the Scrum Master is visible in the members table/selection.
-        // Some backend responses don't include the Scrum Master in assigneeIds/memberIds.
         if ($scrumMasterIdInt > 0 && $scrumMasterIdInt !== $creatorIdInt) {
             if (!in_array($scrumMasterIdInt, $this->selectedMemberIds, true)) {
                 $this->selectedMemberIds[] = $scrumMasterIdInt;
@@ -375,52 +306,40 @@ new class extends Component
             }
         }
 
-        // Build memberRoles from backend data
         $this->memberRoles = [];
         foreach ($this->selectedMemberIds as $mid) {
             $mid = (int) $mid;
-            $this->memberRoles[$mid] = ($scrumMasterIdInt > 0 && $mid === $scrumMasterIdInt)
-                ? 'Scrum Master'
-                : 'Member';
+            $this->memberRoles[$mid] = ($scrumMasterIdInt > 0 && $mid === $scrumMasterIdInt) ? 'Scrum Master' : 'Member';
         }
     }
 
-    // Set role for a member; when role is Scrum Master, use as project scrum master.
     public function setMemberRole(int $memberId, string $role): void
     {
         $role = $role === 'Scrum Master' ? 'Scrum Master' : 'Member';
-
         $this->memberRoles[$memberId] = $role;
 
         if ($role === 'Scrum Master') {
             $this->selectedScrumMasterId = $memberId;
-        } else {
-            if ($this->selectedScrumMasterId === $memberId) {
-                $this->selectedScrumMasterId = 0;
-            }
+        } elseif ($this->selectedScrumMasterId === $memberId) {
+            $this->selectedScrumMasterId = 0;
         }
     }
 
-    // Toggle selection from dropdown or table.
     public function toggleMember(int $id): void
     {
         $id = (int) $id;
 
         if (in_array($id, $this->selectedMemberIds, true)) {
-            // Remove
-            $this->selectedMemberIds = array_values(
-                array_filter(
-                    $this->selectedMemberIds,
-                    static fn ($value) => (int) $value !== $id
-                )
-            );
+            $this->selectedMemberIds = array_values(array_filter(
+                $this->selectedMemberIds,
+                static fn ($value) => (int) $value !== $id
+            ));
             unset($this->memberRoles[$id]);
 
             if ($this->selectedScrumMasterId === $id) {
                 $this->selectedScrumMasterId = 0;
             }
         } else {
-            // Add (never add the creator — they are project manager)
             if ($this->creatorId && (int) $this->creatorId === $id) {
                 return;
             }
@@ -429,19 +348,16 @@ new class extends Component
         }
     }
 
-    // Remove via table button simply toggles off the member.
     public function removeMember(int $id): void
     {
         $this->toggleMember($id);
     }
 
-    /** Return current selected member IDs for the edit form (used by "Yes, Update" to sync before submit). */
     public function getEditMemberIds(): array
     {
         return array_values(array_map('intval', $this->selectedMemberIds));
     }
 
-    /** Lock in current member selection when user clicks "Update Project", then show confirm dialog. */
     public function prepareEditSubmit(): void
     {
         $this->confirmedMemberIds = array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
@@ -453,13 +369,10 @@ new class extends Component
         $this->showConfirmDialog = false;
     }
 
-    /** Submit project update using locked member list (confirmedMemberIds) so removal is not lost. */
     public function submitEditProject(): mixed
     {
         $projectId = (int) $this->editingProjectId;
-        if ($projectId <= 0) {
-            return null;
-        }
+        if ($projectId <= 0) return null;
 
         $user = Session::get('user', []);
         $requesterId = $user['id'] ?? $user['Id'] ?? null;
@@ -467,7 +380,6 @@ new class extends Component
             return $this->redirect(route('login'));
         }
 
-        // Use locked-in list from "Update Project" click; fallback to current selection
         $memberIds = !empty($this->confirmedMemberIds)
             ? array_values(array_map('intval', $this->confirmedMemberIds))
             : array_values(array_filter(array_map('intval', $this->selectedMemberIds), static fn ($id) => $id > 0));
@@ -505,9 +417,7 @@ new class extends Component
             $fieldErrors = $result['errors'] ?? [];
             foreach ($fieldErrors as $field => $msgs) {
                 foreach ((array) $msgs as $m) {
-                    if (trim((string) $m) !== '') {
-                        $this->addError($field, $m);
-                    }
+                    if (trim((string) $m) !== '') $this->addError($field, $m);
                 }
             }
             return null;
@@ -545,22 +455,13 @@ new class extends Component
         }
 
         return view('livewire.projects', [
-            'filteredProjects'     => $filtered,
-            'projectStatuses'     => $this->projectStatuses,
-            'projectStatusItems'  => $this->projectStatusItems,
-            'projectStatusMapById' => $this->projectStatusMapById,
-            'projectStatusMap'    => $this->projectStatusMap,
-            'formStatusId'        => $this->formStatusId,
+            'filteredProjects'      => $filtered,
+            'projectStatuses'       => $this->projectStatuses,
+            'projectStatusItems'    => $this->projectStatusItems,
+            'projectStatusMapById'  => $this->projectStatusMapById,
+            'projectStatusMap'      => $this->projectStatusMap,
+            'formStatusId'          => $this->formStatusId,
         ]);
     }
+}
 
-    public function navigateToTasks()
-    {
-        return redirect()->route('Tasks');
-    }
-};
-?>
-
-<div>
-    {{-- Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less. - Maria Skłodowska-Curie --}}
-</div>

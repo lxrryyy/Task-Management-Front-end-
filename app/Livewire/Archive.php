@@ -1,10 +1,12 @@
 <?php
 
-use Livewire\Component;
+namespace App\Livewire;
+
 use App\Http\Controllers\ProjectController;
 use Illuminate\Support\Facades\Session;
+use Livewire\Component;
 
-new class extends Component
+class Archive extends Component
 {
     public array $projects = [];
     public array $accounts = [];
@@ -21,9 +23,7 @@ new class extends Component
     public function restoreProject(int $projectId): void
     {
         $projectId = (int) $projectId;
-        if ($projectId <= 0) {
-            return;
-        }
+        if ($projectId <= 0) return;
 
         $user = Session::get('user', []);
         $accountId = (int) ($user['id'] ?? $user['Id'] ?? 0);
@@ -38,7 +38,6 @@ new class extends Component
             return;
         }
 
-        // Remove from local list so UI updates immediately
         $this->projects = array_values(array_filter($this->projects, static function ($p) use ($projectId) {
             $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
             return $id !== $projectId;
@@ -69,7 +68,5 @@ new class extends Component
             'creatorId'        => $this->creatorId,
         ]);
     }
-};
-
-?>
+}
 
