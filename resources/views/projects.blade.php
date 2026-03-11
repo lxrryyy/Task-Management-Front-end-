@@ -11,7 +11,7 @@
             'accounts' => $accounts ?? [],
             'creatorId' => $creatorId ?? 0,
             'selectedMemberIds' => old('memberIds', []),
-            'showAddModal' => $errors->any() && !old('_edit_project_id'),
+            'showAddModal' => request()->boolean('create') || ($errors->any() && !old('_edit_project_id')),
             'showEditModal' => $errors->any() && (bool) old('_edit_project_id'),
             'editingProjectId' => old('_edit_project_id'),
         ])

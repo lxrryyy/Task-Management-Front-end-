@@ -31,21 +31,21 @@
     <span class="text-xs">{{ Carbon::now()->format('l, F j, Y') }}</span>
     </div>
 
-    <div class="flex flex-row justify-between p-4 gap-8 flex-1 min-h-0" style="height: 33rem;">
+    <div class="flex flex-row justify-between p-4 gap-4 flex-1 min-h-0" style="height: 33rem;">
         {{-- This is the left side --}}
         <div class="flex flex-col w-1/2 min-h-0 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold">Projects</h1>
 
             <a href="/projects" class="flex clr-primary justify-end hover:underline"><span>View All Projects</span></a>
 
-            <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white mt-2">
+            <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white">
                 @forelse($projects as $project)
                     @php
                         $projectName = $project['name'] ?? $project['Name'] ?? $project['title'] ?? 'Project';
                         $tasks = $project['tasks'] ?? $project['Tasks'] ?? [];
                     @endphp
                     <details class="group border-b border-gray-100 last:border-b-0">
-                        <summary class="flex items-center justify-between px-4 py-2 cursor-pointer select-none">
+                        <summary class="flex items-center justify-between py-2 cursor-pointer select-none">
                             <span class="inline-flex items-center gap-2 font-medium text-gray-900">
                                 <span class="details-caret">
                                     <x-icons.dropdown classes="w-3 h-3 text-gray-500" />
@@ -58,7 +58,7 @@
                         </summary>
 
                         @if(!empty($tasks))
-                            <div class="px-4 pb-3">
+                            <div class="pb-3">
                                 <table class="table table-zebra w-full text-sm">
                                     <thead>
                                         <tr class="text-gray-500">
@@ -85,7 +85,7 @@
                                 </table>
                             </div>
                         @else
-                            <div class="px-4 pb-3 text-xs text-gray-400">
+                            <div class="pb-3 text-xs text-gray-400">
                                 No tasks yet.
                             </div>
                         @endif
@@ -98,20 +98,25 @@
             </div>
 
             <div class="flex flex-row justify-center gap-4 mt-auto pt-4 shrink-0">
-                <button class="btn w-1/2 clr-bg-primary text-base-100">Add Project</button>
+                <button type="button" class="btn w-1/2 clr-bg-primary text-base-100"
+                        wire:click="$dispatch('open-dashboard-project-create')">
+                    Add Project
+                </button>
                 <button class="btn w-1/2 clr-bg-primary text-base-100">Add Task</button>
             </div>
         </div>
+
+        <livewire:dashboard-project-create />
 
         {{-- This is the right side --}}
         <div class="flex flex-col w-1/2 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold pl-4">Task by Status</h1>
             <div class="dropdown dropdown-end self-end flex justify-end relative status-dropdown">
-                <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2 flex items-center gap-2">
+                <button tabindex="0" type="button" class="btn clr-bg-primary text-base-100 btn-sm px-2 flex items-center gap-2">
                     <span class="status-caret">
                         <x-icons.dropdown />
                     </span>
-                    <span class="font-medium">
+                    <span>
                         @php
                             $selectedName = 'Project';
                             foreach ($projects as $p) {
