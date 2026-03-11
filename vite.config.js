@@ -8,4 +8,7 @@ export default defineConfig({
             refresh: true,
         }),
     ],
+    server: {
+        host: true, // listen on 0.0.0.0 so dev server is reachable on local network (e.g. 192.168.x.x:5173)
+    },
 });
