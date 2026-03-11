@@ -31,12 +31,12 @@
     <span class="text-xs">{{ Carbon::now()->format('l, F j, Y') }}</span>
     </div>
 
-    <div class="flex flex-row justify-between p-4 gap-4 flex-1 min-h-0" style="height: 33rem;">
+    <div class="flex flex-row justify-between p-4 gap-2 flex-1 min-h-0" style="height: 33rem;">
         {{-- This is the left side --}}
         <div class="flex flex-col w-1/2 min-h-0 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold">Projects</h1>
 
-            <a href="/projects" class="flex clr-primary justify-end hover:underline"><span>View All Projects</span></a>
+            <a href="/projects" class="flex clr-primary justify-end hover:underline"><span class="text-sm">View All Projects</span></a>
 
             <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white">
                 @forelse($projects as $project)
@@ -102,11 +102,15 @@
                         wire:click="$dispatch('open-dashboard-project-create')">
                     Add Project
                 </button>
-                <button class="btn w-1/2 clr-bg-primary text-base-100">Add Task</button>
+                <button type="button" class="btn w-1/2 clr-bg-primary text-base-100"
+                        wire:click="$dispatch('open-dashboard-task-create')">
+                    Add Task
+                </button>
             </div>
         </div>
 
         <livewire:dashboard-project-create />
+        <livewire:dashboard-task-create :projects="$projects" />
 
         {{-- This is the right side --}}
         <div class="flex flex-col w-1/2 border border-gray-200 rounded-lg p-4">
