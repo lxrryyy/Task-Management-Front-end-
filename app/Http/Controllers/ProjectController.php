@@ -40,6 +40,69 @@ class ProjectController extends Controller
             }
         }
 
+        // Derive task-based progress and status for each project using GetTasksByProject.
+        foreach ($projects as $i => $project) {
+            $projectId = $project['id'] ?? $project['Id'] ?? null;
+            if (!$projectId) {
+                continue;
+            }
+
+            // Use project manager / creator as privileged requester so all project tasks are visible,
+            // regardless of who is currently logged in.
+            $pmId = $project['projectManagerId']
+                ?? $project['ProjectManagerId']
+                ?? $project['createdById']
+                ?? $project['CreatedById']
+                ?? $accountId;
+
+            try {
+                $tasksResponse = $this->api->get(
+                    "/api/Task/GetTasksByProject/{$projectId}",
+                    ['requesterId' => $pmId]
+                );
+                $tasks = is_array($tasksResponse)
+                    ? $tasksResponse
+                    : ($tasksResponse['data'] ?? $tasksResponse['tasks'] ?? []);
+
+                $total = 0;
+                $completed = 0;
+                foreach ((array) $tasks as $t) {
+                    if (!is_array($t)) {
+                        continue;
+                    }
+                    $status = mb_strtolower(trim((string) ($t['statusName'] ?? $t['status'] ?? '')));
+                    if ($status === '') {
+                        $status = 'not started';
+                    }
+                    $total++;
+                    if ($status === 'completed') {
+                        $completed++;
+                    }
+                }
+
+                $projects[$i]['_taskTotal']     = $total;
+                $projects[$i]['_taskCompleted'] = $completed;
+
+                if ($total > 0) {
+                    $projects[$i]['completionPercentage'] = (int) round(($completed / $total) * 100);
+                }
+
+                if ($total === 0) {
+                    $derivedStatus = 'Not Started';
+                } elseif ($completed === $total) {
+                    $derivedStatus = 'Completed';
+                } else {
+                    $derivedStatus = 'Active';
+                }
+                $projects[$i]['_derivedStatus'] = $derivedStatus;
+            } catch (\Throwable $e) {
+                Log::warning('GetTasksByProject for status/progress failed', [
+                    'projectId' => $projectId,
+                    'message'   => $e->getMessage(),
+                ]);
+            }
+        }
+
         $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
         $accounts = $this->normalizeAccounts($accountsResponse);
 
@@ -140,6 +203,7 @@ class ProjectController extends Controller
             'name' => ['required', 'string'],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', 'string'],
+            'statusId' => ['nullable', 'integer'],
             'memberIds' => ['required', 'array', 'min:1'],
             'memberIds.*' => ['integer'],
             'scrumMasterId' => ['nullable', 'integer'],
@@ -154,6 +218,13 @@ class ProjectController extends Controller
         }
         $memberIds = array_values(array_filter(array_map('intval', $rawMemberIds), static fn ($id) => $id > 0));
 
+        // Resolve status: prefer statusId -> name, fallback to status string
+        $status = $request->status;
+        if ($status === null && $request->filled('statusId')) {
+            $statusData = $this->getStatuses();
+            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
+        }
+
         // Creator is project manager; scrum master from request or creator
         $projectManagerId = (int) ($user['id'] ?? $user['Id'] ?? 0);
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
@@ -162,7 +233,7 @@ class ProjectController extends Controller
         $payload = [
             'name'             => $request->name,
             'description'      => $request->description ?? '',
-            'status'           => $request->status ?? null,
+            'status'           => $status,
             'projectManagerId' => $projectManagerId,
             'scrumMasterId'    => $scrumMasterId,
             'assigneeIds'      => $memberIds,
@@ -198,7 +269,56 @@ class ProjectController extends Controller
             return ['ok' => true, 'errors' => []];
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
-            Log::warning('Project update (Livewire) failed', ['projectId' => $projectId, 'errors' => $fieldErrors, 'payload' => $payload]);
+            return ['ok' => false, 'errors' => $fieldErrors];
+        }
+    }
+
+     // Update only the project status. Resolves statusId to name and PATCHes the project.
+     
+    public function updateProjectStatusApi(int $projectId, int $statusId, int $requesterId): array
+    {
+        $statusData = $this->getStatuses();
+        $statusName = $statusData['mapById'][$statusId] ?? null;
+        if ($statusName === null) {
+            return ['ok' => false, 'errors' => ['status' => ['Invalid status selected.']]];
+        }
+        // Some backend implementations require a full payload to update.
+        // Fetch the current project and send the minimal required fields + new status.
+        $current = $this->getProjectData($projectId);
+
+        $payload = [
+            'name'        => $current['name'] ?? $current['projectName'] ?? $current['title'] ?? null,
+            'description' => $current['description'] ?? '',
+            'status'      => $statusName,
+        ];
+
+        // Include IDs if present (common backend requirements)
+        $pmId = $current['projectManagerId'] ?? $current['ProjectManagerId'] ?? $current['createdById'] ?? $current['CreatedById'] ?? null;
+        $smId = $current['scrumMasterId'] ?? $current['ScrumMasterId'] ?? null;
+        if ($pmId !== null) $payload['projectManagerId'] = (int) $pmId;
+        if ($smId !== null) $payload['scrumMasterId'] = (int) $smId;
+
+        // Include current members if available so status updates don't accidentally clear them
+        $assigneeIds = $current['assigneeIds'] ?? $current['AssigneeIds'] ?? null;
+        if (is_array($assigneeIds)) {
+            $payload['assigneeIds'] = array_values(array_filter(array_map('intval', $assigneeIds), static fn ($id) => $id > 0));
+        }
+
+        return $this->updateProjectApi($projectId, $payload, $requesterId);
+    }
+
+    /**
+     * Restore (reactivate) a deleted project via the C# API.
+     * Endpoint: PATCH /api/Project/ReactivateProject/{projectId}?accountId={accountId}
+     */
+    public function restoreProjectApi(int $projectId, int $accountId): array
+    {
+        try {
+            $this->api->patch("/api/Project/ReactivateProject/{$projectId}?accountId={$accountId}", []);
+            return ['ok' => true, 'errors' => []];
+        } catch (RequestException $e) {
+            $fieldErrors = $this->api->extractFieldErrors($e->response);
+            Log::warning('Project restore failed', ['projectId' => $projectId, 'accountId' => $accountId, 'errors' => $fieldErrors]);
             return ['ok' => false, 'errors' => $fieldErrors];
         }
     }
@@ -214,6 +334,7 @@ class ProjectController extends Controller
         $request->validate([
             'name' => ['required', 'string'],
             'description' => ['nullable', 'string'],
+            'statusId' => ['nullable', 'integer'],
             'memberIds' => ['required', 'array', 'min:1'],
             'memberIds.*' => ['integer'],
             'scrumMasterId' => ['nullable', 'integer'],
@@ -225,6 +346,13 @@ class ProjectController extends Controller
         $memberIds = [];
         if (!empty($request->memberIds) && is_array($request->memberIds)) {
             $memberIds = array_values(array_filter(array_map('intval', $request->memberIds)));
+        }
+
+        // Resolve status name from statusId for API
+        $status = null;
+        if ($request->filled('statusId')) {
+            $statusData = $this->getStatuses();
+            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
         }
 
         // Creator is always project manager; scrum master is creator unless a member is chosen in the table
@@ -242,6 +370,9 @@ class ProjectController extends Controller
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
         ];
+        if ($status !== null) {
+            $payload['status'] = $status;
+        }
 
         try {
             $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
@@ -270,22 +401,53 @@ class ProjectController extends Controller
 
     /**
      * Response shape: [{id, name, description, active, createdAt}, ...]
-     * Returns an ordered list of project status name strings.
+     * Returns ['items' => [{id, name}, ...], 'names' => [...], 'map' => [name => id], 'mapById' => [id => name]].
      */
     public function getStatuses(): array
     {
         try {
-            $list = $this->api->get('/api/Project/GetAllProjectsStatus');
+            $raw = $this->api->get('/api/Project/GetAllProjectsStatus');
 
-            $names = [];
-            foreach ((array) $list as $s) {
-                if (isset($s['name'])) {
-                    $names[] = $s['name'];
+            $list = $raw['data'] ?? $raw['Data']
+                ?? $raw['items'] ?? $raw['Items']
+                ?? $raw['value'] ?? $raw['Value']
+                ?? $raw['statuses'] ?? $raw['Statuses']
+                ?? $raw['result'] ?? $raw['Result']
+                ?? $raw;
+
+            if (!is_array($list)) {
+                $list = [];
+            }
+
+            if (!empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
+                $list = [$list];
+            }
+
+            $map     = [];
+            $mapById = [];
+            $names   = [];
+            $items   = [];
+            foreach ($list as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+                $id   = $s['id'] ?? $s['Id'] ?? $s['statusId'] ?? $s['StatusId'] ?? null;
+                $name = $s['name'] ?? $s['Name'] ?? $s['statusName'] ?? $s['StatusName'] ?? null;
+                if ($id !== null && $name !== null) {
+                    $id   = (int) $id;
+                    $name = (string) trim($name);
+                    if ($name !== '') {
+                        $map[$name]   = $id;
+                        $mapById[$id] = $name;
+                        $names[]      = $name;
+                        $items[]      = ['id' => $id, 'name' => $name];
+                    }
                 }
             }
-            return $names;
+
+            return ['items' => $items, 'names' => $names, 'map' => $map, 'mapById' => $mapById];
         } catch (\Throwable) {
-            return [];
+            return ['items' => [], 'names' => [], 'map' => [], 'mapById' => []];
         }
     }
 

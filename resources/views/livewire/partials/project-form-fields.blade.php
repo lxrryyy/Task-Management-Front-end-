@@ -6,6 +6,7 @@
     $startDateValue = $isEdit ? old('startDate',   $formStartDate   ?? '') : old('startDate');
     $endDateValue   = $isEdit ? old('endDate',     $formEndDate     ?? '') : old('endDate');
     $statusValue    = $isEdit ? old('status',      $formStatus      ?? '') : old('status', '');
+    $statusIdValue  = $isEdit ? old('statusId',     $formStatusId    ?? 0)  : old('statusId', 0);
 @endphp
 @if($errors->has('api_error'))
     <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mb-4 text-sm text-red-700">
@@ -41,15 +42,6 @@
         @if($isEdit) wire:model.lazy="formDescription" @endif
     >{{ $descriptionContent }}</textarea>
 </div>
-<div class="flex flex-col gap-2 my-4">
-    <span>Status</span>
-    <select name="status" class="select select-bordered w-full" @if($isEdit) wire:model.lazy="formStatus" @endif>
-        <option value="">-- Select Status --</option>
-        @foreach(($projectStatuses ?? []) as $ps)
-            <option value="{{ $ps }}" {{ (!$isEdit && $statusValue === $ps) ? 'selected' : '' }}>{{ $ps }}</option>
-        @endforeach
-    </select>
-</div>
 <div class="flex flex-row gap-4 my-4">
     <div class="flex flex-col gap-2 my-4">
         <span>Start Date</span>
@@ -73,6 +65,16 @@
 
 <div class="flex flex-col gap-2 my-4">
     <span>Members</span>
+    @php
+        $creatorIdInt = (int) ($creatorId ?? 0);
+        $scrumMasterIdInt = (int) ($selectedScrumMasterId ?? 0);
+        $effectiveScrumMasterId = $scrumMasterIdInt > 0 ? $scrumMasterIdInt : $creatorIdInt;
+        $showCreatorAsScrumMaster = $isEdit && $creatorIdInt > 0 && $effectiveScrumMasterId === $creatorIdInt;
+        $creatorAccount = null;
+        if ($showCreatorAsScrumMaster) {
+            $creatorAccount = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $creatorIdInt);
+        }
+    @endphp
     <div class="dropdown w-full">
         <div tabindex="0" role="button"
              class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
@@ -95,6 +97,20 @@
         </div>
         <ul tabindex="0"
             class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+            @if($showCreatorAsScrumMaster && is_array($creatorAccount))
+                @php
+                    $cname  = $creatorAccount['name']  ?? $creatorAccount['Name']  ?? 'Project Manager';
+                    $cemail = $creatorAccount['email'] ?? $creatorAccount['Email'] ?? '';
+                @endphp
+                <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-creator-sm-{{ $creatorIdInt }}">
+                    <x-person-option
+                        :checked="true"
+                        :name="((string) $cname) . ' (Scrum Master)'"
+                        :email="$cemail"
+                        disabled
+                        class="opacity-75 cursor-not-allowed pointer-events-none" />
+                </li>
+            @endif
             @forelse(($accounts ?? []) as $account)
                 @php
                     $aid      = $account['id']    ?? $account['Id']    ?? null;
@@ -161,7 +177,23 @@
             }
         @endphp
 
-        @if(!empty($selectedMemberIds))
+        @if(($showCreatorAsScrumMaster && $creatorIdInt > 0) || !empty($selectedMemberIds))
+            @if($showCreatorAsScrumMaster && is_array($creatorAccount))
+                @php
+                    $cname  = $creatorAccount['name']  ?? $creatorAccount['Name']  ?? 'Project Manager';
+                    $cemail = $creatorAccount['email'] ?? $creatorAccount['Email'] ?? '';
+                @endphp
+                <tr wire:key="{{ $ctx }}-member-row-creator-sm-{{ $creatorIdInt }}">
+                    <td><span>{{ $cname }}</span></td>
+                    <td><span>{{ $cemail }}</span></td>
+                    <td>
+                        <select class="select h-9 select-bordered select-sm w-full max-w-xs" disabled>
+                            <option value="Scrum Master" selected>Scrum Master</option>
+                        </select>
+                    </td>
+                    <th><span class="text-gray-400">—</span></th>
+                </tr>
+            @endif
             @foreach($selectedMemberIds as $memberId)
                 @php
                     $memberId = (int) $memberId;
@@ -171,14 +203,11 @@
                     $email = $acc['email'] ?? $acc['Email'] ?? '';
                     $pos = $memberRoles[$memberId] ?? 'Member';
                     // Only one Scrum Master among table members:
-                    // disable "Scrum Master" only if SOME OTHER member row is already Scrum Master.
-                    $scrumMasterAlreadyTaken = false;
-                    foreach (($memberRoles ?? []) as $rid => $rrole) {
-                        if ($rrole === 'Scrum Master' && (int) $rid !== $memberId) {
-                            $scrumMasterAlreadyTaken = true;
-                            break;
-                        }
-                    }
+                    // disable "Scrum Master" only if SOME OTHER non-creator member is already Scrum Master.
+                    // (If the project manager/creator is Scrum Master, keep the option enabled so you can transfer it.)
+                    $scrumMasterAlreadyTaken = $scrumMasterIdInt > 0
+                        && $scrumMasterIdInt !== $creatorIdInt
+                        && $scrumMasterIdInt !== $memberId;
                 @endphp
                 <tr wire:key="{{ $ctx }}-member-row-{{ $memberId }}">
                     <td><span>{{ $name }}</span></td>

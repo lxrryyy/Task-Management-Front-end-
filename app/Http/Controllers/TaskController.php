@@ -174,15 +174,6 @@ class TaskController extends Controller
                 }
             }
 
-            if (empty($items) && !empty($raw)) {
-                Log::warning('GetAllTasksPriorities returned data but no priorities parsed', [
-                    'topLevelKeys' => array_keys($raw),
-                    'rawSample'    => is_array($raw) ? array_slice($raw, 0, 2) : null,
-                ]);
-            } elseif (!empty($items)) {
-                Log::debug('GetAllTasksPriorities ok', ['count' => count($items), 'names' => $names]);
-            }
-
             return ['map' => $map, 'names' => $names, 'items' => $items];
         } catch (\Throwable $e) {
             Log::warning('GetAllTasksPriorities failed', ['message' => $e->getMessage(), 'url' => config('services.csharp_api.url') . '/api/Task/GetAllTasksPriorities']);

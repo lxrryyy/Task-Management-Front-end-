@@ -1,8 +1,12 @@
 <?php
 
+namespace App\Livewire;
+
+use App\Http\Controllers\ProjectController;
+use Illuminate\Support\Facades\Session;
 use Livewire\Component;
 
-new class extends Component
+class Archive extends Component
 {
     public array $projects = [];
     public array $accounts = [];
@@ -14,6 +18,32 @@ new class extends Component
         $this->projects = $projects;
         $this->accounts = $accounts;
         $this->creatorId = (int) $creatorId;
+    }
+
+    public function restoreProject(int $projectId): void
+    {
+        $projectId = (int) $projectId;
+        if ($projectId <= 0) return;
+
+        $user = Session::get('user', []);
+        $accountId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($accountId <= 0) {
+            $this->addError('api_error', 'You must be logged in to restore a project.');
+            return;
+        }
+
+        $result = app(ProjectController::class)->restoreProjectApi($projectId, $accountId);
+        if (!($result['ok'] ?? false)) {
+            $this->addError('api_error', 'Failed to restore project. Please try again.');
+            return;
+        }
+
+        $this->projects = array_values(array_filter($this->projects, static function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id !== $projectId;
+        }));
+
+        session()->flash('message', 'Project restored successfully.');
     }
 
     public function render()
@@ -38,7 +68,5 @@ new class extends Component
             'creatorId'        => $this->creatorId,
         ]);
     }
-};
-
-?>
+}
 

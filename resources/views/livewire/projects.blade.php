@@ -33,7 +33,7 @@
                         <a wire:click="openModal" class="btn clr-bg-primary text-base-100 rounded-xl p-4">+ Add Project</a>
                     </div>
 
-                    {{-- Add Project modal (create only) — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Add Project modal (create only) --}}
                     @if($showAddModal)
                     <dialog id="addProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
@@ -55,7 +55,7 @@
                     </dialog>
                     @endif
 
-                    {{-- Edit Project modal (update only) — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Edit Project modal (update only) --}}
                     @if($showEditModal)
                     <dialog id="editProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
@@ -98,7 +98,7 @@
                     </dialog>
                     @endif
 
-                    {{-- Delete confirmation — only in DOM when open to avoid stacked backdrops --}}
+                    {{-- Delete confirmation --}}
                     @if($showDeleteConfirmDialog ?? false)
                     <dialog id="deleteProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-md">
@@ -142,12 +142,13 @@
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
                         $status = $project['statusName'] ?? $project['status'] ?? '';
+                        $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
                         $createdAt = $project['createdAt'] ?? null;
 
                         // Leader name comes from createdByName
                         $leaderDisplay = $project['createdByName'] ?? '—';
 
-                        // Members: if API returns assigneeIds use that (source of truth); else use memberNames (backend sometimes returns stale list after PATCH)
+                        // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
                         $memberNames = [];
                         $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
                         if (is_array($assigneeIds) && !empty($assigneeIds)) {
@@ -176,6 +177,8 @@
                         }
                         $membersDisplay = is_array($memberNames) && !empty($memberNames) ? implode(', ', $memberNames) : '—';
                         $memberCount = is_array($memberNames) ? count($memberNames) : ($project['memberCount'] ?? '—');
+                        $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
+                        $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
                     @endphp
                     <tr class="hover:bg-gray-50 cursor-pointer"
                         @if($projectId)
@@ -196,14 +199,25 @@
                         </th>
                         <th>
                             @php
-                            $statusBadge = match($status) {
-                                'Not Started' => 'badge-ghost',
-                                'Active'      => 'badge-info',
-                                'Completed'   => 'badge-success',
-                                default       => 'badge-ghost',
-                            };
-                        @endphp
-                        <span class="badge {{ $statusBadge }}">{{ $status ?: 'Unknown' }}</span>
+                                // Project status is derived from tasks; display-only (no dropdown).
+                                // Derived in ProjectController@index using GetTasksByProject:
+                                // - Completed only when all tasks are completed
+                                // - Not Started when project has no tasks
+                                // - Active when project has tasks but not all completed
+                                $displayStatus = $project['_derivedStatus'] ?? ($status ?: 'Unknown');
+                                $statusPillStyle = match($displayStatus) {
+                                    'Not Started' => 'background:#f3f4f6;color:#374151;',
+                                    'Active'      => 'background:#dbeafe;color:#1d4ed8;',
+                                    'Completed'   => 'background:#d1fae5;color:#065f46;',
+                                    default       => 'background:#f3f4f6;color:#374151;',
+                                };
+                            @endphp
+                            <div class="inline-flex items-center gap-2 rounded-none px-2 py-1 w-[9.5rem] overflow-hidden" style="{{ $statusPillStyle }}">
+                                <span class="shrink-0 text-current">
+                                    <x-icons.circle />
+                                </span>
+                                <span class="text-xs font-medium whitespace-nowrap truncate">{{ $displayStatus }}</span>
+                            </div>
                         </th>
                         <th>
                             <span>
@@ -211,26 +225,23 @@
                             </span>
                         </th>
                         <th>
-                            @php
-                                $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
-                                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
-                            @endphp
                             @if($isLeader && $projectId)
-                            <div>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm bg-warning text-base-100 border-none hover:opacity-90 p-2"
-                                    wire:click.stop="startEdit({{ (int) $projectId }})"
-                                >
-                                    Edit
+                            <div class="dropdown dropdown-end" wire:click.stop>
+                                <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                    <x-icons.three-dot classes="w-5 h-5" />
                                 </button>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm clr-bg-accent text-base-100 border-none hover:opacity-90 p-2"
-                                    wire:click.stop="confirmDelete({{ (int) $projectId }})"
-                                >
-                                    Delete
-                                </button>
+                                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                    <li>
+                                        <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
+                                            Edit
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                </ul>
                             </div>
                             @else
                                 <span class="text-gray-400">—</span>

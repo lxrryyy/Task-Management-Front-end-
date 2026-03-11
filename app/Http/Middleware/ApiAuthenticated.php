@@ -20,11 +20,16 @@ class ApiAuthenticated
         try {
             /** @var CsharpApiService $api */
             $api = app(CsharpApiService::class);
-            // Validate token against a real authenticated endpoint.
-            $user = Session::get('user', []);
-            $userId = $user['id'] ?? $user['Id'] ?? null;
-            if ($userId) {
-                $api->get("/api/Auth/me/{$userId}");
+            // Validate token and, if needed, refresh the user from /api/Auth/me.
+            $user = Session::get('user');
+            if (!$user) {
+                $fetched = $api->get('/api/Auth/me');
+                if (is_array($fetched) && !empty($fetched)) {
+                    Session::put('user', $fetched);
+                }
+            } else {
+                // Light ping to ensure token is still valid.
+                $api->get('/api/Auth/me');
             }
         } catch (RequestException $e) {
             $status = $e->response?->status();

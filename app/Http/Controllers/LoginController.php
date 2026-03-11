@@ -18,14 +18,15 @@ class LoginController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required',
             'password' => 'required',
         ]);
 
         try {
             $response = $this->api->post('/api/Auth/login', [
-                'email'    => $request->email,
-                'password' => $request->password,
+                'email'      => $request->email,
+                'password'   => $request->password,
+                'rememberMe' => (bool) $request->boolean('remember'),
             ]);
 
             $token = $response['token'] ?? '';
@@ -39,20 +40,26 @@ class LoginController extends Controller
             Session::put('user', $user);
 
             return redirect()->route('dashboard');
-
         } catch (\Illuminate\Http\Client\RequestException $e) {
             $status = $e->response->status();
-            $body   = $e->response->json();
-            return back()->withErrors(['email' => 'Error: ' . json_encode($body)]);
-
+            $body = $e->response->json();
+            $message = $body['message'] ?? 'Invalid credentials';
+            return back()->withErrors(['email' => $message]);
         } catch (\Exception $e) {
-            return back()->withErrors(['email' => 'Exception: ' . $e->getMessage()]);
+            return back()->withErrors(['email' => $e->getMessage()]);
         }
     }
 
     public function logout()
     {
-        Session::forget(['api_token', 'user']);
+        try {
+            // Best-effort backend logout; ignore failures so user can still log out client-side.
+            $this->api->post('/api/Auth/logout', []);
+        } catch (\Throwable $e) {
+            // Optionally log the error, but don't block logout.
+        }
+
+        Session::forget(['api_token', 'expires_in', 'user']);
         return redirect()->route('login');
     }
 }

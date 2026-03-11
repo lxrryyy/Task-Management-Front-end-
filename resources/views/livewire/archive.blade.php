@@ -29,6 +29,7 @@
                 <tbody>
                 @forelse(($filteredProjects ?? []) as $project)
                     @php
+                        $projectId = (int) ($project['id'] ?? $project['Id'] ?? 0);
                         $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
                         $projectManagerName = $project['projectManagerName'] ?? $project['ProjectManagerName'] ?? $project['createdByName'] ?? '—';
                         $projectManagerId = (int) ($project['projectManagerId'] ?? $project['ProjectManagerId'] ?? 0);
@@ -68,7 +69,18 @@
                         <td>{{ $projectManagerName }}</td>
                         <td class="text-sm">{{ $membersDisplay }}</td>
                         <td>{{ $deletedAt ? \Carbon\Carbon::parse($deletedAt)->format('m/d/Y') : '—' }}</td>
-                        <td><button class="btn clr-bg-primary text-base-100 p-2" wire:click="restoreProject({{ $project['id'] }})">Restore</button></td>
+                        <td>
+                            @if($projectId > 0)
+                                <button class="btn clr-bg-primary text-base-100 p-2"
+                                        wire:click="restoreProject({{ $projectId }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="restoreProject">
+                                    Restore
+                                </button>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
