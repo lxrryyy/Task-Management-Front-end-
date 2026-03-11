@@ -25,7 +25,7 @@
         name="name"
         type="text"
         placeholder="Type here"
-        class="input input-bordered w-full"
+        class="input input-bordered rounded-lg w-full"
         @if($isEdit) wire:model.lazy="formName" @else value="{{ $nameValue }}" @endif
         required
     />
@@ -38,7 +38,7 @@
 @endphp
 <div class="flex flex-col gap-4 my-4">
     <span>Description</span>
-    <textarea name="description" class="textarea textarea-bordered w-full" placeholder="Project Description"
+    <textarea name="description" class="textarea textarea-bordered rounded-lg w-full" placeholder="Project Description"
         @if($isEdit) wire:model.lazy="formDescription" @endif
     >{{ $descriptionContent }}</textarea>
 </div>
@@ -46,7 +46,7 @@
     <div class="flex flex-col gap-2 my-4">
         <span>Start Date</span>
         <input name="startDate" type="date"
-               class="input input-bordered {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
+               class="input input-bordered rounded-lg {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
                @if($isEdit) wire:model.lazy="formStartDate" @else value="{{ $startDateValue }}" @endif />
         @foreach($errors->get('startDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
@@ -55,7 +55,7 @@
     <div class="flex flex-col gap-2 my-4">
         <span>End Date</span>
         <input name="endDate" type="date"
-               class="input input-bordered {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
+               class="input input-bordered rounded-lg {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
                @if($isEdit) wire:model.lazy="formEndDate" @else value="{{ $endDateValue }}" @endif />
         @foreach($errors->get('endDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>

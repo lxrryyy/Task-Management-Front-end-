@@ -1,7 +1,7 @@
 <div>
     @php
         // Keep modal heights consistent between "select project" and "create task".
-        $modalBoxClass = 'modal-box w-11/12 max-w-5xl overflow-y-auto h-[32rem]';
+        $modalBoxClass = 'modal-box w-11/12 max-w-5xl overflow-y-auto h-[40rem]';
     @endphp
 
     {{-- Step 1: Select project --}}
@@ -13,8 +13,8 @@
             <h3 class="font-bold text-lg">Select a project</h3>
             <p class="text-sm text-gray-500 mt-1">Choose a project first before creating a task.</p>
 
-            <div class="mt-4 border rounded-lg overflow-hidden">
-                <div class="max-h-80 overflow-y-auto">
+            <div class="mt-4 border rounded-lg overflow-hidden h-[35rem]">
+                <div class="h-full overflow-y-auto">
                     @forelse($projects as $p)
                         @php
                             $pid = (int) ($p['id'] ?? $p['Id'] ?? 0);
@@ -76,7 +76,8 @@
                             name="name"
                             type="text"
                             placeholder="Enter task name"
-                            class="input input-bordered w-full {{ $errors->has('name') ? 'border-red-500' : '' }}"
+                            class="input input-bordered !rounded-lg w-full {{ $errors->has('name') ? 'border-red-500' : '' }}"
+                            style="border-radius:0.5rem;"
                             value="{{ old('name') }}"
                             required
                         />
@@ -89,7 +90,7 @@
                     <div class="flex flex-wrap gap-4">
                         <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
                             <label class="font-medium text-sm">Priority <span class="text-red-500">*</span></label>
-                            <select name="priorityId" class="select select-bordered w-full text-gray-900 bg-white {{ $errors->has('priorityId') ? 'border-red-500' : '' }}" required wire:key="dashboard-priority-select-{{ count($taskPriorityMap ?? []) }}">
+                            <select name="priorityId" class="select select-bordered !rounded-lg w-full text-gray-900 bg-white {{ $errors->has('priorityId') ? 'border-red-500' : '' }}" style="border-radius:0.5rem;" required wire:key="dashboard-priority-select-{{ count($taskPriorityMap ?? []) }}">
                                 <option value="">Select priority</option>
                                 @foreach($taskPriorityMap ?? [] as $pid => $pname)
                                     <option value="{{ $pid }}" {{ (string) old('priorityId') === (string) $pid ? 'selected' : '' }}>{{ $pname }}</option>
@@ -99,12 +100,12 @@
 
                         <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
                             <label class="font-medium text-sm">Story Point</label>
-                            <input name="storyPoints" type="number" min="0" placeholder="0" class="input input-bordered w-full" value="{{ old('storyPoints') }}" />
+                            <input name="storyPoints" type="number" min="0" placeholder="0" class="input input-bordered !rounded-lg w-full" style="border-radius:0.5rem;" value="{{ old('storyPoints') }}" />
                         </div>
 
                         <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
                             <label class="font-medium text-sm">Start Date</label>
-                            <input name="startDate" type="date" class="input input-bordered w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}" value="{{ old('startDate') }}" />
+                            <input name="startDate" type="date" class="input input-bordered !rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}" style="border-radius:0.5rem;" value="{{ old('startDate') }}" />
                             @foreach($errors->get('startDate') as $msg)
                                 <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
                             @endforeach
@@ -112,7 +113,7 @@
 
                         <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
                             <label class="font-medium text-sm">Due Date</label>
-                            <input name="dueDate" type="date" class="input input-bordered w-full {{ $errors->has('dueDate') ? 'border-red-500' : '' }}" value="{{ old('dueDate') }}" />
+                            <input name="dueDate" type="date" class="input input-bordered !rounded-lg w-full {{ $errors->has('dueDate') ? 'border-red-500' : '' }}" style="border-radius:0.5rem;" value="{{ old('dueDate') }}" />
                             @foreach($errors->get('dueDate') as $msg)
                                 <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
                             @endforeach
@@ -180,7 +181,7 @@
                     {{-- Description --}}
                     <div class="flex flex-col gap-1">
                         <label class="font-medium text-sm">Description</label>
-                        <textarea name="description" class="textarea textarea-bordered w-full h-32" placeholder="Task description">{{ old('description') }}</textarea>
+                        <textarea name="description" class="textarea textarea-bordered !rounded-lg w-full h-32" style="border-radius:0.5rem;" placeholder="Task description">{{ old('description') }}</textarea>
                     </div>
 
                     <div class="modal-action">
