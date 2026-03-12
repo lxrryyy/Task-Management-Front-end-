@@ -180,8 +180,8 @@
                 <div class="flex rounded-full bg-gray-100 p-1 gap-1">
                     <template x-for="v in ['Day','Week']" :key="v">
                         <button @click="view=v"
-                            :class="view===v ? 'clr-bg-primary text-white shadow' : 'text-gray-500 hover:text-gray-700'"
-                            class="px-5 py-1.5 rounded-full text-sm transition" x-text="v"></button>
+                            :class="view===v ? 'clr-bg-primary text-white shadow' : 'clr-primary hover:text-gray-700'"
+                            class="px-5 py-1.5 rounded-lg border-2 border-gray text-sm transition" x-text="v"></button>
                     </template>
                 </div>
             </div>
@@ -195,7 +195,7 @@
                     <div class="text-center text-gray-400 text-sm py-20">No tasks due on this day.</div>
                 </template>
                 <template x-for="task in filteredTasks" :key="task.id">
-                    <div :class="['rounded-2xl border-l-4 p-5 shadow-sm flex flex-col gap-4 cursor-pointer', colorClasses(task.color).border, colorClasses(task.color).bg]"
+                    <div :class="['rounded-2xl border-l-4 p-5 shadow-sm flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:!bg-gray-200', colorClasses(task.color).border, colorClasses(task.color).bg]"
                         style="min-height:130px;"
                         @click="goToTask(task)">
                         <div class="flex items-start justify-between">
@@ -252,7 +252,7 @@
                         <div class="border-r border-gray-100 last:border-r-0 px-2 flex flex-col gap-3 min-h-[24rem]">
                             <template x-for="task in tasksForDay(day.ymd)" :key="task.id">
                                 <div
-                                    :class="['rounded-xl border-l-4 p-3 shadow-sm flex flex-col gap-3 cursor-pointer hover:shadow-md transition-shadow', colorClasses(task.color).border, colorClasses(task.color).bg]"
+                                    :class="['rounded-xl border-l-4 p-3 shadow-sm flex flex-col gap-3 cursor-pointer transition-all duration-300 hover:shadow-lg hover:!bg-gray-200', colorClasses(task.color).border, colorClasses(task.color).bg]"
                                     style="min-height:10rem;"
                                     @click="goToTask(task)">
                                     {{-- Title --}}
@@ -396,7 +396,7 @@
                     </template>
 
                     <template x-for="todo in todosForDay" :key="todo.id">
-                        <div class="flex items-start justify-between gap-2 border-b border-gray-200 py-2.5 group">
+                        <div class="flex items-start justify-between gap-2 border-b border-gray-200 py-2.5 group rounded px-1 -mx-1 hover:bg-gray-100 transition-colors duration-500">
                             <p class="text-sm text-gray-800 leading-snug flex-1" x-text="todo.text"></p>
                             <button @click="deleteTodo(todo.id)"
                                     class="text-gray-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5">
@@ -411,4 +411,4 @@
         </div>
     </div>
 
-</div>{{-- end single Livewire root --}}
+</div>
