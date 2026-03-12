@@ -1,7 +1,7 @@
 <div class="">
         <div class="w-full">
             <div class="flex w-full items-center clr-primary ">
-                <a href="/projects"
+                <a href="/dashboard"
                class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
                 <x-icons.back-btn classes="w-6 h-6" />
                 </a>
@@ -11,13 +11,13 @@
             <div>
                 <div class="flex items-center justify-between p-2 flex-shrink-0">
                     <div>
-                        <button type="button" class="btn w-36 border-2 border-gray clr-primary rounded-xl m-1 hover-clr-bg-primary hover:text-white " wire:click="archiveSelected">
+                        <button type="button" class="btn w-36 border-2 border-gray clr-bg-primary text-base-100 rounded-xl m-1" wire:click="archiveSelected">
                             <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
                         </button>
                     </div>
                     <div class="flex items-center gap-4">
                         <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                            <input wire:model.live.debounce.300ms="search" class="w-96 bg-transparent focus:outline-none rounded-xl" type="search" placeholder="Search" />
+                            <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
                         </label>
                         <div class="dropdown dropdown-end">
                             <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>

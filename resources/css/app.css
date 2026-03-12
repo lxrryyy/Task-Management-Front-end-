@@ -4,6 +4,10 @@
 
 [x-cloak] { display: none !important; }
 
+th {
+    font-weight: normal !important;
+}
+
 .clr-bg-primary{
     background-color: #102B3C;
 }

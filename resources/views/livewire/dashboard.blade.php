@@ -74,10 +74,21 @@
                                                 $status = $task['statusName'] ?? $task['status'] ?? '';
                                                 $dueRaw = $task['dueDate'] ?? $task['dueAt'] ?? null;
                                                 $due = $dueRaw ? \Carbon\Carbon::parse($dueRaw)->format('Y-m-d') : '—';
+                                                $statusPillStyle = match($status) {
+                                                    'Not Started' => 'background:#fee2e2;color:#ef4444;',
+                                                    'In Progress' => 'background:#dbeafe;color:#3b82f6;',
+                                                    'For Review'  => 'background:#e5e7eb;color:#374151;',
+                                                    'Completed'   => 'background:#dcfce7;color:#22c55e;',
+                                                    default       => 'background:#f3f4f6;color:#374151;',
+                                                };
                                             @endphp
                                             <tr class="border-b border-gray-200 last:border-b-0">
                                                 <td class="py-1">{{ $taskName }}</td>
-                                                <td class="py-1">{{ $status }}</td>
+                                                <td class="py-1">
+                                                    <span class="px-2 py-0.5 text-xs rounded" style="{{ $statusPillStyle }}">
+                                                        {{ $status }}
+                                                    </span>
+                                                </td>
                                                 <td class="py-1 text-xs text-gray-500">{{ $due }}</td>
                                             </tr>
                                         @endforeach

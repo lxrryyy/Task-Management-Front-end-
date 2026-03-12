@@ -8,6 +8,15 @@
     </div>
     @endif
 
+    <div class="flex w-full items-center clr-primary ">
+        <a href="/projects"
+        class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
+        <x-icons.back-btn classes="w-6 h-6" />
+        </a>
+        <span class="group-hover:block text-xl">Tasks</span>
+    </div>
+    <hr class="border-2 clr-bg-primary">
+
     <div class="flex justify-between">
         <div class="flex gap-2">
             <button wire:click="switchView('list')"
@@ -19,12 +28,12 @@
                 <x-icons.board class="w-4 h-4 inline-block" /> Board View
             </button>
         </div>
-        <div class="flex items-center">
+        <div class="flex items-center gap-2">
             <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input wire:model.live.debounce.300ms="search" class="w-96 bg-transparent focus:outline-none rounded-xl" type="search" placeholder="Search" />
+                <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
             </label>
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
+                <button tabindex="0" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
                 <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg mt-1">
                     <li><a href="#">Alphabetical (A - Z)</a></li>
                     <li><a href="#">Alphabetical (Z - A)</a></li>
@@ -232,6 +241,13 @@
                 if ($dPriority === '' && isset($t['priorityId'])) {
                     $dPriority = $taskPriorityMap[(int)($t['priorityId'] ?? $t['PriorityId'] ?? 0)] ?? '';
                 }
+                $dPriorityStyle = match($dPriority) {
+                    'Urgent'    => 'background:#fee2e2;color:#ef4444;',
+                    'Important' => 'background:#fce7f3;color:#ec4899;',
+                    'Medium'    => 'background:#dbeafe;color:#3b82f6;',
+                    'Low'       => 'background:#f3f4f6;color:#6b7280;',
+                    default     => 'background:#f3f4f6;color:#6b7280;',
+                };
                 $dStoryPoints = $t['storyPoints'] ?? $t['storyPoint'] ?? null;
                 $dStart = $t['startDate'] ?? $t['StartDate'] ?? null;
                 $dDue = $t['dueDate'] ?? $t['dueAt'] ?? null;
@@ -255,39 +271,38 @@
                 $dStartFmt = $dStart ? \Carbon\Carbon::parse($dStart)->format('m/d/Y') : '';
                 $dDueFmt = $dDue ? \Carbon\Carbon::parse($dDue)->format('m/d/Y') : '';
             @endphp
-            {{-- Task metadata grid --}}
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-                <div class="flex flex-row justify-between">
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Story point</p>
-                        <p class="text-base text-gray-900">{{ $dStoryPoints !== null && $dStoryPoints !== '' ? $dStoryPoints : '—' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Start date</p>
-                        <p class="text-base text-gray-900">{{ $dStartFmt ?: '—' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Due date</p>
-                        <p class="text-base text-gray-900">{{ $dDueFmt ?: '—' }}</p>
-                    </div>
+            {{-- Task metadata grid: 3 columns, 3 rows --}}
+            <div class="mb-6" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.25rem 2rem;">
+                {{-- Row 1 --}}
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Story Point</p>
+                    <p class="text-sm text-gray-900">{{ $dStoryPoints !== null && $dStoryPoints !== '' ? $dStoryPoints : '—' }}</p>
                 </div>
-                <div class="flex flex-row justify-between">
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Priority</p>
-                        <p class="text-base text-gray-900">{{ $dPriority !== '' ? $dPriority : '—' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Status</p>
-                        <p class="text-base text-gray-900">{{ $dStatus }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Assigned by</p>
-                        <p class="text-base text-gray-900">{{ $dAssignedBy ?? '—' }}</p>
-                    </div>
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Start Date</p>
+                    <p class="text-sm text-gray-900">{{ $dStartFmt ?: '—' }}</p>
                 </div>
-                <div class="sm:col-span-2">
-                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Assigned to</p>
-                    <p class="text-base text-gray-900">{{ $dAssignee }}</p>
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Due Date</p>
+                    <p class="text-sm text-gray-900">{{ $dDueFmt ?: '—' }}</p>
+                </div>
+                {{-- Row 2 --}}
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Priority</p>
+                    <p class="text-sm text-gray-900">{{ $dPriority ?: '—' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Status</p>
+                    <p class="text-sm text-gray-900">{{ $dStatus ?: '—' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Assigned By</p>
+                    <p class="text-sm text-gray-900">{{ $dAssignedBy ?? '—' }}</p>
+                </div>
+                {{-- Row 3 --}}
+                <div style="grid-column:1/-1;">
+                    <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Assigned To</p>
+                    <p class="text-sm text-gray-900">{{ $dAssignee ?: '—' }}</p>
                 </div>
             </div>
 
@@ -321,9 +336,9 @@
                 <col><!-- Task Name (flex) -->
                 <col class="w-1/5"><!-- Assignee -->
                 <col class="w-36"><!-- Due Date -->
-                <col style="width: 11.5rem; max-width: 11.5rem;"><!-- Story Point -->
+                <col style="width: 8rem; max-width: 8rem;"><!-- Story Point -->
                 <col style="width: 11.5rem; max-width: 11.5rem;"><!-- Status -->
-                <col style="width: 6.5rem; min-width: 6.5rem;"><!-- Priority -->
+                <col style="width: 7.5rem; min-width: 7.5rem;"><!-- Priority -->
                 <col style="width: 5.5rem; min-width: 5.5rem;"><!-- Action -->
             </colgroup>
             <thead>
@@ -383,25 +398,25 @@
                         'Completed'   => 'badge-success rounded-none',
                         default       => 'badge-ghost rounded-none',
                     };
-                    $priorityBadge = match($priority) {
-                        'Urgent'    => 'badge-error rounded-none',
-                        'Important' => 'badge-error rounded-none',
-                        'Medium'    => 'badge-warning rounded-none',
-                        'Low'       => 'badge-info rounded-none',
-                        default     => 'badge-ghost rounded-none',
-                    };
-
                     $id = $task['id'] ?? $task['Id'] ?? null;
 
                     $statusStyle = match($status) {
-                        'Not Started' => 'background:#f3f4f6;color:#374151;',
-                        'In Progress' => 'background:#dbeafe;color:#1d4ed8;',
-                        'For Review'  => 'background:#fef3c7;color:#b45309;',
-                        'Completed'   => 'background:#d1fae5;color:#065f46;',
+                        'Not Started' => 'background:#fee2e2;color:#ef4444;',
+                        'In Progress' => 'background:#dbeafe;color:#3b82f6;',
+                        'For Review'  => 'background:#e5e7eb;color:#374151;',
+                        'Completed'   => 'background:#dcfce7;color:#22c55e;',
                         default       => 'background:#f3f4f6;color:#374151;',
                     };
 
-                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityBadge','statusStyle');
+                    $priorityStyle = match($priority) {
+                        'Urgent'    => 'background:#fee2e2;color:#ef4444;',
+                        'Important' => 'background:#fce7f3;color:#ec4899;',
+                        'Medium'    => 'background:#dbeafe;color:#3b82f6;',
+                        'Low'       => 'background:#f3f4f6;color:#6b7280;',
+                        default     => 'background:#f3f4f6;color:#6b7280;',
+                    };
+
+                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityStyle','statusStyle');
                 };
             @endphp
 
@@ -443,10 +458,10 @@
                                         <div x-data="{
                                                  status: '{{ addslashes($p['status']) }}',
                                                  styles: {
-                                                     'Not Started': 'background:#f3f4f6;color:#374151;',
-                                                     'In Progress': 'background:#dbeafe;color:#1d4ed8;',
-                                                     'For Review':  'background:#fef3c7;color:#b45309;',
-                                                     'Completed':   'background:#d1fae5;color:#065f46;',
+                                                     'Not Started': 'background:#fee2e2;color:#ef4444;',
+                                                     'In Progress': 'background:#dbeafe;color:#3b82f6;',
+                                                     'For Review':  'background:#e5e7eb;color:#374151;',
+                                                     'Completed':   'background:#dcfce7;color:#22c55e;',
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
@@ -466,10 +481,21 @@
                                         </div>
                                     </td>
                                     <td class="min-w-[5rem] pl-1">
-                                        <span class="badge {{ $p['priorityBadge'] }}">{{ $p['priority'] }}</span>
+                                        <span class="px-2 py-0.5 text-xs" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;height:2rem;width:6rem;{{ $p['priorityStyle'] }}"><span>•</span> {{ $p['priority'] }}</span>
                                     </td>
                     <td wire:click.stop>
-                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">details</button>
+                        <div class="dropdown dropdown-end">
+                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                <x-icons.three-dot classes="w-5 h-5" />
+                            </button>
+                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                <li>
+                                    <button type="button" wire:click.stop="openTaskDetail({{ $p['id'] ?? 0 }})">
+                                        Details
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </td>
                 </tr>
 
@@ -512,10 +538,10 @@
                                 <div x-data="{
                                          status: '{{ addslashes($c['status']) }}',
                                          styles: {
-                                             'Not Started': 'background:#f3f4f6;color:#374151;',
-                                             'In Progress': 'background:#dbeafe;color:#1d4ed8;',
-                                             'For Review':  'background:#fef3c7;color:#b45309;',
-                                             'Completed':   'background:#d1fae5;color:#065f46;',
+                                             'Not Started': 'background:#fee2e2;color:#ef4444;',
+                                             'In Progress': 'background:#dbeafe;color:#3b82f6;',
+                                             'For Review':  'background:#e5e7eb;color:#374151;',
+                                             'Completed':   'background:#dcfce7;color:#22c55e;',
                                          },
                                          get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                      }"
@@ -535,10 +561,21 @@
                                 </div>
                             </td>
                             <td class="min-w-[5rem] pl-1">
-                                <span class="badge {{ $c['priorityBadge'] }}">{{ $c['priority'] }}</span>
+                                <span class="px-2 py-0.5 text-xs" style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $c['priorityStyle'] }}">• {{ $c['priority'] }}</span>
                             </td>
                             <td wire:click.stop>
-                                <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">Edit</button>
+                                <div class="dropdown dropdown-end">
+                                    <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                        <x-icons.three-dot classes="w-5 h-5" />
+                                    </button>
+                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                        <li>
+                                            <button type="button" wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
+                                                Details
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </td>
                         </tr>
 
@@ -565,10 +602,10 @@
                                         <div x-data="{
                                                  status: '{{ addslashes($g['status']) }}',
                                                  styles: {
-                                                     'Not Started': 'background:#f3f4f6;color:#374151;',
-                                                     'In Progress': 'background:#dbeafe;color:#1d4ed8;',
-                                                     'For Review':  'background:#fef3c7;color:#b45309;',
-                                                     'Completed':   'background:#d1fae5;color:#065f46;',
+                                                     'Not Started': 'background:#fee2e2;color:#ef4444;',
+                                                     'In Progress': 'background:#dbeafe;color:#3b82f6;',
+                                                     'For Review':  'background:#e5e7eb;color:#374151;',
+                                                     'Completed':   'background:#dcfce7;color:#22c55e;',
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
@@ -588,10 +625,21 @@
                                         </div>
                                     </td>
                                     <td class="min-w-[5rem] pl-1">
-                                        <span class="badge {{ $g['priorityBadge'] }}">{{ $g['priority'] }}</span>
+                                        <span class="px-2 py-0.5 text-xs" style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $g['priorityStyle'] }}">• {{ $g['priority'] }}</span>
                                     </td>
                                     <td wire:click.stop>
-                                        <button type="button" class="btn btn-ghost btn-xs" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">Edit</button>
+                                        <div class="dropdown dropdown-end">
+                                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                                <x-icons.three-dot classes="w-5 h-5" />
+                                            </button>
+                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                                <li>
+                                                    <button type="button" wire:click.stop="openTaskDetail({{ $g['id'] ?? 0 }})">
+                                                        Details
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach
@@ -637,11 +685,11 @@
             'For Review'  => 'bg-yellow-50 border-yellow-300',
             'Completed'   => 'bg-green-50 border-green-300',
         ];
-        $priorityBadge = [
-            'Urgent'    => 'badge-error',
-            'Important' => 'badge-error',
-            'Medium'    => 'badge-warning',
-            'Low'       => 'badge-info',
+        $priorityStyle = [
+            'Urgent'    => 'background:#fee2e2;color:#ef4444;',
+            'Important' => 'background:#fce7f3;color:#ec4899;',
+            'Medium'    => 'background:#dbeafe;color:#3b82f6;',
+            'Low'       => 'background:#f3f4f6;color:#6b7280;',
         ];
     @endphp
     <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-hidden min-h-0 max-h-[calc(100vh-11rem)] rounded-lg">
@@ -662,7 +710,7 @@
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                 <div x-data="{ dragging: false }"
-                     class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                     class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
                      draggable="true"
                      :style="dragging ? 'opacity:0.4' : ''"
                      @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
@@ -672,7 +720,7 @@
                         <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
                         <div class="flex flex-wrap gap-1.5 items-center">
                             @if(!empty($task['priority']))
-                                <span class="badge badge-sm {{ $priorityBadge[$task['priority']] ?? 'badge-ghost' }}">{{ $task['priority'] }}</span>
+                                <span class="px-2 py-0.5 text-xs" style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $priorityStyle[$task['priority']] ?? 'background:#f3f4f6;color:#6b7280;' }}">• {{ $task['priority'] }}</span>
                             @endif
                             @if(isset($task['storyPoints']) || isset($task['storyPoint']))
                                 <span class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }} pts</span>
