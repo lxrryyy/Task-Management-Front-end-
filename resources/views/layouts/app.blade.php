@@ -118,5 +118,151 @@
 
 </div>
 
+@if(Session::get('user'))
+{{-- ══════════════════ GLOBAL FLOATING STICKY NOTE ══════════════════ --}}
+<div
+    x-data="{
+        storageKey: 'sticky_todos_{{ Session::get('user')['id'] ?? Session::get('user')['Id'] ?? 'guest' }}',
+        posKey:     'sticky_pos_{{ Session::get('user')['id'] ?? Session::get('user')['Id'] ?? 'guest' }}',
+        todos: {},
+        newTodo: '',
+        showInput: false,
+        minimized: false,
+        hidden: false,
+        dragging: false,
+        posX: window.innerWidth - 310,
+        posY: window.innerHeight - 400,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+
+        loadTodos() {
+            try { this.todos = JSON.parse(localStorage.getItem(this.storageKey) || '{}'); }
+            catch(e) { this.todos = {}; }
+        },
+        saveTodos() { localStorage.setItem(this.storageKey, JSON.stringify(this.todos)); },
+
+        loadPos() {
+            try {
+                const p = JSON.parse(localStorage.getItem(this.posKey));
+                if (p) { this.posX = p.x; this.posY = p.y; }
+            } catch(e) {}
+        },
+        savePos() { localStorage.setItem(this.posKey, JSON.stringify({ x: this.posX, y: this.posY })); },
+
+        addTodo() {
+            const text = this.newTodo.trim();
+            if (!text) return;
+            if (!this.todos[this.selectedYmd]) this.todos[this.selectedYmd] = [];
+            this.todos[this.selectedYmd] = [...this.todos[this.selectedYmd], { id: Date.now(), text }];
+            this.saveTodos();
+            this.newTodo = '';
+            this.showInput = false;
+        },
+        deleteTodo(id) {
+            if (!this.todos[this.selectedYmd]) return;
+            this.todos[this.selectedYmd] = this.todos[this.selectedYmd].filter(t => t.id !== id);
+            if (this.todos[this.selectedYmd].length === 0) delete this.todos[this.selectedYmd];
+            this.saveTodos();
+        },
+
+        startDrag(e) {
+            this.dragging = true;
+            this.dragOffsetX = e.clientX - this.posX;
+            this.dragOffsetY = e.clientY - this.posY;
+        },
+        onDrag(e) {
+            if (!this.dragging) return;
+            this.posX = Math.max(0, Math.min(window.innerWidth - 280, e.clientX - this.dragOffsetX));
+            this.posY = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - this.dragOffsetY));
+        },
+        stopDrag() { this.dragging = false; this.savePos(); },
+    }"
+    x-init="loadTodos(); loadPos()"
+    x-show="!hidden"
+    @mousemove.window="onDrag($event)"
+    @mouseup.window="stopDrag()"
+    :style="`position:fixed; left:${posX}px; top:${posY}px; z-index:9999; width:17rem;`"
+>
+    {{-- Header / drag handle --}}
+    <div
+        @mousedown="startDrag($event)"
+        class="flex items-center justify-between px-4 py-2.5 rounded-t-xl cursor-grab active:cursor-grabbing select-none"
+        style="background:#102B3C;"
+    >
+        <div class="flex items-center gap-1 min-w-0">
+            <svg width="13" height="13" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24" opacity="0.7" class="shrink-0">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <p class="text-base-100 text-sm">To-Do</p>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+            {{-- Add note --}}
+            <button @click.stop="showInput = !showInput"
+                    title="Add note"
+                    class="w-5 h-5 rounded flex items-center justify-center text-white hover:bg-white/20 transition text-sm leading-none">
+                +
+            </button>
+            {{-- Minimize --}}
+            <button @click.stop="minimized = !minimized"
+                    :title="minimized ? 'Expand' : 'Minimize'"
+                    class="w-5 h-5 rounded flex items-center justify-center text-white hover:bg-white/20 transition text-sm leading-none"
+                    x-text="minimized ? '+' : '−'">
+            </button>
+            {{-- Close --}}
+            <button @click.stop="hidden = true"
+                    title="Close"
+                    class="w-5 h-5 rounded flex items-center justify-center text-white hover:text-red-400 hover:bg-white/20 transition">
+                <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    {{-- Body --}}
+    <div x-show="!minimized" class="bg-yellow-50 rounded-b-xl shadow-2xl border border-yellow-200 flex flex-col" style="max-height:20rem;">
+
+        {{-- Add input --}}
+        <div x-show="showInput" class="px-4 pt-3 shrink-0" x-transition>
+            <div class="flex gap-2">
+                <input
+                    x-model="newTodo"
+                    @keydown.enter="addTodo()"
+                    @keydown.escape="showInput=false; newTodo=''"
+                    type="text"
+                    placeholder="Write a note..."
+                    class="flex-1 text-sm border border-yellow-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-yellow-400"
+                    x-ref="floatTodoInput"
+                    x-effect="if(showInput && !minimized) $nextTick(() => $refs.floatTodoInput?.focus())"
+                />
+                <button @click="addTodo()"
+                        class="px-3 py-1.5 text-xs rounded-lg text-white transition"
+                        style="background:#102B3C;">
+                    Add
+                </button>
+            </div>
+        </div>
+
+        {{-- Notes list --}}
+        <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
+            <template x-if="todosForDay.length === 0">
+                <p class="text-xs text-yellow-600/60 text-center py-4">No notes for this day.<br>Click + to add one.</p>
+            </template>
+            <template x-for="todo in todosForDay" :key="todo.id">
+                <div class="flex items-start justify-between gap-2 border-b border-yellow-200 pb-2 group">
+                    <p class="text-sm text-gray-800 leading-snug flex-1" x-text="todo.text"></p>
+                    <button @click="deleteTodo(todo.id)"
+                            class="text-yellow-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5">
+                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+@endif
+
 </body>
 </html>
