@@ -2,14 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-[x-cloak] { display: none !important; }
-
-.clr-bg-primary{
-    background-color: #102B3C;
+[x-cloak] {
+    display: none !important;
 }
 
-.clr-primary{
-    color: #102B3C;
+th {
+    font-weight: normal !important;
+}
+
+.clr-bg-primary {
+    background-color: #102b3c;
+}
+
+.clr-primary {
+    color: #102b3c;
 }
 
 select:focus {
@@ -18,12 +24,16 @@ select:focus {
     border-color: transparent !important;
 }
 
+.clr-bg-secondary {
+    background-color: #205375;
+}
+
 .clr-accent {
-    color: #ED1C24;
+    color: #ed1c24;
 }
 
 .clr-bg-accent {
-    background-color: #ED1C24;
+    background-color: #ed1c24;
 }
 
 .hover-clr-bg-accent-light:hover {
@@ -31,19 +41,19 @@ select:focus {
 }
 
 .hover-clr-accent:hover {
-    color: #ED1C24;
+    color: #ed1c24;
 }
 
 .active-clr-accent:active {
-    color: #ED1C24;
+    color: #ed1c24;
 }
 
 .focus-clr-accent {
-    color: #ED1C24;
+    color: #ed1c24;
 }
 
 .hover-clr-bg-accent:hover {
-    background-color: #ED1C24;
+    background-color: #ed1c24;
 }
 
 .hover-clr-bg-primary-light:hover {
@@ -51,11 +61,9 @@ select:focus {
 }
 
 .hover-clr-bg-primary:hover {
-    background-color: #102B3C;
+    background-color: #102b3c;
 }
 
 .hover-clr-primary:hover {
-    color: #102B3C;
+    color: #102b3c;
 }
-
-

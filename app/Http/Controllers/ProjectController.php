@@ -255,6 +255,11 @@ class ProjectController extends Controller
             Session::put('refreshed_project', $updated);
         }
 
+        $redirect = (string) $request->input('redirect_to', '');
+        if ($redirect === 'dashboard') {
+            return redirect()->route('dashboard');
+        }
+
         return redirect()->route('Projects');
     }
 
@@ -394,6 +399,20 @@ class ProjectController extends Controller
         try {
             $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
             return is_array($project) ? $project : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Fetch all accounts (members) used in the project form.
+     * Endpoint: GET /api/Account/GetAllUserRoleAccount
+     */
+    public function getAccountsData(): array
+    {
+        try {
+            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            return $this->normalizeAccounts($accountsResponse);
         } catch (\Throwable) {
             return [];
         }

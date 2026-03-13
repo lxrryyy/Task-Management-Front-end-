@@ -1,7 +1,7 @@
 <div class="">
         <div class="w-full">
             <div class="flex w-full items-center clr-primary ">
-                <a href="/projects"
+                <a href="/dashboard"
                class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
                 <x-icons.back-btn classes="w-6 h-6" />
                 </a>
@@ -11,13 +11,13 @@
             <div>
                 <div class="flex items-center justify-between p-2 flex-shrink-0">
                     <div>
-                        <button type="button" class="btn w-36 border-2 border-gray clr-primary rounded-xl m-1 hover-clr-bg-primary hover:text-white " wire:click="archiveSelected">
+                        <button type="button" class="btn w-36 border-2 border-gray clr-bg-primary text-base-100 rounded-xl m-1" wire:click="archiveSelected">
                             <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
                         </button>
                     </div>
                     <div class="flex items-center gap-4">
                         <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                            <input wire:model.live.debounce.300ms="search" class="w-96 bg-transparent focus:outline-none rounded-xl" type="search" placeholder="Search" />
+                            <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
                         </label>
                         <div class="dropdown dropdown-end">
                             <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
@@ -30,7 +30,7 @@
                         </div>
 
                     <div>
-                        <a wire:click="openModal" class="btn clr-bg-primary text-base-100 rounded-xl p-4">+ Add Project</a>
+                        <button type="button" wire:click="openModal" class="btn w-36 border-2 clr-bg-primary rounded-lg text-base-100">+ Add Project</button>
                     </div>
 
                     {{-- Add Project modal (create only) --}}
@@ -40,8 +40,8 @@
                             <div class="modal-action">
                                 <button type="button" wire:click="closeAddModal" class="btn">X</button>
                             </div>
-                            <h3 class="font-bold text-lg">New Project</h3>
-                            <form method="POST" action="{{ route('projects.store') }}" class="mt-4">
+                            <h3 class="font-normal text-lg">New Project</h3>
+                            <form method="POST" action="{{ route('projects.store') }}" class="mt-0">
                                 @csrf
                                 @include('livewire.partials.project-form-fields', ['formContext' => 'add'])
                                 <div class="modal-action">
@@ -62,7 +62,7 @@
                             <div class="modal-action">
                                 <button type="button" wire:click="closeEditModal" class="btn">X</button>
                             </div>
-                            <h3 class="font-bold text-lg">Edit Project</h3>
+                            <h3 class="font-normal text-lg">Edit Project</h3>
                             @if($editingProjectId)
                             <div>
                                 <form class="mt-4" @submit.prevent>
@@ -80,7 +80,7 @@
                                 <div class="fixed inset-0 z-[9999] flex items-center justify-center">
                                     <div class="absolute inset-0" wire:click="cancelConfirmDialog"></div>
                                     <div class="relative bg-gray-100 rounded-2xl shadow-2xl border border-gray-200 p-6 w-94">
-                                        <h3 class="text-lg font-bold">Confirm Update</h3>
+                                        <h3 class="text-lg font-normal">Confirm Update</h3>
                                         <p class="py-4 text-sm text-gray-600">Are you sure you want to save the changes to this project?</p>
                                         <div class="flex justify-end gap-2">
                                             <button type="button" class="btn btn-ghost clr-bg-primary text-base-100 p-2" wire:click="cancelConfirmDialog">Cancel</button>
@@ -102,10 +102,10 @@
                     @if($showDeleteConfirmDialog ?? false)
                     <dialog id="deleteProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-md">
-                            <h3 class="font-bold text-lg">Confirm Delete</h3>
+                            <h3 class="font-normal text-lg">Confirm Delete</h3>
                             <p class="py-4 text-sm text-gray-700">
                                 Are you sure you want to delete
-                                <span class="font-semibold break-words">{{ $deletingProjectName ?? 'this project' }}</span>?
+                                <span class="font-normal break-words">{{ $deletingProjectName ?? 'this project' }}</span>?
                             </p>
                             <div class="modal-action">
                                 <button type="button" class="btn clr-bg-primary text-base-100 p-2" wire:click="cancelDelete">Cancel</button>
@@ -127,13 +127,13 @@
                 <!-- head -->
                 <thead>
                     <tr>
-                        <th>Project Name</th>
-                        <th>Project Manager</th>
-                        <th>Members</th>
-                        <th>Progress</th>
-                        <th>Status</th>
-                        <th>Created At</th>
-                        <th>Action</th>
+                        <th class="!font-normal">Project Name</th>
+                        <th class="!font-normal">Project Manager</th>
+                        <th class="!font-normal">Members</th>
+                        <th class="!font-normal">Progress</th>
+                        <th class="!font-normal">Status</th>
+                        <th class="!font-normal">Created At</th>
+                        <th class="!font-normal">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -220,7 +220,7 @@
                             </div>
                         </th>
                         <th>
-                            <span>
+                            <span class="!font-normal text-sm">
                                 {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
                             </span>
                         </th>

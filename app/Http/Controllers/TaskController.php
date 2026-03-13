@@ -314,8 +314,55 @@ class TaskController extends Controller
             return back()->withInput()->withErrors(['api_error' => ['Failed to create task. Please try again.']]);
         }
 
-        return redirect()->route('projects.tasks', $projectId)
-            ->with('success', 'Task created successfully.');
+        $redirect = (string) $request->input('redirect_to', '');
+        if ($redirect === 'dashboard') {
+            return redirect()->route('dashboard')->with('success', 'Task created successfully.');
+        }
+
+        return redirect()->route('projects.tasks', $projectId)->with('success', 'Task created successfully.');
+    }
+
+    /**
+     * Fetch project-member accounts for assignee dropdown (same logic as index()).
+     */
+    public function getAssignableAccountsForProject(int $projectId, int $requesterId): array
+    {
+        try {
+            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+        } catch (\Throwable) {
+            $project = [];
+        }
+
+        try {
+            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $allAccounts = is_array($accountsRaw)
+                ? $accountsRaw
+                : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+
+            $projArr = is_array($project) ? $project : [];
+            $accounts = $this->projectMemberAccounts($projArr, (array) $allAccounts);
+
+            // Dashboard create-task flow: exclude the project creator/manager from assignee list.
+            $creatorId = (int) (
+                $projArr['projectManagerId']
+                ?? $projArr['ProjectManagerId']
+                ?? $projArr['createdById']
+                ?? $projArr['CreatedById']
+                ?? $projArr['createdBy']
+                ?? $projArr['CreatedBy']
+                ?? 0
+            );
+            if ($creatorId > 0) {
+                $accounts = array_values(array_filter($accounts, static function ($a) use ($creatorId) {
+                    $aid = (int) ($a['id'] ?? $a['Id'] ?? 0);
+                    return $aid !== $creatorId;
+                }));
+            }
+
+            return $accounts;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**

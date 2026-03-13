@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        <h2 class="font-normal text-xl text-gray-800 leading-tight">
             {{ __('Projects') }}
         </h2>
     </x-slot>
@@ -11,7 +11,7 @@
             'accounts' => $accounts ?? [],
             'creatorId' => $creatorId ?? 0,
             'selectedMemberIds' => old('memberIds', []),
-            'showAddModal' => $errors->any() && !old('_edit_project_id'),
+            'showAddModal' => request()->boolean('create') || ($errors->any() && !old('_edit_project_id')),
             'showEditModal' => $errors->any() && (bool) old('_edit_project_id'),
             'editingProjectId' => old('_edit_project_id'),
         ])

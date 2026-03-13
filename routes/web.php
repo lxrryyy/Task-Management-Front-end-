@@ -17,7 +17,7 @@ Route::get('/dashboard', function () {
 
 Route::get('/calendar', function () {
     return view('calendar');
-})->middleware(['api.auth'])->name('Calendar');
+})->middleware(['api.auth'])->name('calendar');
 
 Route::get('/projects', [ProjectController::class, 'index'])
     ->middleware(['api.auth'])
