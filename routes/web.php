@@ -5,6 +5,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\StickyNoteController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -57,6 +58,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+// ── Sticky Notes (proxied to C# backend) ─────────────────────────────────────
+Route::middleware(['api.auth'])->group(function () {
+    Route::get   ('/notes',        [StickyNoteController::class, 'index'])  ->name('notes.index');
+    Route::post  ('/notes',        [StickyNoteController::class, 'store'])  ->name('notes.store');
+    Route::patch ('/notes/{id}',   [StickyNoteController::class, 'update']) ->name('notes.update');
+    Route::delete('/notes/{id}',   [StickyNoteController::class, 'destroy'])->name('notes.destroy');
+    // Standalone always-on-top popup window
+    Route::get   ('/note-popup',   fn () => view('note-popup'))             ->name('note-popup');
 });
 
 // Logout: no auth middleware so API-only users (session api_token) can hit it and get token_forgotten redirect

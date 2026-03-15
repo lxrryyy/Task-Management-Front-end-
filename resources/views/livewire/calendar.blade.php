@@ -1,5 +1,6 @@
 <div>
-    <script id="calendar-tasks-data" type="application/json">@json($calendarTasks)</script>
+    <script id="calendar-tasks-data"  type="application/json">@json($calendarTasks)</script>
+    <script id="sticky-notes-data"    type="application/json">@json($stickyNotes ?? [])</script>
 
     <div
         x-data="{
@@ -123,41 +124,47 @@
                 }
             },
 
-            /* ── to-do (localStorage notepad) ───────── */
-            storageKey: 'calendar_todos_{{ Session::get("user")["id"] ?? Session::get("user")["Id"] ?? "guest" }}',
-            todos: {},
-            newTodo: '',
-            showInput: false,
+            /* ── sticky notes (API-backed) ───────────── */
+            notes: JSON.parse(document.getElementById('sticky-notes-data').textContent),
+            noteDeleting: null,
 
-            loadTodos() {
-                try { this.todos = JSON.parse(localStorage.getItem(this.storageKey) || '{}'); }
-                catch(e) { this.todos = {}; }
-            },
-            saveTodos() {
-                localStorage.setItem(this.storageKey, JSON.stringify(this.todos));
-            },
-            get selectedYmd() { return this.toYMD(this.currentDate); },
-            get todosForDay() { return this.todos[this.selectedYmd] ?? []; },
-            addTodo() {
-                const text = this.newTodo.trim();
-                if (!text) return;
-                if (!this.todos[this.selectedYmd]) this.todos[this.selectedYmd] = [];
-                this.todos[this.selectedYmd] = [...this.todos[this.selectedYmd], { id: Date.now(), text }];
-                this.saveTodos();
-                this.newTodo = '';
-                this.showInput = false;
-            },
-            deleteTodo(id) {
-                if (!this.todos[this.selectedYmd]) return;
-                this.todos[this.selectedYmd] = this.todos[this.selectedYmd].filter(t => t.id !== id);
-                if (this.todos[this.selectedYmd].length === 0) delete this.todos[this.selectedYmd];
-                this.saveTodos();
-            },
             get selectedDateLabel() {
                 return this.currentDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
             },
+            noteDate(iso) {
+                return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+            },
+
+            openNewNote() {
+                if (typeof window._calPopOut === 'function') {
+                    window._calPopOut(null, '');
+                }
+            },
+            openViewNote(note) {
+                if (typeof window._calPopOut === 'function') {
+                    window._calPopOut(note.id, note.content);
+                }
+            },
+            async deleteNote(id) {
+                if (!confirm('Delete this sticky note?')) return;
+                this.noteDeleting = id;
+                try {
+                    await fetch('/notes/' + id, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': window._calCsrf || document.querySelector('meta[name=csrf-token]').content },
+                    });
+                    this.notes = this.notes.filter(n => n.id !== id);
+                    if (window._calPopupClosed) window._calPopupClosed(id);
+                } finally {
+                    this.noteDeleting = null;
+                }
+            },
+
+            init() {
+                if (typeof window._calInit === 'function') window._calInit(this);
+            },
         }"
-        x-init="loadTodos()"
+        x-init="init()"
         class="flex w-full h-full overflow-hidden"
         style="height: calc(100vh - 8rem);"
     >
@@ -354,53 +361,45 @@
                 </div>
             </div>
 
-            {{-- ── To-do notepad (gray bottom) ── --}}
+            {{-- ── Sticky Notes (API-backed) ── --}}
             <div class="bg-gray-50 rounded-b flex-1 flex flex-col overflow-hidden">
 
-                {{-- Fixed header --}}
+                {{-- Header --}}
                 <div class="px-6 py-4 shrink-0 border-b border-gray-200">
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-normal text-gray-800">To-do</p>
-                        <button @click="showInput = !showInput"
-                                class="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-200 text-xl leading-none transition">
-                            <span x-text="showInput ? '×' : '+'"></span>
-                        </button>
+                        <button @click="openNewNote()"
+                                class="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-200 text-xl leading-none transition"
+                                title="New sticky note">+</button>
                     </div>
                     <p class="text-xs text-gray-400 mt-0.5" x-text="selectedDateLabel"></p>
                 </div>
 
-                {{-- Add input --}}
-                <div x-show="showInput" class="px-6 pt-3 shrink-0" x-transition>
-                    <div class="flex gap-2">
-                        <input
-                            x-model="newTodo"
-                            @keydown.enter="addTodo()"
-                            @keydown.escape="showInput=false; newTodo=''"
-                            type="text"
-                            placeholder="Write a note..."
-                            class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-gray-400 bg-white"
-                            x-ref="todoInput"
-                            x-effect="if(showInput) $nextTick(() => $refs.todoInput?.focus())"
-                        />
-                        <button @click="addTodo()"
-                                class="px-3 py-1.5 text-xs rounded-lg clr-bg-primary text-white hover:opacity-90 transition">
-                            Add
-                        </button>
-                    </div>
-                </div>
-
                 {{-- Scrollable notes list --}}
-                <div class="flex-1 overflow-y-auto px-6 py-3">
-                    <template x-if="todosForDay.length === 0">
-                        <p class="text-xs text-gray-400 text-center py-6">No notes for this day.</p>
+                <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+                    <template x-if="notes.length === 0">
+                        <p class="text-xs text-gray-400 text-center py-6">No sticky notes yet.<br>Click + to add one.</p>
                     </template>
 
-                    <template x-for="todo in todosForDay" :key="todo.id">
-                        <div class="flex items-start justify-between gap-2 border-b border-gray-200 py-2.5 group rounded px-1 -mx-1 hover:bg-gray-100 transition-colors duration-500">
-                            <p class="text-sm text-gray-800 leading-snug flex-1" x-text="todo.text"></p>
-                            <button @click="deleteTodo(todo.id)"
-                                    class="text-gray-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <template x-for="note in notes" :key="note.id">
+                        <div class="relative group rounded-lg p-3 shadow-sm border-l-4 border-yellow-400 cursor-pointer transition hover:shadow-md"
+                             style="background:#fdf6e3;font-family:'Caveat',cursive;"
+                             @click="openViewNote(note)">
+                            {{-- Folded corner --}}
+                            <div class="absolute bottom-0 right-0 w-0 h-0 pointer-events-none"
+                                 style="border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent #e8dcb8 transparent;"></div>
+                            <p class="text-sm leading-snug pr-6 whitespace-pre-wrap line-clamp-3"
+                               style="color:#1a1208;" x-text="note.content"></p>
+                            <p class="text-xs mt-1.5"
+                               style="color:rgba(100,80,30,0.45);font-family:'DM Mono',monospace;font-size:0.6rem;"
+                               x-text="noteDate(note.updatedAt || note.createdAt)"></p>
+                            {{-- Delete button (hover) --}}
+                            <button @click.stop="deleteNote(note.id)"
+                                    :disabled="noteDeleting === note.id"
+                                    class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition rounded p-0.5 hover:bg-red-100"
+                                    title="Delete note">
+                                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
+                                     viewBox="0 0 24 24" style="color:#aaa;">
                                     <path d="M18 6L6 18M6 6l12 12"/>
                                 </svg>
                             </button>

@@ -192,6 +192,18 @@
             this.posY = Math.max(0, Math.min(window.innerHeight - 42, e.clientY - this.dragOffsetY));
         },
         stopDrag() { if (this.dragging) this.savePos(); this.dragging = false; },
+
+        pipSupported: ('documentPictureInPicture' in window),
+        isPoppedOut: false,
+        pipRef: null,
+
+        async popout() {
+            if (!('documentPictureInPicture' in window)) {
+                alert('Pop Out requires Chrome or Edge. Your browser does not support it.');
+                return;
+            }
+            await stickyPopout(this);
+        },
     }"
     x-init="init()"
     @mousemove.window="onDrag($event)"
@@ -215,6 +227,13 @@
             <div class="flex items-center gap-2 shrink-0">
                 <button @click.stop="showInput = !showInput" title="Add item"
                         class="text-white transition text-base leading-none font-light">+</button>
+                {{-- Pop Out button --}}
+                <button
+                    @click.stop="popout()"
+                    :disabled="isPoppedOut"
+                    x-text="isPoppedOut ? '📌' : '⬆ Pop Out'"
+                    class="text-white text-xs font-semibold px-2 py-0.5 rounded transition bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                ></button>
                 <button @click.stop="minimized = !minimized"
                         class="text-white transition text-sm leading-none"
                         x-text="minimized ? 'v' : '-'"></button>
@@ -270,6 +289,123 @@
     </div>
 </div>
 @endif
+
+{{-- ══ PiP popout logic — $ signs escaped with @$ so Blade ignores them ══ --}}
+<script>
+async function stickyPopout(component) {
+    if (!('documentPictureInPicture' in window)) return;
+    try {
+        const pip = await documentPictureInPicture.requestWindow({ width: 260, height: 400 });
+        component.pipRef = pip;
+        component.isPoppedOut = true;
+
+        const storageKey = component.storageKey;
+
+        pip.document.head.innerHTML = '<meta charset="UTF-8">'
+            + '<link href="https://fonts.bunny.net/css?family=ubuntu:400,500,600&display=swap" rel="stylesheet">'
+            + '<style>'
+            + '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }'
+            + 'html, body { width: 100%; height: 100%; font-family: "Ubuntu", sans-serif; }'
+            + 'body { display: flex; flex-direction: column; background: #F0EFEF; }'
+            + '.pip-header { background: #102B3C; color: white; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }'
+            + '.pip-title { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }'
+            + '.pip-date { font-size: 0.65rem; opacity: 0.6; }'
+            + '.pip-nav { display: flex; align-items: center; gap: 6px; }'
+            + '.pip-nav button { background: none; border: none; color: white; cursor: pointer; font-size: 1rem; opacity: 0.7; padding: 2px 4px; }'
+            + '.pip-nav button:hover { opacity: 1; }'
+            + '.pip-add { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; background: #f9f9f9; }'
+            + '.pip-add input { flex: 1; font-size: 0.7rem; border: 1px solid #fcd34d; border-radius: 4px; padding: 4px 8px; outline: none; background: white; }'
+            + '.pip-add input:focus { border-color: #f59e0b; }'
+            + '.pip-add button { font-size: 0.7rem; background: #f59e0b; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }'
+            + '.pip-list { flex: 1; overflow-y: auto; }'
+            + '.pip-empty { font-size: 0.7rem; color: #9ca3af; text-align: center; padding: 20px 12px; }'
+            + '.pip-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #fef08a; }'
+            + '.pip-item p { font-size: 0.72rem; color: #374151; line-height: 1.4; flex: 1; word-break: break-word; }'
+            + '.pip-item button { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 0.8rem; padding: 0 2px; line-height: 1; flex-shrink: 0; }'
+            + '.pip-item button:hover { color: #ef4444; }'
+            + '.pip-footer { padding: 6px 10px; font-size: 0.6rem; color: #9ca3af; text-align: center; flex-shrink: 0; border-top: 1px solid #e5e7eb; }'
+            + '</style>';
+
+        const render = function(todos, ymd) {
+            const items = todos[ymd] ?? [];
+            const d = new Date(ymd + 'T00:00:00');
+            const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+            let itemsHtml = items.length === 0
+                ? '<p class="pip-empty">No notes for this day.<br>Use the field above to add one.</p>'
+                : items.map(function(i) {
+                    return '<div class="pip-item" data-id="' + i.id + '"><p>' + i.text + '</p><button class="remove-btn" data-id="' + i.id + '">&#x2715;</button></div>';
+                }).join('');
+
+            pip.document.body.innerHTML =
+                '<div class="pip-header">'
+                    + '<div><div class="pip-title">&#128204; To Do</div><div class="pip-date">' + label + '</div></div>'
+                    + '<div class="pip-nav"><button id="prev">&#8249;</button><button id="next">&#8250;</button></div>'
+                + '</div>'
+                + '<div class="pip-add"><input id="pip-input" type="text" placeholder="Add a note..." /><button id="pip-add-btn">Add</button></div>'
+                + '<div class="pip-list">' + itemsHtml + '</div>'
+                + '<div class="pip-footer">Always on top &middot; Synced with calendar</div>';
+
+            pip.document.getElementById('prev').onclick = function() {
+                const dt = new Date(currentYmd + 'T00:00:00');
+                dt.setDate(dt.getDate() - 1);
+                currentYmd = dt.toISOString().slice(0, 10);
+                render(currentTodos, currentYmd);
+            };
+            pip.document.getElementById('next').onclick = function() {
+                const dt = new Date(currentYmd + 'T00:00:00');
+                dt.setDate(dt.getDate() + 1);
+                currentYmd = dt.toISOString().slice(0, 10);
+                render(currentTodos, currentYmd);
+            };
+            pip.document.getElementById('pip-add-btn').onclick = function() {
+                const input = pip.document.getElementById('pip-input');
+                const text = input.value.trim();
+                if (!text) return;
+                if (!currentTodos[currentYmd]) currentTodos[currentYmd] = [];
+                currentTodos[currentYmd] = currentTodos[currentYmd].concat([{ id: Date.now(), text: text }]);
+                localStorage.setItem(storageKey, JSON.stringify(currentTodos));
+                component.todos = Object.assign({}, currentTodos);
+                input.value = '';
+                render(currentTodos, currentYmd);
+            };
+            pip.document.getElementById('pip-input').onkeydown = function(e) {
+                if (e.key === 'Enter') pip.document.getElementById('pip-add-btn').click();
+            };
+            pip.document.querySelectorAll('.remove-btn').forEach(function(btn) {
+                btn.onclick = function() {
+                    const id = parseInt(btn.dataset.id);
+                    currentTodos[currentYmd] = (currentTodos[currentYmd] ?? []).filter(function(i) { return i.id !== id; });
+                    if (currentTodos[currentYmd].length === 0) delete currentTodos[currentYmd];
+                    localStorage.setItem(storageKey, JSON.stringify(currentTodos));
+                    component.todos = Object.assign({}, currentTodos);
+                    render(currentTodos, currentYmd);
+                };
+            });
+        };
+
+        let currentYmd = component.selectedYmd;
+        let currentTodos = Object.assign({}, component.todos);
+
+        render(currentTodos, currentYmd);
+
+        window.addEventListener('storage', function(e) {
+            if (e.key === storageKey) {
+                try { currentTodos = JSON.parse(e.newValue || '{}'); render(currentTodos, currentYmd); } catch(err) {}
+            }
+        });
+
+        pip.addEventListener('pagehide', function() {
+            component.isPoppedOut = false;
+            component.pipRef = null;
+        });
+
+    } catch(err) {
+        console.error('PiP failed:', err);
+        component.isPoppedOut = false;
+    }
+}
+</script>
 
 </body>
 </html>
