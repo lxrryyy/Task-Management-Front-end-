@@ -1,4 +1,23 @@
 <div>
+    {{-- Success banner --}}
+    @if(session('success'))
+    <div class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg mb-4">
+        <span>{{ session('success') }}</span>
+    </div>
+    @endif
+
+    {{-- Overload warning banner --}}
+    @if(session('task_warnings') && count(session('task_warnings')) > 0)
+    <div class="alert alert-warning text-sm flex flex-col items-start gap-1 py-3 px-4 rounded-lg mb-4">
+        <span class="font-semibold">Task created with warnings:</span>
+        <ul class="list-disc list-inside">
+            @foreach(session('task_warnings') as $warning)
+                <li>{{ $warning }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
     @php
         // Keep modal heights consistent between "select project" and "create task".
         $modalBoxClass = 'modal-box w-11/12 max-w-5xl overflow-y-auto h-[40rem]';
