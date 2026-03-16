@@ -119,66 +119,76 @@
 </div>
 
 @if(Session::get('user'))
-{{-- ══════════════════ GLOBAL FLOATING STICKY NOTE (synced with calendar to-do) ══════════════════ --}}
+{{-- ══════════════════ GLOBAL FLOATING STICKY NOTE (API-backed) ══════════════════ --}}
 <div
     x-data="{
-        storageKey: 'calendar_todos_{{ Session::get('user')['id'] ?? Session::get('user')['Id'] ?? 'guest' }}',
-        posKey:     'sticky_note_pos_{{ Session::get('user')['id'] ?? Session::get('user')['Id'] ?? 'guest' }}',
-        visible: true,
-        minimized: false,
-        todos: {},
+        posKey: 'sticky_note_pos_{{ Session::get('user')['id'] ?? Session::get('user')['Id'] ?? 'guest' }}',
+        notes: [],
         newItem: '',
         showInput: false,
-        selectedYmd: new Date().toISOString().slice(0, 10),
+        visible: true,
+        minimized: false,
+        loading: false,
+        saving: false,
+        deletingId: null,
         posX: window.innerWidth - 260,
         posY: window.innerHeight - 420,
         dragging: false,
         dragOffsetX: 0,
         dragOffsetY: 0,
+        csrfToken: document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '',
 
-        get todosForDay() { return this.todos[this.selectedYmd] ?? []; },
-        get dateLabel() {
-            const d = new Date(this.selectedYmd + 'T00:00:00');
-            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        async loadNotes() {
+            this.loading = true;
+            try {
+                const r = await fetch('/notes', { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                const data = await r.json();
+                this.notes = Array.isArray(data) ? data : [];
+            } catch (e) {
+                this.notes = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        savePos() {
+            try { localStorage.setItem(this.posKey, JSON.stringify({ x: this.posX, y: this.posY })); } catch (e) {}
         },
 
-        prevDay() {
-            const d = new Date(this.selectedYmd + 'T00:00:00');
-            d.setDate(d.getDate() - 1);
-            this.selectedYmd = d.toISOString().slice(0, 10);
-        },
-        nextDay() {
-            const d = new Date(this.selectedYmd + 'T00:00:00');
-            d.setDate(d.getDate() + 1);
-            this.selectedYmd = d.toISOString().slice(0, 10);
-        },
-
-        init() {
-            try { this.todos = JSON.parse(localStorage.getItem(this.storageKey) || '{}'); } catch(e) { this.todos = {}; }
-            try { const p = JSON.parse(localStorage.getItem(this.posKey)); if (p) { this.posX = p.x; this.posY = p.y; } } catch(e) {}
-            window.addEventListener('storage', (e) => {
-                if (e.key === this.storageKey) {
-                    try { this.todos = JSON.parse(e.newValue || '{}'); } catch(e) {}
-                }
-            });
-        },
-        save()    { localStorage.setItem(this.storageKey, JSON.stringify(this.todos)); },
-        savePos() { localStorage.setItem(this.posKey, JSON.stringify({ x: this.posX, y: this.posY })); },
-
-        addItem() {
+        async addItem() {
             const text = this.newItem.trim();
             if (!text) return;
-            if (!this.todos[this.selectedYmd]) this.todos[this.selectedYmd] = [];
-            this.todos[this.selectedYmd] = [...this.todos[this.selectedYmd], { id: Date.now(), text }];
-            this.save();
-            this.newItem = '';
-            this.showInput = false;
+            this.saving = true;
+            try {
+                const r = await fetch('/notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                    body: JSON.stringify({ content: text, isPinned: false }),
+                    credentials: 'same-origin',
+                });
+                if (!r.ok) throw new Error('Failed to add');
+                const note = await r.json();
+                this.notes = [...this.notes, { id: note.id, content: note.content, isPinned: note.isPinned || false, createdAt: note.createdAt, updatedAt: note.updatedAt }];
+                this.newItem = '';
+                this.showInput = false;
+                if (window.__stickyNoteRefresh) window.__stickyNoteRefresh();
+            } finally {
+                this.saving = false;
+            }
         },
-        removeItem(id) {
-            if (!this.todos[this.selectedYmd]) return;
-            this.todos[this.selectedYmd] = this.todos[this.selectedYmd].filter(i => i.id !== id);
-            if (this.todos[this.selectedYmd].length === 0) delete this.todos[this.selectedYmd];
-            this.save();
+        async removeItem(id) {
+            this.deletingId = id;
+            try {
+                const r = await fetch('/notes/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                    credentials: 'same-origin',
+                });
+                if (!r.ok) throw new Error('Failed to delete');
+                this.notes = this.notes.filter(n => n.id !== id);
+                if (window.__stickyNoteRefresh) window.__stickyNoteRefresh();
+            } finally {
+                this.deletingId = null;
+            }
         },
 
         startDrag(e) {
@@ -196,13 +206,14 @@
         pipSupported: ('documentPictureInPicture' in window),
         isPoppedOut: false,
         pipRef: null,
-
         async popout() {
-            if (!('documentPictureInPicture' in window)) {
-                alert('Pop Out requires Chrome or Edge. Your browser does not support it.');
-                return;
-            }
+            if (!('documentPictureInPicture' in window)) { alert('Pop Out requires Chrome or Edge.'); return; }
             await stickyPopout(this);
+        },
+        init() {
+            try { const p = JSON.parse(localStorage.getItem(this.posKey)); if (p) { this.posX = p.x; this.posY = p.y; } } catch(e) {}
+            this.loadNotes();
+            window.__stickyNoteRefresh = () => this.loadNotes();
         },
     }"
     x-init="init()"
@@ -216,7 +227,6 @@
         :style="`position:fixed; left:${posX}px; top:${posY}px; z-index:9999; width:15rem;`"
         class="rounded shadow-xl flex flex-col"
     >
-        {{-- Header --}}
         <div
             @mousedown="startDrag($event)"
             class="flex items-center justify-between px-3 py-2 rounded-t cursor-grab active:cursor-grabbing select-none clr-bg-primary"
@@ -227,29 +237,17 @@
             <div class="flex items-center gap-2 shrink-0">
                 <button @click.stop="showInput = !showInput" title="Add item"
                         class="text-white transition text-base leading-none font-light">+</button>
-                {{-- Pop Out button --}}
-                <button
-                    @click.stop="popout()"
-                    :disabled="isPoppedOut"
-                    x-text="isPoppedOut ? '📌' : '⬆ Pop Out'"
-                    class="text-white text-xs font-semibold px-2 py-0.5 rounded transition bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                ></button>
-                <button @click.stop="minimized = !minimized"
-                        class="text-white transition text-sm leading-none"
-                        x-text="minimized ? 'v' : '-'"></button>
-                <button @click.stop="visible = false" title="Close"
-                        class="text-white transition leading-none">
-                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
+                <button @click.stop="popout()" :disabled="isPoppedOut"
+                        x-text="isPoppedOut ? '📌' : '⬆ Pop Out'"
+                        class="text-white text-xs font-semibold px-2 py-0.5 rounded transition bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"></button>
+                <button @click.stop="minimized = !minimized" class="text-white transition text-sm leading-none" x-text="minimized ? 'v' : '-'"></button>
+                <button @click.stop="visible = false" title="Close" class="text-white transition leading-none">
+                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
             </div>
         </div>
 
-        {{-- Body --}}
         <div x-show="!minimized" class="rounded-b border border-t-0 flex flex-col" style="max-height:18rem; background-color: #F0EFEF;">
-
-            {{-- Add input --}}
             <div x-show="showInput" x-transition class="px-3 pt-2.5 pb-1 shrink-0 border-b clr-bg-secondary">
                 <div class="flex gap-1.5">
                     <input
@@ -259,29 +257,34 @@
                         type="text"
                         placeholder="Write a note..."
                         class="flex-1 text-xs border border-yellow-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:border-yellow-400"
+                        :disabled="saving"
                         x-effect="if(showInput) $nextTick(() => $el.focus())"
                     />
-                    <button @click="addItem()"
-                            class="px-2 py-1 text-xs rounded text-white bg-yellow-500 hover:bg-yellow-400 transition shrink-0">
+                    <button @click="addItem()" :disabled="saving"
+                            class="px-2 py-1 text-xs rounded text-white bg-yellow-500 hover:bg-yellow-400 transition shrink-0 disabled:opacity-50">
                         Add
                     </button>
                 </div>
             </div>
 
-            {{-- Items list --}}
             <div class="flex-1 overflow-y-auto flex flex-col">
-                <template x-if="todosForDay.length === 0">
-                    <p class="text-xs clr-primary text-center py-5 px-3">No notes for this day.<br>Click + to add one.</p>
+                <template x-if="loading">
+                    <p class="text-xs clr-primary text-center py-5 px-3">Loading...</p>
                 </template>
-                <template x-for="item in todosForDay" :key="item.id">
-                    <div class="flex items-start justify-between gap-2 px-3 py-2.5 border-b border-yellow-200 group last:border-b-0">
-                        <p class="text-xs text-gray-700 leading-snug flex-1 break-words" x-text="item.text"></p>
-                        <button @click="removeItem(item.id)"
-                                class="clr-primary hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5">
-                            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                                <path d="M18 6L6 18M6 6l12 12"/>
-                            </svg>
-                        </button>
+                <template x-if="!loading && notes.length === 0">
+                    <p class="text-xs clr-primary text-center py-5 px-3">No notes yet.<br>Click + to add one.</p>
+                </template>
+                <template x-if="!loading && notes.length > 0">
+                    <div class="flex flex-col">
+                        <template x-for="note in notes" :key="note.id">
+                            <div class="flex items-start justify-between gap-2 px-3 py-2.5 border-b border-yellow-200 group last:border-b-0">
+                                <p class="text-xs text-gray-700 leading-snug flex-1 break-words" x-text="note.content"></p>
+                                <button @click="removeItem(note.id)" :disabled="deletingId === note.id"
+                                        class="clr-primary hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5 disabled:opacity-50">
+                                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </template>
             </div>
@@ -290,7 +293,7 @@
 </div>
 @endif
 
-{{-- ══ PiP popout logic — $ signs escaped with @$ so Blade ignores them ══ --}}
+{{-- ══ PiP popout (API-backed, syncs with main sticky note) ══ --}}
 <script>
 async function stickyPopout(component) {
     if (!('documentPictureInPicture' in window)) return;
@@ -299,7 +302,8 @@ async function stickyPopout(component) {
         component.pipRef = pip;
         component.isPoppedOut = true;
 
-        const storageKey = component.storageKey;
+        const csrf = component.csrfToken || '';
+        const notes = Array.isArray(component.notes) ? component.notes.slice() : [];
 
         pip.document.head.innerHTML = '<meta charset="UTF-8">'
             + '<link href="https://fonts.bunny.net/css?family=ubuntu:400,500,600&display=swap" rel="stylesheet">'
@@ -307,15 +311,10 @@ async function stickyPopout(component) {
             + '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }'
             + 'html, body { width: 100%; height: 100%; font-family: "Ubuntu", sans-serif; }'
             + 'body { display: flex; flex-direction: column; background: #F0EFEF; }'
-            + '.pip-header { background: #102B3C; color: white; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }'
+            + '.pip-header { background: #102B3C; color: white; padding: 8px 12px; flex-shrink: 0; }'
             + '.pip-title { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }'
-            + '.pip-date { font-size: 0.65rem; opacity: 0.6; }'
-            + '.pip-nav { display: flex; align-items: center; gap: 6px; }'
-            + '.pip-nav button { background: none; border: none; color: white; cursor: pointer; font-size: 1rem; opacity: 0.7; padding: 2px 4px; }'
-            + '.pip-nav button:hover { opacity: 1; }'
             + '.pip-add { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; background: #f9f9f9; }'
             + '.pip-add input { flex: 1; font-size: 0.7rem; border: 1px solid #fcd34d; border-radius: 4px; padding: 4px 8px; outline: none; background: white; }'
-            + '.pip-add input:focus { border-color: #f59e0b; }'
             + '.pip-add button { font-size: 0.7rem; background: #f59e0b; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }'
             + '.pip-list { flex: 1; overflow-y: auto; }'
             + '.pip-empty { font-size: 0.7rem; color: #9ca3af; text-align: center; padding: 20px 12px; }'
@@ -326,74 +325,54 @@ async function stickyPopout(component) {
             + '.pip-footer { padding: 6px 10px; font-size: 0.6rem; color: #9ca3af; text-align: center; flex-shrink: 0; border-top: 1px solid #e5e7eb; }'
             + '</style>';
 
-        const render = function(todos, ymd) {
-            const items = todos[ymd] ?? [];
-            const d = new Date(ymd + 'T00:00:00');
-            const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-            let itemsHtml = items.length === 0
-                ? '<p class="pip-empty">No notes for this day.<br>Use the field above to add one.</p>'
-                : items.map(function(i) {
-                    return '<div class="pip-item" data-id="' + i.id + '"><p>' + i.text + '</p><button class="remove-btn" data-id="' + i.id + '">&#x2715;</button></div>';
+        function render(list) {
+            var itemsHtml = list.length === 0
+                ? '<p class="pip-empty">No notes yet.<br>Use the field above to add one.</p>'
+                : list.map(function(n) {
+                    var content = (n.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    return '<div class="pip-item" data-id="' + n.id + '"><p>' + content + '</p><button class="pip-remove" data-id="' + n.id + '">&#x2715;</button></div>';
                 }).join('');
-
-            pip.document.body.innerHTML =
-                '<div class="pip-header">'
-                    + '<div><div class="pip-title">&#128204; To Do</div><div class="pip-date">' + label + '</div></div>'
-                    + '<div class="pip-nav"><button id="prev">&#8249;</button><button id="next">&#8250;</button></div>'
-                + '</div>'
-                + '<div class="pip-add"><input id="pip-input" type="text" placeholder="Add a note..." /><button id="pip-add-btn">Add</button></div>'
-                + '<div class="pip-list">' + itemsHtml + '</div>'
-                + '<div class="pip-footer">Always on top &middot; Synced with calendar</div>';
-
-            pip.document.getElementById('prev').onclick = function() {
-                const dt = new Date(currentYmd + 'T00:00:00');
-                dt.setDate(dt.getDate() - 1);
-                currentYmd = dt.toISOString().slice(0, 10);
-                render(currentTodos, currentYmd);
-            };
-            pip.document.getElementById('next').onclick = function() {
-                const dt = new Date(currentYmd + 'T00:00:00');
-                dt.setDate(dt.getDate() + 1);
-                currentYmd = dt.toISOString().slice(0, 10);
-                render(currentTodos, currentYmd);
-            };
-            pip.document.getElementById('pip-add-btn').onclick = function() {
-                const input = pip.document.getElementById('pip-input');
-                const text = input.value.trim();
-                if (!text) return;
-                if (!currentTodos[currentYmd]) currentTodos[currentYmd] = [];
-                currentTodos[currentYmd] = currentTodos[currentYmd].concat([{ id: Date.now(), text: text }]);
-                localStorage.setItem(storageKey, JSON.stringify(currentTodos));
-                component.todos = Object.assign({}, currentTodos);
-                input.value = '';
-                render(currentTodos, currentYmd);
-            };
-            pip.document.getElementById('pip-input').onkeydown = function(e) {
-                if (e.key === 'Enter') pip.document.getElementById('pip-add-btn').click();
-            };
-            pip.document.querySelectorAll('.remove-btn').forEach(function(btn) {
+            pip.document.getElementById('pip-list').innerHTML = itemsHtml;
+            pip.document.querySelectorAll('.pip-remove').forEach(function(btn) {
                 btn.onclick = function() {
-                    const id = parseInt(btn.dataset.id);
-                    currentTodos[currentYmd] = (currentTodos[currentYmd] ?? []).filter(function(i) { return i.id !== id; });
-                    if (currentTodos[currentYmd].length === 0) delete currentTodos[currentYmd];
-                    localStorage.setItem(storageKey, JSON.stringify(currentTodos));
-                    component.todos = Object.assign({}, currentTodos);
-                    render(currentTodos, currentYmd);
+                    var id = parseInt(btn.dataset.id, 10);
+                    fetch('/notes/' + id, { method: 'DELETE', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }, credentials: 'same-origin' })
+                        .then(function() {
+                            if (window.opener && window.opener.__stickyNoteRefresh) window.opener.__stickyNoteRefresh();
+                            list = list.filter(function(n) { return n.id !== id; });
+                            render(list);
+                        });
                 };
             });
+        }
+
+        pip.document.body.innerHTML =
+            '<div class="pip-header"><div class="pip-title">&#128204; To Do</div></div>'
+            + '<div class="pip-add"><input id="pip-input" type="text" placeholder="Add a note..." /><button id="pip-add-btn">Add</button></div>'
+            + '<div class="pip-list" id="pip-list"></div>'
+            + '<div class="pip-footer">Always on top &middot; Synced with app</div>';
+
+        pip.document.getElementById('pip-add-btn').onclick = function() {
+            var input = pip.document.getElementById('pip-input');
+            var text = input.value.trim();
+            if (!text) return;
+            fetch('/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ content: text, isPinned: false }),
+                credentials: 'same-origin',
+            }).then(function(r) { return r.json(); }).then(function(note) {
+                notes.push(note);
+                render(notes);
+                input.value = '';
+                if (window.opener && window.opener.__stickyNoteRefresh) window.opener.__stickyNoteRefresh();
+            });
+        };
+        pip.document.getElementById('pip-input').onkeydown = function(e) {
+            if (e.key === 'Enter') pip.document.getElementById('pip-add-btn').click();
         };
 
-        let currentYmd = component.selectedYmd;
-        let currentTodos = Object.assign({}, component.todos);
-
-        render(currentTodos, currentYmd);
-
-        window.addEventListener('storage', function(e) {
-            if (e.key === storageKey) {
-                try { currentTodos = JSON.parse(e.newValue || '{}'); render(currentTodos, currentYmd); } catch(err) {}
-            }
-        });
+        render(notes);
 
         pip.addEventListener('pagehide', function() {
             component.isPoppedOut = false;

@@ -73,7 +73,7 @@
                     @error('code') <p class="text-xs text-red-600 font-medium">{{ $message }}</p> @enderror
                 </div>
 
-                <div class="flex flex-row gap-2">
+                <div class="flex flex-col gap-2">
                     <button type="button"
                             class="btn btn-outline w-full"
                             wire:click="sendOtp">

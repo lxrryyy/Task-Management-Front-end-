@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\CsharpApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class StickyNoteController extends Controller
@@ -45,14 +46,28 @@ class StickyNoteController extends Controller
         }
 
         try {
-            $raw   = $this->api->get("/api/StickyNote/GetMyNotes/{$accountId}");
-            // API may return a flat array or a wrapper object
-            $list  = is_array($raw)
-                ? ($raw['data'] ?? $raw['notes'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
-                : [];
+            $raw = $this->api->get("/api/StickyNote/GetMyNotes/{$accountId}");
+            // C# API returns a top-level array; or a wrapper like { data: [...] }
+            $list = [];
+            if (is_array($raw)) {
+                if (isset($raw['data'])) {
+                    $list = $raw['data'];
+                } elseif (isset($raw['notes'])) {
+                    $list = $raw['notes'];
+                } elseif (isset($raw['items'])) {
+                    $list = $raw['items'];
+                } elseif (array_is_list($raw)) {
+                    $list = $raw;
+                }
+            }
             $notes = array_values(array_map(fn ($n) => $this->normalise($n), (array) $list));
             return response()->json($notes);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('StickyNote GetMyNotes failed', [
+                'accountId' => $accountId,
+                'message'   => $e->getMessage(),
+                'url'       => config('services.csharp_api.url') . "/api/StickyNote/GetMyNotes/{$accountId}",
+            ]);
             return response()->json([]);
         }
     }
