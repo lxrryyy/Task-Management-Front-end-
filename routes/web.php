@@ -37,6 +37,10 @@ Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
     ->middleware(['api.auth'])
     ->name('projects.tasks');
 
+Route::get('/tasks/calculate-due-date', [TaskController::class, 'calculateDueDate'])
+    ->middleware(['api.auth'])
+    ->name('tasks.calculateDueDate');
+
 Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
     ->middleware(['api.auth'])
     ->name('tasks.store');
@@ -44,6 +48,7 @@ Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
 Route::patch('/projects/{project}/tasks/{task}/status', [TaskController::class, 'updateStatus'])
     ->middleware(['api.auth'])
     ->name('tasks.updateStatus');
+
 
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -192,6 +193,30 @@ class TaskController extends Controller
         );
     }
 
+    /**
+     * GET /tasks/calculate-due-date
+     * Proxies to /api/Task/CalculateDueDate?startDate=...&storyPoints=...
+     */
+    public function calculateDueDate(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'startDate'   => 'required|date',
+            'storyPoints' => 'required|integer|min:0',
+        ]);
+
+        $result = $this->api->get('/api/Task/CalculateDueDate', [
+            'startDate'   => $data['startDate'],
+            'storyPoints' => $data['storyPoints'],
+        ]);
+
+        if (is_string($result)) {
+            return response()->json(['dueDate' => $result]);
+        }
+
+        $due = $result['dueDate'] ?? $result['DueDate'] ?? $result['dueAt'] ?? null;
+        return response()->json(['dueDate' => $due]);
+    }
+
     public function store(int $projectId, Request $request)
     {
         $user      = Session::get('user', []);
@@ -230,7 +255,8 @@ class TaskController extends Controller
             'projectId'    => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate'    => $toDate($request->input('startDate')),
-            'dueDate'      => $toDate($request->input('dueDate')),
+            // Let backend auto-calculate dueDate when not provided
+            'dueDate'      => $toDate($request->input('dueDate')) ?: null,
             'assigneeIds'  => $assigneeIds,
         ];
 

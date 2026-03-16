@@ -7,6 +7,8 @@
     <title>{{ config('app.name', 'Laravel') }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=ubuntu:400,500,600&display=swap" rel="stylesheet" />
+    {{-- Datepicker for constrained due-date ranges --}}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     @php
         $useBuildOnNetwork = !app()->environment('production') && !in_array(request()->getHost(), ['localhost', '127.0.0.1'], true);
         $manifestPath = public_path('build/manifest.json');
@@ -24,6 +26,7 @@
     @else
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body class="font-sans antialiased">
 
