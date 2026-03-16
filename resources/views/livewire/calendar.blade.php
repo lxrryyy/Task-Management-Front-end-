@@ -391,24 +391,22 @@
                     </template>
 
                     <template x-for="note in notes" :key="note.id">
-                        <div class="relative group rounded-lg p-3 shadow-sm border-l-4 border-yellow-400 cursor-pointer transition hover:shadow-md"
-                             style="background:#fdf6e3;font-family:'Caveat',cursive;"
+                        <div class="relative group rounded-lg p-3 shadow-sm cursor-pointer transition hover:shadow-md clr-bg-secondary text-base-100"
                              @click="openViewNote(note)">
                             {{-- Folded corner --}}
                             <div class="absolute bottom-0 right-0 w-0 h-0 pointer-events-none"
-                                 style="border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent #e8dcb8 transparent;"></div>
-                            <p class="text-sm leading-snug pr-6 whitespace-pre-wrap line-clamp-3"
-                               style="color:#1a1208;" x-text="note.content"></p>
-                            <p class="text-xs mt-1.5"
-                               style="color:rgba(100,80,30,0.45);font-family:'DM Mono',monospace;font-size:0.6rem;"
+                                 style="border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent rgba(255,255,255,0.22) transparent;"></div>
+                            <p class="text-sm leading-snug pr-6 whitespace-pre-wrap line-clamp-3 font-normal"
+                               x-text="note.content"></p>
+                            <p class="text-xs mt-1.5 opacity-80"
                                x-text="noteDate(note.updatedAt || note.createdAt)"></p>
                             {{-- Delete button (hover) --}}
                             <button @click.stop="deleteNote(note.id)"
                                     :disabled="noteDeleting === note.id"
-                                    class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition rounded p-0.5 hover:bg-red-100"
+                                    class="absolute inset-y-0 right-0 flex items-center pr-2 opacity-0 group-hover:opacity-100 transition"
                                     title="Delete note">
                                 <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
-                                     viewBox="0 0 24 24" style="color:#aaa;">
+                                     viewBox="0 0 24 24" class="text-base-100">
                                     <path d="M18 6L6 18M6 6l12 12"/>
                                 </svg>
                             </button>
@@ -452,6 +450,7 @@
             '.btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;}' +
             '.btn:disabled{opacity:.5;cursor:not-allowed;}' +
             '.wrap{padding:10px 12px;display:flex;flex-direction:column;gap:10px;height:calc(100% - 44px);}' +
+            '#editor{flex:1;display:flex;flex-direction:column;}' +
             '.row{display:flex;gap:8px;}' +
             'input,textarea{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:12px;outline:none;background:#fff;}' +
             'textarea{min-height:110px;resize:none;}' +
@@ -534,10 +533,12 @@
         async function render() {
             if (mode === 'new') {
                 modeBtn.textContent = 'View list';
+                editor.style.display = 'flex';
+                listEl.style.display = 'block';
                 editor.innerHTML =
                     '<div class="row">' +
                         '<input id="content" type="text" placeholder="Write a note..." />' +
-                        '<button id="save" class="btn" style="background:#f59e0b;border-color:#f59e0b;">Add</button>' +
+                        '<button id="save" class="btn" style="background-color:#102b3c;">Add</button>' +
                     '</div>';
                 listEl.innerHTML = '<div class="muted">Add a note, or switch to list.</div>';
                 pip.document.getElementById('save').onclick = async () => {
@@ -560,12 +561,15 @@
 
             if (mode === 'edit') {
                 modeBtn.textContent = 'View list';
+                editor.style.display = 'flex';
                 editor.innerHTML =
-                    '<textarea id="content" placeholder="Edit note..."></textarea>' +
-                    '<div class="row" style="justify-content:flex-end;">' +
-                        '<button id="update" class="btn" style="background:#f59e0b;border-color:#f59e0b;">Save</button>' +
+                    '<div style="display:flex;flex-direction:column;height:100%;">' +
+                        '<textarea id="content" placeholder="Edit note..." style="flex:1;resize:none;"></textarea>' +
+                        '<div class="row" style="justify-content:flex-end;margin-top:8px;">' +
+                            '<button id="update" class="btn" style="background-color:#102b3c;">Save</button>' +
+                        '</div>' +
                     '</div>';
-                listEl.innerHTML = '<div class="muted">You can also switch to list to delete notes.</div>';
+                listEl.style.display = 'none';
                 pip.document.getElementById('content').value = noteContent || '';
                 pip.document.getElementById('update').onclick = async () => {
                     const content = pip.document.getElementById('content').value.trim();
@@ -583,6 +587,8 @@
             // list mode
             modeBtn.textContent = 'New note';
             editor.innerHTML = '';
+            editor.style.display = 'none';
+            listEl.style.display = 'block';
             await renderList();
         }
 

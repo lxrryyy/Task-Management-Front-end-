@@ -11,11 +11,13 @@
     function saveOpenIds() {
         var ids = [];
         window._calOpenPopups.forEach(function (win, key) {
-            if (!key.startsWith('new-') && win && !win.closed) {
+            if (!key.startsWith("new-") && win && !win.closed) {
                 ids.push(parseInt(key, 10));
             }
         });
-        try { localStorage.setItem('calOpenNoteIds', JSON.stringify(ids)); } catch(e){}
+        try {
+            localStorage.setItem("calOpenNoteIds", JSON.stringify(ids));
+        } catch (e) {}
     }
 
     // ── Remove a popup from the registry ──────────────────────────────────────
@@ -43,13 +45,15 @@
     // noteId   : number|null  – null for a brand-new note
     // content  : string       – current text content
     window._calPopOut = function (noteId, content) {
-        var key = noteId ? String(noteId) : ('new-' + Date.now());
+        var key = noteId ? String(noteId) : "new-" + Date.now();
 
         // Re-focus if already open
         if (window._calOpenPopups.has(key)) {
             var existing = window._calOpenPopups.get(key);
             if (existing && !existing.closed) {
-                try { existing.focus(); } catch(e){}
+                try {
+                    existing.focus();
+                } catch (e) {}
                 return;
             }
             window._calOpenPopups.delete(key);
@@ -57,26 +61,33 @@
 
         // Build URL — content passed via query param (max 500 chars, safe)
         var qs = [];
-        if (noteId)  qs.push('id='      + noteId);
-        if (content) qs.push('content=' + encodeURIComponent(content));
-        if (!noteId) qs.push('_key='    + encodeURIComponent(key)); // so popup can register itself
-        var url = '/note-popup' + (qs.length ? '?' + qs.join('&') : '');
+        if (noteId) qs.push("id=" + noteId);
+        if (content) qs.push("content=" + encodeURIComponent(content));
+        if (!noteId) qs.push("_key=" + encodeURIComponent(key)); // so popup can register itself
+        var url = "/note-popup" + (qs.length ? "?" + qs.join("&") : "");
 
         // Cascade position so multiple notes don't stack exactly
         var offset = window._calOpenPopups.size * 30;
-        var popup  = window.open(
-            url, '_blank',
-            'width=380,height=460,' +
-            'top='  + (120 + offset) + ',' +
-            'left=' + (200 + offset) + ',' +
-            'resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no'
+        var popup = window.open(
+            url,
+            "_blank",
+            "width=380,height=460," +
+                "top=" +
+                (120 + offset) +
+                "," +
+                "left=" +
+                (200 + offset) +
+                "," +
+                "resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no",
         );
 
         if (!popup) {
             // Popups blocked — let the Alpine component know
-            window.dispatchEvent(new CustomEvent('cal-popup-blocked', {
-                detail: { noteId: noteId, content: content }
-            }));
+            window.dispatchEvent(
+                new CustomEvent("cal-popup-blocked", {
+                    detail: { noteId: noteId, content: content },
+                }),
+            );
             return;
         }
 
@@ -87,39 +98,49 @@
     // ── Alpine component init — called from x-data init() ────────────────────
     window._calInit = function (self) {
         // Note saved in a popup → update local list
-        window.addEventListener('cal-note-saved', function (e) {
+        window.addEventListener("cal-note-saved", function (e) {
             var note = e.detail.note;
             if (!note || !note.id) return;
-            var idx = self.notes.findIndex(function (n) { return n.id === note.id; });
+            var idx = self.notes.findIndex(function (n) {
+                return n.id === note.id;
+            });
             if (idx >= 0) self.notes[idx] = note;
             else self.notes.unshift(note);
         });
 
         // Note deleted in a popup → remove from local list
-        window.addEventListener('cal-note-deleted', function (e) {
-            self.notes = self.notes.filter(function (n) { return n.id !== e.detail.id; });
+        window.addEventListener("cal-note-deleted", function (e) {
+            self.notes = self.notes.filter(function (n) {
+                return n.id !== e.detail.id;
+            });
         });
 
         // Popup closed → clean up registry
-        window.addEventListener('cal-popup-closed', function (e) {
+        window.addEventListener("cal-popup-closed", function (e) {
             if (window._calPopupClosed) window._calPopupClosed(e.detail.noteId);
         });
 
         // New note got its real ID after first save → update registry key
-        window.addEventListener('cal-popup-registered', function (e) {
+        window.addEventListener("cal-popup-registered", function (e) {
             if (window._calPopupRegistered) {
-                window._calPopupRegistered(e.detail.tempKey, e.detail.noteId, e.detail.win);
+                window._calPopupRegistered(
+                    e.detail.tempKey,
+                    e.detail.noteId,
+                    e.detail.win,
+                );
             }
         });
 
         // Popups blocked → nudge user
-        window.addEventListener('cal-popup-blocked', function () {
-            alert('Popups are blocked. Please allow popups for this site to use sticky notes.');
+        window.addEventListener("cal-popup-blocked", function () {
+            alert(
+                "Popups are blocked. Please allow popups for this site to use sticky notes.",
+            );
         });
 
         // Restore any notes that were open before navigating away
         self.$nextTick(function () {
-            if (typeof window._calRestoreNotes === 'function') {
+            if (typeof window._calRestoreNotes === "function") {
                 window._calRestoreNotes(self.notes);
             }
         });
@@ -128,12 +149,18 @@
     // ── Restore notes that were open before navigation ─────────────────────────
     window._calRestoreNotes = function (notes) {
         var ids = [];
-        try { ids = JSON.parse(localStorage.getItem('calOpenNoteIds') || '[]'); } catch(e){}
+        try {
+            ids = JSON.parse(localStorage.getItem("calOpenNoteIds") || "[]");
+        } catch (e) {}
         ids.forEach(function (id) {
             var key = String(id);
-            var alreadyOpen = window._calOpenPopups.has(key) && !window._calOpenPopups.get(key).closed;
+            var alreadyOpen =
+                window._calOpenPopups.has(key) &&
+                !window._calOpenPopups.get(key).closed;
             if (!alreadyOpen) {
-                var note = notes.find(function (n) { return n.id === id; });
+                var note = notes.find(function (n) {
+                    return n.id === id;
+                });
                 if (note) window._calPopOut(note.id, note.content);
             }
         });
