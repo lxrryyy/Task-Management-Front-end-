@@ -175,7 +175,7 @@
         }"
         x-init="init()"
         class="flex w-full h-full overflow-hidden"
-        style="height: calc(100vh - 8rem);"
+        style="height: calc(100vh - 4rem);"
     >
         {{-- ══════════════════ LEFT SIDE ══════════════════ --}}
         <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-100">
