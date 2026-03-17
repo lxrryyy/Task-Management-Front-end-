@@ -62,11 +62,17 @@
                 <span class="hidden group-hover:block">Projects</span>
             </a>
 
-            <a href="/audit-logs"
-               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('audit-logs') ? 'focus-clr-accent' : '' }} hover-clr-accent">
-                <x-icons.time-logs classes="w-6 h-6" />
-                <span class="hidden group-hover:block">Audit Logs</span>
-            </a>
+            @php
+                $navUser = \Illuminate\Support\Facades\Session::get('user', []);
+                $navRole = mb_strtolower(trim((string) ($navUser['role'] ?? $navUser['Role'] ?? $navUser['roleName'] ?? $navUser['RoleName'] ?? '')));
+            @endphp
+            @if($navRole === 'admin')
+                <a href="/audit-logs"
+                   class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('audit-logs') ? 'focus-clr-accent' : '' }} hover-clr-accent">
+                    <x-icons.time-logs classes="w-6 h-6" />
+                    <span class="hidden group-hover:block">Audit Logs</span>
+                </a>
+            @endif
         </nav>
 
         <div class="px-2 pb-1">

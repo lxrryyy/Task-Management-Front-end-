@@ -26,6 +26,11 @@ Route::get('/projects', [ProjectController::class, 'index'])
 
 
 Route::get('/audit-logs', function () {
+    $user = \Illuminate\Support\Facades\Session::get('user', []);
+    $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+    if ($role !== 'admin') {
+        abort(403);
+    }
     return view('audit-logs');
 })->middleware(['api.auth'])->name('Time Logs');
 
