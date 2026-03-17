@@ -24,9 +24,15 @@
     <div x-show="open" x-transition class="flex flex-row gap-4 border border-gray-300 rounded-lg p-4 mt-2 bg-white">
         <div class="flex flex-col flex-1">
             <span>User</span>
+            <input
+                wire:model.live.debounce.200ms="filterUserSearch"
+                type="text"
+                placeholder="Search user..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
+            />
             <select wire:model.live="filterUserId" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All User</option>
-                @foreach($this->accounts as $acc)
+                @foreach(($accountsForSelect ?? $this->accounts) as $acc)
                     @php
                         $aid = (int)($acc['id'] ?? 0);
                         $an  = (string)($acc['name'] ?? '');
@@ -39,6 +45,12 @@
         </div>
         <div class="flex flex-col flex-1">
             <span>Role</span>
+            <input
+                wire:model.live.debounce.200ms="filterRoleSearch"
+                type="text"
+                placeholder="Search role..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
+            />
             <select wire:model.live="filterRole" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All roles</option>
                 @foreach($roleOptions ?? [] as $r)
@@ -48,6 +60,12 @@
         </div>
         <div class="flex flex-col flex-1">
             <span>Project Name</span>
+            <input
+                wire:model.live.debounce.200ms="filterProjectSearch"
+                type="text"
+                placeholder="Search project..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
+            />
             <select wire:model.live="filterProject" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All projects</option>
                 @foreach($projectOptions ?? [] as $p)
@@ -89,11 +107,12 @@
         </div>
     @endif
 
-    <div class="overflow-x-auto mt-4 border border-gray-200 rounded-lg bg-white">
+    <div class="mt-4 border border-gray-200 rounded-lg bg-white overflow-hidden">
         <div wire:loading class="p-4 text-sm text-gray-500">Loading audit logs…</div>
 
-        <table class="table w-full" wire:loading.remove>
-            <thead class="bg-gray-50">
+        <div class="overflow-x-auto overflow-y-auto max-h-[520px]" wire:loading.remove>
+        <table class="table w-full">
+            <thead class="bg-gray-50 sticky top-0 z-10">
             <tr class="text-gray-500 text-xs uppercase tracking-wide">
                 <th class="!font-normal">
                     <div class="flex items-center gap-1">
@@ -108,8 +127,8 @@
                 <th class="!font-normal whitespace-nowrap">Date &amp; Time</th>
             </tr>
             </thead>
-            <tbody>
-            @forelse($filteredLogs ?? [] as $l)
+            <tbody wire:key="audit-logs-body-{{ md5(($search ?? '').'|'.($filterUserId ?? '').'|'.($filterUserSearch ?? '').'|'.($filterRole ?? '').'|'.($filterRoleSearch ?? '').'|'.($filterProject ?? '').'|'.($filterProjectSearch ?? '').'|'.($filterAction ?? '').'|'.($filterStatus ?? '').'|'.($filterFrom ?? '').'|'.($filterTo ?? '').'|'.($page ?? 1)) }}">
+            @forelse($paginatedLogs ?? ($filteredLogs ?? []) as $l)
                 @php
                     $uid = (int)($l['accountId'] ?? 0);
                     $acc = ($uid > 0 && isset($accountMap[$uid]) && is_array($accountMap[$uid])) ? $accountMap[$uid] : ['name'=>'','email'=>'','role'=>''];
@@ -191,5 +210,33 @@
             @endforelse
             </tbody>
         </table>
+        </div>
+
+        {{-- Pagination --}}
+        @php
+            $pg = $pagination ?? ['page'=>1,'perPage'=>25,'total'=>0,'totalPages'=>1,'from'=>0,'to'=>0];
+        @endphp
+        <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+            <div class="text-xs text-gray-500">
+                Showing {{ $pg['from'] }}-{{ $pg['to'] }} of {{ $pg['total'] }}
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        wire:click="prevPage"
+                        @disabled(($pg['page'] ?? 1) <= 1)>
+                    Prev
+                </button>
+                <span class="text-xs text-gray-600">
+                    Page {{ $pg['page'] }} / {{ $pg['totalPages'] }}
+                </span>
+                <button type="button"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        wire:click="nextPage"
+                        @disabled(($pg['page'] ?? 1) >= ($pg['totalPages'] ?? 1))>
+                    Next
+                </button>
+            </div>
+        </div>
     </div>
 </div>

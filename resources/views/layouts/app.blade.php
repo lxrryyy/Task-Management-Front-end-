@@ -26,6 +26,7 @@
     @else
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+    @livewireStyles
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body class="font-sans antialiased">
@@ -127,5 +128,6 @@
 
 </div>
 
+@livewireScripts
 </body>
 </html>

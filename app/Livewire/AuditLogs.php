@@ -13,6 +13,9 @@ class AuditLogs extends Component
 
     public string $search = '';
 
+    public int $page = 1;
+    public int $perPage = 25;
+
     public ?int $filterUserId = null;
     public ?int $filterTaskId = null;
     public string $filterAction = '';
@@ -21,6 +24,9 @@ class AuditLogs extends Component
     public string $filterRole = '';
     public string $filterProject = '';
     public string $filterStatus = '';
+    public string $filterUserSearch = '';
+    public string $filterRoleSearch = '';
+    public string $filterProjectSearch = '';
 
     public ?string $loadError = null;
 
@@ -34,17 +40,20 @@ class AuditLogs extends Component
     {
         // Search is client-side (does not change endpoint)
         if ($name === 'search') {
+            $this->page = 1;
             return;
         }
 
         // Only re-fetch when it changes the backend endpoint/result set.
         // Role / Project / Status are client-side filters on the fetched logs.
-        if (in_array($name, ['filterRole', 'filterProject', 'filterStatus'], true)) {
+        if (in_array($name, ['filterRole', 'filterProject', 'filterStatus', 'filterUserSearch', 'filterRoleSearch', 'filterProjectSearch'], true)) {
+            $this->page = 1;
             return;
         }
 
         // Any other filter change re-fetches from most specific endpoint
         if (str_starts_with($name, 'filter')) {
+            $this->page = 1;
             $this->fetchLogs();
         }
     }
@@ -59,7 +68,26 @@ class AuditLogs extends Component
         $this->filterRole = '';
         $this->filterProject = '';
         $this->filterStatus = '';
+        $this->filterUserSearch = '';
+        $this->filterRoleSearch = '';
+        $this->filterProjectSearch = '';
+        $this->page = 1;
         $this->fetchLogs();
+    }
+
+    public function gotoPage(int $page): void
+    {
+        $this->page = max(1, $page);
+    }
+
+    public function nextPage(): void
+    {
+        $this->page = max(1, $this->page + 1);
+    }
+
+    public function prevPage(): void
+    {
+        $this->page = max(1, $this->page - 1);
     }
 
     private function requesterId(): int
@@ -212,6 +240,19 @@ class AuditLogs extends Component
 
     public function render()
     {
+        // Map accountId => details for filtering/display fallback
+        $accountMap = [];
+        foreach ($this->accounts as $a) {
+            if (!is_array($a)) continue;
+            $id = (int) ($a['id'] ?? 0);
+            if ($id <= 0) continue;
+            $accountMap[$id] = [
+                'name' => (string) ($a['name'] ?? ''),
+                'email' => (string) ($a['email'] ?? ''),
+                'role' => (string) ($a['role'] ?? ''),
+            ];
+        }
+
         $q = mb_strtolower(trim($this->search));
         $filtered = $this->logs;
 
@@ -253,6 +294,49 @@ class AuditLogs extends Component
             }));
         }
 
+        // Text search inside filter panel should ALSO filter the table (not just the dropdown options).
+        $userText = mb_strtolower(trim($this->filterUserSearch));
+        if ($userText !== '') {
+            $filtered = array_values(array_filter($filtered, function ($l) use ($userText, $accountMap) {
+                $uid = (int) ($l['accountId'] ?? 0);
+                $fallbackName = $uid > 0 ? (string) (($accountMap[$uid]['name'] ?? '')) : '';
+                $fallbackEmail = $uid > 0 ? (string) (($accountMap[$uid]['email'] ?? '')) : '';
+
+                $name  = mb_strtolower(trim((string) ($l['userName'] ?? $fallbackName)));
+                $email = mb_strtolower(trim((string) ($l['userEmail'] ?? $fallbackEmail)));
+
+                return str_contains($name, $userText) || str_contains($email, $userText);
+            }));
+        }
+
+        $roleText = mb_strtolower(trim($this->filterRoleSearch));
+        if ($roleText !== '') {
+            $filtered = array_values(array_filter($filtered, function ($l) use ($roleText) {
+                $r = mb_strtolower(trim((string) ($l['userRole'] ?? '')));
+                return str_contains($r, $roleText);
+            }));
+        }
+
+        $projectText = mb_strtolower(trim($this->filterProjectSearch));
+        if ($projectText !== '') {
+            $filtered = array_values(array_filter($filtered, function ($l) use ($projectText) {
+                $p = mb_strtolower(trim((string) ($l['projectName'] ?? '')));
+                return str_contains($p, $projectText);
+            }));
+        }
+
+        // Pagination (manual, for array data)
+        $total = count($filtered);
+        $perPage = max(1, (int) $this->perPage);
+        $totalPages = (int) max(1, (int) ceil($total / $perPage));
+        $page = (int) $this->page;
+        if ($page < 1) $page = 1;
+        if ($page > $totalPages) $page = $totalPages;
+        $this->page = $page;
+
+        $offset = ($page - 1) * $perPage;
+        $paginatedLogs = array_slice($filtered, $offset, $perPage);
+
         // Action list for dropdown
         $actions = [];
         foreach ($this->logs as $l) {
@@ -291,26 +375,46 @@ class AuditLogs extends Component
         $statusOptions = array_keys($statuses);
         sort($statusOptions);
 
-        // Map accountId => details for display fallback
-        $accountMap = [];
-        foreach ($this->accounts as $a) {
-            if (!is_array($a)) continue;
-            $id = (int) ($a['id'] ?? 0);
-            if ($id <= 0) continue;
-            $accountMap[$id] = [
-                'name' => (string) ($a['name'] ?? ''),
-                'email' => (string) ($a['email'] ?? ''),
-                'role' => (string) ($a['role'] ?? ''),
-            ];
+        $userSearchNeedle = mb_strtolower(trim($this->filterUserSearch));
+        $accountsForSelect = $this->accounts;
+        if ($userSearchNeedle !== '') {
+            $accountsForSelect = array_values(array_filter($accountsForSelect, function ($a) use ($userSearchNeedle) {
+                if (!is_array($a)) return false;
+                $name = mb_strtolower(trim((string) ($a['name'] ?? '')));
+                $email = mb_strtolower(trim((string) ($a['email'] ?? '')));
+                return str_contains($name, $userSearchNeedle) || str_contains($email, $userSearchNeedle);
+            }));
+        }
+
+        $roleSearchNeedle = mb_strtolower(trim($this->filterRoleSearch));
+        $roleOptionsFiltered = $roleOptions;
+        if ($roleSearchNeedle !== '') {
+            $roleOptionsFiltered = array_values(array_filter($roleOptions, fn ($r) => str_contains(mb_strtolower($r), $roleSearchNeedle)));
+        }
+
+        $projectSearchNeedle = mb_strtolower(trim($this->filterProjectSearch));
+        $projectOptionsFiltered = $projectOptions;
+        if ($projectSearchNeedle !== '') {
+            $projectOptionsFiltered = array_values(array_filter($projectOptions, fn ($p) => str_contains(mb_strtolower($p), $projectSearchNeedle)));
         }
 
         return view('livewire.audit-logs', [
             'filteredLogs' => $filtered,
+            'paginatedLogs' => $paginatedLogs,
+            'pagination' => [
+                'page' => $page,
+                'perPage' => $perPage,
+                'total' => $total,
+                'totalPages' => $totalPages,
+                'from' => $total ? ($offset + 1) : 0,
+                'to' => $total ? min($offset + count($paginatedLogs), $total) : 0,
+            ],
             'accountMap' => $accountMap,
             'actionOptions' => $actionOptions,
-            'roleOptions' => $roleOptions,
-            'projectOptions' => $projectOptions,
+            'roleOptions' => $roleOptionsFiltered,
+            'projectOptions' => $projectOptionsFiltered,
             'statusOptions' => $statusOptions,
+            'accountsForSelect' => $accountsForSelect,
         ]);
     }
 }
