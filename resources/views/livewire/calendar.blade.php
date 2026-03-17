@@ -350,10 +350,11 @@
                                                         @click="selectDay(cell.ymd)"
                                                         :class="{
                                                             'clr-bg-primary text-white': isSelected(cell.ymd),
+                                                            'clr-bg-accent text-white': !isSelected(cell.ymd) && hasTask(cell.ymd),
                                                             'bg-gray-100': isToday(cell.ymd) && !isSelected(cell.ymd),
                                                             'text-gray-500 hover:bg-gray-100': !isSelected(cell.ymd) && !isToday(cell.ymd),
                                                         }"
-                                                        class="w-8 h-8 text-sm rounded-full flex items-center justify-center transition relative"
+                                                        class="w-6 h-6 text-sm rounded-full flex items-center justify-center transition relative"
                                                         x-text="cell.day">
                                                     </button>
                                                 </template>
