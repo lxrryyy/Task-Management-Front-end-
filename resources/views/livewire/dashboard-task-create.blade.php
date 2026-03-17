@@ -25,7 +25,7 @@
 
     {{-- Step 1: Select project --}}
     <dialog class="{{ $showSelectProjectModal ? 'modal modal-open' : 'modal' }}">
-        <div class="{{ $modalBoxClass }}">
+        <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
             <div class="modal-action mt-0 mb-2">
                 <button type="button" wire:click="closeAll" class="btn btn-sm">✕</button>
             </div>
