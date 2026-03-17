@@ -25,8 +25,8 @@ Route::get('/projects', [ProjectController::class, 'index'])
     ->name('Projects');
 
 
-Route::get('/time-logs', function () {
-    return view('time-logs');
+Route::get('/audit-logs', function () {
+    return view('audit-logs');
 })->middleware(['api.auth'])->name('Time Logs');
 
 Route::get('/tasks', function () {

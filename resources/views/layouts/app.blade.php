@@ -62,10 +62,10 @@
                 <span class="hidden group-hover:block">Projects</span>
             </a>
 
-            <a href="/time-logs"
-               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('time-logs') ? 'focus-clr-accent' : '' }} hover-clr-accent">
+            <a href="/audit-logs"
+               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('audit-logs') ? 'focus-clr-accent' : '' }} hover-clr-accent">
                 <x-icons.time-logs classes="w-6 h-6" />
-                <span class="hidden group-hover:block">Time Logs</span>
+                <span class="hidden group-hover:block">Audit Logs</span>
             </a>
         </nav>
 
