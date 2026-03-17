@@ -253,6 +253,32 @@ class AuditLogs extends Component
             ];
         }
 
+        // Enrich logs with account fallback fields so UI is consistent even when API omits them.
+        $allLogs = array_map(function (array $l) use ($accountMap) {
+            $uid = (int) ($l['accountId'] ?? 0);
+            $acc = $uid > 0 ? ($accountMap[$uid] ?? null) : null;
+
+            $name = trim((string) ($l['userName'] ?? ''));
+            if ($name === '' && is_array($acc)) {
+                $name = trim((string) ($acc['name'] ?? ''));
+            }
+
+            $email = trim((string) ($l['userEmail'] ?? ''));
+            if ($email === '' && is_array($acc)) {
+                $email = trim((string) ($acc['email'] ?? ''));
+            }
+
+            $role = trim((string) ($l['userRole'] ?? ''));
+            if ($role === '' && is_array($acc)) {
+                $role = trim((string) ($acc['role'] ?? ''));
+            }
+
+            $l['userName']  = $name;
+            $l['userEmail'] = $email;
+            $l['userRole']  = $role;
+            return $l;
+        }, array_values(array_filter($this->logs, 'is_array')));
+
         $q = mb_strtolower(trim($this->search));
         $filtered = $this->logs;
 
@@ -415,6 +441,7 @@ class AuditLogs extends Component
             'projectOptions' => $projectOptionsFiltered,
             'statusOptions' => $statusOptions,
             'accountsForSelect' => $accountsForSelect,
+            'allLogs' => $allLogs,
         ]);
     }
 }

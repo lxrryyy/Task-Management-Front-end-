@@ -1,4 +1,4 @@
-<div x-data="{ open: false }">
+<div x-data="auditLogsClient(@js($allLogs ?? []), 25)">
     <div class="flex w-full items-center clr-primary">
         <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
@@ -13,7 +13,7 @@
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
             </button>
             <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
+                <input x-model.debounce.300ms="filters.search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
             </label>
         </div>
         <div class="flex flex-row gap-4">
@@ -25,79 +25,73 @@
         <div class="flex flex-col flex-1">
             <span>User</span>
             <input
-                wire:model.live.debounce.200ms="filterUserSearch"
+                x-model.debounce.200ms="filters.userText"
                 type="text"
                 placeholder="Search user..."
                 class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
             />
-            <select wire:model.live="filterUserId" class="select select-bordered w-full bg-white text-gray-900">
+            <select x-model="filters.userId" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All User</option>
-                @foreach(($accountsForSelect ?? $this->accounts) as $acc)
-                    @php
-                        $aid = (int)($acc['id'] ?? 0);
-                        $an  = (string)($acc['name'] ?? '');
-                    @endphp
-                    @if($aid > 0 && $an !== '')
-                        <option value="{{ $aid }}">{{ $an }}</option>
-                    @endif
-                @endforeach
+                <template x-for="u in userOptions" :key="u.id">
+                    <option :value="String(u.id)" x-text="u.name"></option>
+                </template>
             </select>
         </div>
         <div class="flex flex-col flex-1">
             <span>Role</span>
             <input
-                wire:model.live.debounce.200ms="filterRoleSearch"
+                x-model.debounce.200ms="filters.roleText"
                 type="text"
                 placeholder="Search role..."
                 class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
             />
-            <select wire:model.live="filterRole" class="select select-bordered w-full bg-white text-gray-900">
+            <select x-model="filters.role" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All roles</option>
-                @foreach($roleOptions ?? [] as $r)
-                    <option value="{{ $r }}">{{ $r }}</option>
-                @endforeach
+                <template x-for="r in roleOptions" :key="r">
+                    <option :value="r" x-text="r"></option>
+                </template>
             </select>
         </div>
         <div class="flex flex-col flex-1">
             <span>Project Name</span>
             <input
-                wire:model.live.debounce.200ms="filterProjectSearch"
+                x-model.debounce.200ms="filters.projectText"
                 type="text"
                 placeholder="Search project..."
                 class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
             />
-            <select wire:model.live="filterProject" class="select select-bordered w-full bg-white text-gray-900">
+            <select x-model="filters.project" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All projects</option>
-                @foreach($projectOptions ?? [] as $p)
-                    <option value="{{ $p }}">{{ $p }}</option>
-                @endforeach
+                <template x-for="p in projectOptions" :key="p">
+                    <option :value="p" x-text="p"></option>
+                </template>
             </select>
         </div>
         <div class="flex flex-col flex-1">
             <span>Action</span>
-            <select wire:model.live="filterAction" class="select select-bordered w-full bg-white text-gray-900">
+            <select x-model="filters.action" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All actions</option>
-                @foreach($actionOptions ?? [] as $a)
-                    <option value="{{ $a }}">{{ $a }}</option>
-                @endforeach
+                <template x-for="a in actionOptions" :key="a">
+                    <option :value="a" x-text="a"></option>
+                </template>
             </select>
         </div>
         <div class="flex flex-col flex-1">
             <span>Status</span>
-            <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+            <select x-model="filters.status" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All statuses</option>
-                @foreach($statusOptions ?? [] as $s)
-                    <option value="{{ $s }}">{{ $s }}</option>
-                @endforeach
+                <template x-for="s in statusOptions" :key="s">
+                    <option :value="s" x-text="s"></option>
+                </template>
             </select>
         </div>
         <div class="flex flex-col flex-1">
             <span>Date From</span>
-            <input wire:model.live="filterFrom" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+            <input x-model="filters.from" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
         </div>
         <div class="flex flex-col flex-1">
             <span>Date To</span>
-            <input wire:model.live="filterTo" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+            <input x-model="filters.to" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
         </div>
     </div>
 
@@ -127,116 +121,236 @@
                 <th class="!font-normal whitespace-nowrap">Date &amp; Time</th>
             </tr>
             </thead>
-            <tbody wire:key="audit-logs-body-{{ md5(($search ?? '').'|'.($filterUserId ?? '').'|'.($filterUserSearch ?? '').'|'.($filterRole ?? '').'|'.($filterRoleSearch ?? '').'|'.($filterProject ?? '').'|'.($filterProjectSearch ?? '').'|'.($filterAction ?? '').'|'.($filterStatus ?? '').'|'.($filterFrom ?? '').'|'.($filterTo ?? '').'|'.($page ?? 1)) }}">
-            @forelse($paginatedLogs ?? ($filteredLogs ?? []) as $l)
-                @php
-                    $uid = (int)($l['accountId'] ?? 0);
-                    $acc = ($uid > 0 && isset($accountMap[$uid]) && is_array($accountMap[$uid])) ? $accountMap[$uid] : ['name'=>'','email'=>'','role'=>''];
-
-                    $uname = trim((string)($l['userName'] ?? ''));
-                    if ($uname === '' && $uid > 0) $uname = trim((string)($acc['name'] ?? ''));
-                    if ($uname === '') $uname = '—';
-
-                    $uemail = trim((string)($l['userEmail'] ?? ''));
-                    if ($uemail === '' && $uid > 0) $uemail = trim((string)($acc['email'] ?? ''));
-
-                    $urole = trim((string)($l['userRole'] ?? ''));
-                    if ($urole === '' && $uid > 0) $urole = trim((string)($acc['role'] ?? ''));
-                    if ($urole === '') $urole = '—';
-
-                    $project = trim((string)($l['projectName'] ?? '')) ?: '—';
-
-                    $actionRaw = trim((string)($l['action'] ?? ''));
-                    $action = $actionRaw !== '' ? mb_strtoupper($actionRaw) : '—';
-                    $actionStyle = match($action) {
-                        'DELETED' => 'bg-red-100 text-red-700',
-                        'UPDATED' => 'bg-pink-100 text-pink-700',
-                        'CREATED' => 'bg-blue-100 text-blue-700',
-                        'OPENED'  => 'bg-gray-100 text-gray-700',
-                        default   => 'bg-gray-100 text-gray-700',
-                    };
-
-                    $desc = trim((string)($l['message'] ?? ''));
-                    $entity = trim((string)($l['entity'] ?? ''));
-                    if ($desc === '' && $entity !== '') $desc = $entity;
-                    if ($desc === '') $desc = '—';
-
-                    $atRaw = (string)($l['at'] ?? '');
-                    $dateLabel = '—';
-                    $timeLabel = '';
-                    if ($atRaw !== '') {
-                        try {
-                            $c = \Carbon\Carbon::parse($atRaw);
-                            $dateLabel = $c->format('F d, Y');
-                            $timeLabel = $c->format('h:ia');
-                        } catch (\Throwable) {
-                            $dateLabel = $atRaw;
-                        }
-                    }
-                @endphp
-
+            <tbody>
+            <template x-for="l in pageItems" :key="l._k">
                 <tr class="border-b border-gray-100 hover:bg-gray-50">
                     <td class="py-4">
                         <div class="flex flex-col leading-tight">
-                            <span class="font-medium text-gray-900">{{ $uname }}</span>
-                            @if($uemail !== '')
-                                <span class="text-xs text-gray-500">{{ $uemail }}</span>
-                            @endif
+                            <span class="font-medium text-gray-900" x-text="l.userName"></span>
+                            <template x-if="l.userEmail">
+                                <span class="text-xs text-gray-500" x-text="l.userEmail"></span>
+                            </template>
                         </div>
                     </td>
-                    <td class="py-4 text-gray-700 whitespace-nowrap">{{ $urole }}</td>
-                    <td class="py-4 text-gray-700">{{ $project }}</td>
+                    <td class="py-4 text-gray-700 whitespace-nowrap" x-text="l.userRole || '—'"></td>
+                    <td class="py-4 text-gray-700" x-text="l.projectName || '—'"></td>
                     <td class="py-4 whitespace-nowrap">
-                        @if($action !== '—')
-                            <span class="px-2 py-1 rounded text-[10px] font-semibold {{ $actionStyle }}">{{ $action }}</span>
-                        @else
-                            —
-                        @endif
+                        <template x-if="l.action">
+                            <span class="px-2 py-1 rounded text-[10px] font-semibold"
+                                  :class="l.actionClass"
+                                  x-text="l.action"></span>
+                        </template>
+                        <template x-if="!l.action">
+                            <span>—</span>
+                        </template>
                     </td>
-                    <td class="py-4 text-gray-700 max-w-[520px] whitespace-pre-wrap break-words">{{ $desc }}</td>
+                    <td class="py-4 text-gray-700 max-w-[520px] whitespace-pre-wrap break-words" x-text="l.description || '—'"></td>
                     <td class="py-4 text-gray-700 whitespace-nowrap">
                         <div class="flex flex-col leading-tight">
-                            <span>{{ $dateLabel }}</span>
-                            @if($timeLabel !== '')
-                                <span class="text-xs text-gray-500">{{ $timeLabel }}</span>
-                            @endif
+                            <span x-text="l.dateLabel"></span>
+                            <template x-if="l.timeLabel">
+                                <span class="text-xs text-gray-500" x-text="l.timeLabel"></span>
+                            </template>
                         </div>
                     </td>
                 </tr>
-            @empty
-                <tr>
-                    <td colspan="6" class="text-center py-10 text-gray-500">No audit logs found.</td>
-                </tr>
-            @endforelse
+            </template>
+            <tr x-show="pageItems.length === 0">
+                <td colspan="6" class="text-center py-10 text-gray-500">No audit logs found.</td>
+            </tr>
             </tbody>
         </table>
         </div>
 
         {{-- Pagination --}}
-        @php
-            $pg = $pagination ?? ['page'=>1,'perPage'=>25,'total'=>0,'totalPages'=>1,'from'=>0,'to'=>0];
-        @endphp
         <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200">
             <div class="text-xs text-gray-500">
-                Showing {{ $pg['from'] }}-{{ $pg['to'] }} of {{ $pg['total'] }}
+                Showing <span x-text="from"></span>-<span x-text="to"></span> of <span x-text="total"></span>
             </div>
             <div class="flex items-center gap-2">
                 <button type="button"
                         class="btn btn-sm border border-gray-300 bg-white text-gray-700"
-                        wire:click="prevPage"
-                        @disabled(($pg['page'] ?? 1) <= 1)>
+                        @click="prevPage()"
+                        :disabled="page <= 1">
                     Prev
                 </button>
                 <span class="text-xs text-gray-600">
-                    Page {{ $pg['page'] }} / {{ $pg['totalPages'] }}
+                    Page <span x-text="page"></span> / <span x-text="totalPages"></span>
                 </span>
                 <button type="button"
                         class="btn btn-sm border border-gray-300 bg-white text-gray-700"
-                        wire:click="nextPage"
-                        @disabled(($pg['page'] ?? 1) >= ($pg['totalPages'] ?? 1))>
+                        @click="nextPage()"
+                        :disabled="page >= totalPages">
                     Next
                 </button>
             </div>
         </div>
     </div>
+
+    <script>
+        function auditLogsClient(logs, pageSize) {
+            const actionClass = (action) => ({
+                'DELETED': 'bg-red-100 text-red-700',
+                'UPDATED': 'bg-pink-100 text-pink-700',
+                'CREATED': 'bg-blue-100 text-blue-700',
+                'OPENED':  'bg-gray-100 text-gray-700',
+                'POST':    'bg-gray-100 text-gray-700',
+                'PATCH':   'bg-gray-100 text-gray-700',
+            })[action] || 'bg-gray-100 text-gray-700';
+
+            const fmtDateTime = (at) => {
+                const s = (at || '').toString().trim();
+                if (!s) return { dateLabel: '—', timeLabel: '' };
+                const d = new Date(s);
+                if (isNaN(d.getTime())) return { dateLabel: s, timeLabel: '' };
+                return {
+                    dateLabel: d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: '2-digit' }),
+                    timeLabel: d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }).replace(' ', '').toLowerCase(),
+                };
+            };
+
+            const rows = Array.isArray(logs) ? logs.map((raw, idx) => {
+                const uid = parseInt(raw.accountId ?? 0) || 0;
+                const action = (raw.action || '').toString().trim().toUpperCase();
+                const at = (raw.at || raw.createdAt || '').toString().trim();
+                const dt = fmtDateTime(at);
+                return {
+                    _k: String(raw.id ?? idx) + ':' + idx,
+                    uid,
+                    userName: (raw.userName || (uid ? `User #${uid}` : '—')).toString().trim(),
+                    userEmail: (raw.userEmail || '').toString().trim(),
+                    userRole: (raw.userRole || '').toString().trim(),
+                    projectName: (raw.projectName || '').toString().trim(),
+                    action,
+                    actionClass: actionClass(action),
+                    description: (raw.message || raw.entity || '').toString().trim(),
+                    status: (raw.status || '').toString().trim(),
+                    at,
+                    ...dt,
+                };
+            }) : [];
+
+            return {
+                open: false,
+                pageSize: pageSize || 25,
+                page: 1,
+                rows,
+                filters: {
+                    search: '',
+                    userText: '',
+                    userId: '',
+                    roleText: '',
+                    role: '',
+                    projectText: '',
+                    project: '',
+                    action: '',
+                    status: '',
+                    from: '',
+                    to: '',
+                },
+                get actionOptions() {
+                    const s = new Set(this.rows.map(r => r.action).filter(Boolean));
+                    return Array.from(s).sort();
+                },
+                get roleOptions() {
+                    const s = new Set(this.rows.map(r => r.userRole).filter(Boolean));
+                    return Array.from(s).sort();
+                },
+                get projectOptions() {
+                    const s = new Set(this.rows.map(r => r.projectName).filter(Boolean));
+                    return Array.from(s).sort();
+                },
+                get statusOptions() {
+                    const s = new Set(this.rows.map(r => r.status).filter(Boolean));
+                    return Array.from(s).sort();
+                },
+                get userOptions() {
+                    const seen = new Set();
+                    const opts = [];
+                    for (const r of this.rows) {
+                        if (!r.uid) continue;
+                        if (seen.has(r.uid)) continue;
+                        seen.add(r.uid);
+                        opts.push({ id: r.uid, name: r.userName || `User #${r.uid}` });
+                    }
+                    return opts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                },
+                matches(r) {
+                    const f = this.filters;
+                    const search = (f.search || '').trim().toLowerCase();
+                    const userText = (f.userText || '').trim().toLowerCase();
+                    const roleText = (f.roleText || '').trim().toLowerCase();
+                    const projectText = (f.projectText || '').trim().toLowerCase();
+                    const userId = (f.userId || '').trim();
+                    const role = (f.role || '').trim().toLowerCase();
+                    const project = (f.project || '').trim().toLowerCase();
+                    const action = (f.action || '').trim().toUpperCase();
+                    const status = (f.status || '').trim().toLowerCase();
+                    const from = (f.from || '').trim();
+                    const to = (f.to || '').trim();
+
+                    if (search) {
+                        const hay = [r.userName, r.userEmail, r.userRole, r.projectName, r.action, r.description].join(' ').toLowerCase();
+                        if (!hay.includes(search)) return false;
+                    }
+                    if (userText) {
+                        const hay = (r.userName + ' ' + (r.userEmail || '')).toLowerCase();
+                        if (!hay.includes(userText)) return false;
+                    }
+                    if (userId) {
+                        if (String(r.uid) !== userId) return false;
+                    }
+                    if (roleText) {
+                        if (!(r.userRole || '').toLowerCase().includes(roleText)) return false;
+                    }
+                    if (role) {
+                        if ((r.userRole || '').toLowerCase() !== role) return false;
+                    }
+                    if (projectText) {
+                        if (!(r.projectName || '').toLowerCase().includes(projectText)) return false;
+                    }
+                    if (project) {
+                        if ((r.projectName || '').toLowerCase() !== project) return false;
+                    }
+                    if (action) {
+                        if ((r.action || '') !== action) return false;
+                    }
+                    if (status) {
+                        if ((r.status || '').toLowerCase() !== status) return false;
+                    }
+                    if (from || to) {
+                        const d = r.at ? new Date(r.at) : null;
+                        if (!d || isNaN(d.getTime())) return false;
+                        if (from) {
+                            const fd = new Date(from + 'T00:00:00');
+                            if (d < fd) return false;
+                        }
+                        if (to) {
+                            const td = new Date(to + 'T23:59:59');
+                            if (d > td) return false;
+                        }
+                    }
+                    return true;
+                },
+                get filteredRows() {
+                    const out = this.rows.filter(r => this.matches(r));
+                    // reset page if out of range
+                    const tp = Math.max(1, Math.ceil(out.length / this.pageSize));
+                    if (this.page > tp) this.page = tp;
+                    if (this.page < 1) this.page = 1;
+                    return out;
+                },
+                get total() { return this.filteredRows.length; },
+                get totalPages() { return Math.max(1, Math.ceil(this.total / this.pageSize)); },
+                get from() { return this.total ? ((this.page - 1) * this.pageSize + 1) : 0; },
+                get to() { return this.total ? Math.min(this.page * this.pageSize, this.total) : 0; },
+                get pageItems() {
+                    const start = (this.page - 1) * this.pageSize;
+                    return this.filteredRows.slice(start, start + this.pageSize);
+                },
+                nextPage() { if (this.page < this.totalPages) this.page++; },
+                prevPage() { if (this.page > 1) this.page--; },
+            };
+        }
+    </script>
 </div>
