@@ -115,7 +115,67 @@
         <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
             <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
             <div class="flex items-center gap-3">
-                <span class="text-base-100">Hi, {{ Session::get('user')['name'] ?? Session::get('user')['Name'] ?? 'User' }}!</span>
+                <div class="relative" x-data="notifDropdown()" x-init="init()">
+                    <button type="button"
+                            class="relative text-base-100 hover-clr-accent"
+                            @click="toggle()"
+                            aria-label="Notifications">
+                        <x-icons.notification classes="w-6 h-6" />
+                        <span x-show="unreadCount > 0"
+                              x-text="unreadCount > 99 ? '99+' : unreadCount"
+                              class="absolute -top-1 -right-1 text-[10px] leading-none px-1.5 py-1 rounded-full bg-red-500 text-white"></span>
+                    </button>
+
+                    <div x-show="open"
+                         x-transition
+                         @click.outside="open = false"
+                         class="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white text-gray-900 rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                            <span class="text-sm font-semibold">Notifications</span>
+                            <button type="button"
+                                    class="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                                    @click="markAllRead()"
+                                    :disabled="unreadCount === 0">
+                                Mark all read
+                            </button>
+                        </div>
+
+                        <div class="max-h-[420px] overflow-y-auto">
+                            <template x-if="loading">
+                                <div class="p-4 text-sm text-gray-500">Loading…</div>
+                            </template>
+
+                            <template x-if="!loading && items.length === 0">
+                                <div class="p-4 text-sm text-gray-500">No notifications.</div>
+                            </template>
+
+                            <template x-for="n in items" :key="n.id">
+                                <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
+                                     :class="!n.isRead ? 'bg-blue-50/30' : ''">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm text-gray-900 whitespace-pre-wrap break-words" x-text="n.message || ''"></p>
+                                            <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <button type="button"
+                                                    class="text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                                                    @click="markRead(n)"
+                                                    :disabled="n.isRead">
+                                                Read
+                                            </button>
+                                            <button type="button"
+                                                    class="text-xs text-red-600 hover:text-red-700"
+                                                    @click="remove(n)">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
                 <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">👤</div>
             </div>
         </div>
@@ -129,5 +189,109 @@
 </div>
 
 @livewireScripts
+<script>
+    function notifDropdown() {
+        const csrf = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+
+        const norm = (n) => {
+            const id = parseInt(n.id ?? n.Id ?? 0) || 0;
+            const msg = (n.message ?? n.Message ?? '').toString();
+            const isRead = !!(n.isRead ?? n.IsRead ?? false);
+            const createdAtRaw = (n.createdAt ?? n.CreatedAt ?? '').toString();
+            let createdAtLabel = createdAtRaw;
+            if (createdAtRaw) {
+                const d = new Date(createdAtRaw);
+                if (!isNaN(d.getTime())) {
+                    createdAtLabel = d.toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+                }
+            }
+            return { id, message: msg, isRead, createdAt: createdAtRaw, createdAtLabel };
+        };
+
+        return {
+            open: false,
+            loading: false,
+            items: [],
+            unreadCount: 0,
+
+            async init() {
+                await this.refreshUnread();
+                // lightweight polling for badge
+                setInterval(() => this.refreshUnread(), 30000);
+            },
+
+            toggle() {
+                this.open = !this.open;
+                if (this.open) {
+                    this.load();
+                }
+            },
+
+            async refreshUnread() {
+                try {
+                    const r = await fetch('/notifications/unread', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                    const data = await r.json();
+                    this.unreadCount = Array.isArray(data) ? data.filter(x => !(x.isRead ?? x.IsRead)).length : 0;
+                } catch (e) {
+                    // ignore
+                }
+            },
+
+            async load() {
+                this.loading = true;
+                try {
+                    const r = await fetch('/notifications', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                    const data = await r.json();
+                    this.items = Array.isArray(data) ? data.map(norm) : [];
+                    this.unreadCount = this.items.filter(x => !x.isRead).length;
+                } catch (e) {
+                    this.items = [];
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async markRead(n) {
+                if (!n || !n.id || n.isRead) return;
+                try {
+                    await fetch(`/notifications/${n.id}/read`, {
+                        method: 'PUT',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        credentials: 'same-origin',
+                    });
+                    n.isRead = true;
+                    this.unreadCount = Math.max(0, this.items.filter(x => !x.isRead).length);
+                } catch (e) {}
+            },
+
+            async markAllRead() {
+                if (this.unreadCount <= 0) return;
+                try {
+                    await fetch('/notifications/read-all', {
+                        method: 'PUT',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({}),
+                    });
+                    this.items = this.items.map(x => ({ ...x, isRead: true }));
+                    this.unreadCount = 0;
+                } catch (e) {}
+            },
+
+            async remove(n) {
+                if (!n || !n.id) return;
+                try {
+                    await fetch(`/notifications/${n.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        credentials: 'same-origin',
+                    });
+                    this.items = this.items.filter(x => x.id !== n.id);
+                    this.unreadCount = Math.max(0, this.items.filter(x => !x.isRead).length);
+                } catch (e) {}
+            },
+        };
+    }
+</script>
 </body>
 </html>
