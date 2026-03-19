@@ -23,6 +23,9 @@ class DashboardTaskCreate extends Component
     /** Accounts assignable to selected project */
     public array $assignableAccounts = [];
 
+    /** Persist overload warnings across Livewire re-renders */
+    public array $taskWarnings = [];
+
     protected $listeners = [
         'open-dashboard-task-create' => 'open',
     ];
@@ -34,6 +37,21 @@ class DashboardTaskCreate extends Component
         $this->currentUserId = (int) ($user['id'] ?? ($user['Id'] ?? 0));
 
         $this->loadPriorities();
+
+        // If a task was just created with overload warnings, reopen the modal
+        // so the warning can be displayed under the Due Date field.
+        $warnings = (array) Session::get('task_warnings', []);
+        $this->taskWarnings = array_values(array_filter($warnings));
+        $lastProjectId = (int) (Session::get('last_project_id') ?? 0);
+        if (is_array($warnings) && count($warnings) > 0 && $lastProjectId > 0) {
+            $this->selectedProjectId = $lastProjectId;
+            $this->assignableAccounts = app(TaskController::class)->getAssignableAccountsForProject(
+                $lastProjectId,
+                $this->currentUserId
+            );
+            $this->showSelectProjectModal = false;
+            $this->showAddTaskModal = true;
+        }
     }
 
     public function open(): void
@@ -46,6 +64,7 @@ class DashboardTaskCreate extends Component
     {
         $this->showSelectProjectModal = false;
         $this->showAddTaskModal = false;
+        $this->taskWarnings = [];
     }
 
     public function resetWizard(): void

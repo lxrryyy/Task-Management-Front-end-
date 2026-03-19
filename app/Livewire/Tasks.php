@@ -30,6 +30,9 @@ class Tasks extends Component
     public bool $showAddTaskModal = false;
     public ?int $taskParentId = null;
 
+    /** Persist overload warnings across Livewire re-renders */
+    public array $taskWarnings = [];
+
     public bool $showTaskDetailModal = false;
     public ?array $detailTask = null;
 
@@ -45,6 +48,7 @@ class Tasks extends Component
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
         $this->taskParentId = $taskParentId;
+        $this->taskWarnings = array_values(array_filter((array) Session::get('task_warnings', [])));
 
         $statusData = app(TaskController::class)->getStatuses();
         $this->statusMap = $statusData['map'] ?? [];
@@ -262,6 +266,7 @@ class Tasks extends Component
     {
         $this->showAddTaskModal = false;
         $this->taskParentId = null;
+        $this->taskWarnings = [];
     }
 
     public function addSubtask(int $parentTaskId): void
