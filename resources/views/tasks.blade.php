@@ -10,7 +10,7 @@
             'projectId'        => $projectId ?? null,
             'tasks'            => $tasks ?? [],
             'accounts'         => $accounts ?? [],
-            'showAddTaskModal' => $errors->any() && old('name') !== null,
+            'showAddTaskModal' => ($errors->any() && old('name') !== null) || (session('task_warnings') && count(session('task_warnings')) > 0),
             'taskParentId'     => old('parentTaskId') ? (int) old('parentTaskId') : null,
         ])
     </div>

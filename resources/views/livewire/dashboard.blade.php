@@ -41,6 +41,7 @@
             <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white">
                 @forelse($projects as $project)
                     @php
+                        $pid = (int) ($project['id'] ?? $project['Id'] ?? 0);
                         $projectName = $project['name'] ?? $project['Name'] ?? $project['title'] ?? 'Project';
                         $tasks = $project['tasks'] ?? $project['Tasks'] ?? [];
                     @endphp
@@ -82,8 +83,13 @@
                                                     default       => 'background:#f3f4f6;color:#374151;',
                                                 };
                                             @endphp
-                                            <tr class="border-b border-gray-200 last:border-b-0">
-                                                <td class="py-1">{{ $taskName }}</td>
+                                            <tr class="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 cursor-pointer"
+                                                onclick="window.location.href='{{ route('projects.tasks', $pid) }}'">
+                                                <td class="py-1">
+                                                    <a href="{{ route('projects.tasks', $pid) }}" class="hover:underline">
+                                                        {{ $taskName }}
+                                                    </a>
+                                                </td>
                                                 <td class="py-1">
                                                     <span class="px-2 py-0.5 text-xs rounded" style="{{ $statusPillStyle }}">
                                                         {{ $status }}
@@ -170,10 +176,10 @@
                 @php
                     // Match status colors used across the app UI.
                     $statusColors = [
-                        'In Progress' => '#3b82f6', // blue
-                        'Completed'   => '#22c55e', // green
-                        'Not Started' => '#ef4444', // red
-                        'For Review'  => '#374151', // dark gray
+                        'Completed'   => '#102B3C',
+                        'For Review'  => '#F0EFEF',
+                        'In Progress' => '#205375',
+                        'Not Started' => '#ED1C24',
                     ];
                     $breakdown = $taskStatusSummary['breakdown'] ?? [];
                     $totalTasks = (int) ($taskStatusSummary['totalTasks'] ?? 0);

@@ -136,7 +136,7 @@
                         <th class="!font-normal">Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
                 @forelse(($filteredProjects ?? []) as $project)
                     @php
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
@@ -180,7 +180,7 @@
                         $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
                         $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
                     @endphp
-                    <tr class="hover:bg-gray-50 cursor-pointer"
+                    <tr class="hover:bg-gray-50 cursor-pointer border-b border-gray-200"
                         @if($projectId)
                             @click="window.location='{{ route('projects.tasks', $projectId) }}'"
                         @endif
@@ -257,7 +257,7 @@
                         </th>
                     </tr>
                 @empty
-                    <tr>
+                    <tr class="border-b border-gray-200">
                         <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
                     </tr>
                 @endforelse

@@ -230,12 +230,7 @@
                                             x-text="initials(name)"></div>
                                     </template>
                                 </div>
-                                {{-- Three-dot --}}
-                                <button class="p-1 rounded-full hover:bg-white/60 transition" @click.stop>
-                                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" class="text-gray-400">
-                                        <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
-                                    </svg>
-                                </button>
+                                {{-- Three-dot removed --}}
                             </div>
                         </div>
                         <div class="flex items-center justify-between text-xs" :class="colorClasses(task.color).sub">
@@ -276,7 +271,7 @@
                                         <p class="text-sm font-normal leading-snug" :class="colorClasses(task.color).title" x-text="task.title"></p>
                                         <p class="text-xs mt-1" :class="colorClasses(task.color).sub" x-text="task.project"></p>
                                     </div>
-                                    {{-- Bottom: avatars + three-dot --}}
+                                    {{-- Bottom: avatars --}}
                                     <div class="flex items-center justify-between mt-auto">
                                         <div class="flex -space-x-2">
                                             <template x-for="(name,i) in task.assigneeNames.slice(0,3)" :key="i">
@@ -286,11 +281,6 @@
                                                     x-text="initials(name)"></div>
                                             </template>
                                         </div>
-                                        <button class="p-0.5 rounded-full hover:bg-white/60 transition" @click.stop>
-                                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" class="text-gray-400">
-                                                <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
-                                            </svg>
-                                        </button>
                                     </div>
                                 </div>
                             </template>

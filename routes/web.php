@@ -6,6 +6,7 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\StickyNoteController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -33,6 +34,21 @@ Route::get('/audit-logs', function () {
     }
     return view('audit-logs');
 })->middleware(['api.auth'])->name('Time Logs');
+
+Route::middleware(['api.auth'])->group(function () {
+    Route::get('/audit-logs/export/pdf', [\App\Http\Controllers\AuditLogExportController::class, 'exportPdf'])
+        ->name('auditLogs.export.pdf');
+    Route::get('/audit-logs/export/excel', [\App\Http\Controllers\AuditLogExportController::class, 'exportExcel'])
+        ->name('auditLogs.export.excel');
+});
+
+Route::middleware(['api.auth'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->whereNumber('id')->name('notifications.read');
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('notifications.delete');
+});
 
 Route::get('/tasks', function () {
     return view('tasks');
@@ -70,7 +86,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// ── Sticky Notes (proxied to C# backend) ─────────────────────────────────────
 Route::middleware(['api.auth'])->group(function () {
     Route::get   ('/notes',        [StickyNoteController::class, 'index'])  ->name('notes.index');
     Route::post  ('/notes',        [StickyNoteController::class, 'store'])  ->name('notes.store');

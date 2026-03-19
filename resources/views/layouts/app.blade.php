@@ -115,7 +115,74 @@
         <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
             <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
             <div class="flex items-center gap-3">
-                <span class="text-base-100">Hi, {{ Session::get('user')['name'] ?? Session::get('user')['Name'] ?? 'User' }}!</span>
+                <div class="relative" x-data="notifDropdown()" x-init="init()">
+                    {{-- Wrapper div owns the relative context so badge bleeds outside the button --}}
+                    <div style="position:relative; display:inline-flex; align-items:center; justify-content:center;">
+                        <button type="button"
+                                style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px;"
+                                class="text-base-100 hover-clr-accent"
+                                @click="toggle()"
+                                aria-label="Notifications">
+                            <x-icons.notification classes="w-6 h-6" />
+                        </button>
+                        <span x-show="unreadCount > 0"
+                              x-text="unreadCount > 99 ? '99+' : unreadCount"
+                              style="position:absolute; top:-8px; right:-8px; min-width:18px; height:18px; font-size:10px; font-weight:700; line-height:18px; border-radius:9999px; background:#ef4444; color:#fff; display:inline-block; text-align:center; padding:0 4px; box-shadow:0 1px 3px rgba(0,0,0,0.3); pointer-events:none; z-index:10;"></span>
+                    </div>
+
+                    <div x-show="open"
+                         x-cloak
+                         x-transition
+                         @click.outside="open = false"
+                         style="display:none;"
+                         :style="open ? '' : 'display:none;'"
+                         class="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white text-gray-900 rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                            <span class="text-sm font-semibold">Notifications</span>
+                            <button type="button"
+                                    class="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                                    @click="markAllRead()"
+                                    :disabled="unreadCount === 0">
+                                Mark all read
+                            </button>
+                        </div>
+
+                        <div class="max-h-[420px] overflow-y-auto">
+                            <template x-if="loading">
+                                <div class="p-4 text-sm text-gray-500">Loading…</div>
+                            </template>
+
+                            <template x-if="!loading && items.length === 0">
+                                <div class="p-4 text-sm text-gray-500">No notifications.</div>
+                            </template>
+
+                            <template x-for="n in items" :key="n.id">
+                                <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
+                                     :class="!n.isRead ? 'bg-gray-100' : ''">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm text-gray-900 whitespace-pre-wrap break-words" x-text="n.message || ''"></p>
+                                            <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <button type="button"
+                                                    class="text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                                                    @click="markRead(n)"
+                                                    :disabled="n.isRead">
+                                                Read
+                                            </button>
+                                            <button type="button"
+                                                    class="text-xs text-red-600 hover:text-red-700"
+                                                    @click="remove(n)">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
                 <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">👤</div>
             </div>
         </div>
@@ -127,6 +194,12 @@
     </div>
 
 </div>
+
+{{-- Toast container--}}
+<div
+    id="toast-container"
+    class="fixed top-20 right-6 z-[10] flex flex-col gap-3 w-80 max-w-[90vw] pointer-events-none"
+></div>
 
 @livewireScripts
 </body>
