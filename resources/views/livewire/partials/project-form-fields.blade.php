@@ -1,0 +1,234 @@
+@php
+    $isEdit = ($formContext ?? 'add') === 'edit';
+    $ctx = (string) ($formContext ?? 'add');
+    $nameValue      = $isEdit ? old('name',        $formName        ?? '') : old('name');
+    $descValue      = $isEdit ? old('description', $formDescription ?? '') : old('description');
+    $startDateValue = $isEdit ? old('startDate',   $formStartDate   ?? '') : old('startDate');
+    $endDateValue   = $isEdit ? old('endDate',     $formEndDate     ?? '') : old('endDate');
+    $statusValue    = $isEdit ? old('status',      $formStatus      ?? '') : old('status', '');
+    $statusIdValue  = $isEdit ? old('statusId',     $formStatusId    ?? 0)  : old('statusId', 0);
+@endphp
+@if($errors->has('api_error'))
+    <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mb-4 text-sm text-red-700">
+        <p class="font-semibold mb-1">Please fix the following:</p>
+        <ul class="list-disc list-inside space-y-0.5">
+            @foreach($errors->get('api_error') as $apiMsg)
+                <li>{{ $apiMsg }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
+<div class="flex flex-col gap-4 my-4">
+    <span>Project Name</span>
+    <input
+        name="name"
+        type="text"
+        placeholder="Type here"
+        class="input input-bordered rounded-lg w-full"
+        @if($isEdit) wire:model.lazy="formName" @else value="{{ $nameValue }}" @endif
+        required
+    />
+    @foreach($errors->get('name') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
+    @endforeach
+</div>
+@php
+    $descriptionContent = $isEdit ? '' : (string) ($descValue ?? '');
+@endphp
+<div class="flex flex-col gap-4 my-4">
+    <span>Description</span>
+    <textarea name="description" class="textarea textarea-bordered rounded-lg w-full" placeholder="Project Description"
+        @if($isEdit) wire:model.lazy="formDescription" @endif
+    >{{ $descriptionContent }}</textarea>
+</div>
+<div class="flex flex-row gap-4 my-4">
+    <div class="flex flex-col gap-2 my-4">
+        <span>Start Date</span>
+        <input name="startDate" type="date"
+               class="input input-bordered rounded-lg {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
+               @if($isEdit) wire:model.lazy="formStartDate" @else value="{{ $startDateValue }}" @endif />
+        @foreach($errors->get('startDate') as $msg)
+            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+        @endforeach
+    </div>
+    <div class="flex flex-col gap-2 my-4">
+        <span>End Date</span>
+        <input name="endDate" type="date"
+               class="input input-bordered rounded-lg {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
+               @if($isEdit) wire:model.lazy="formEndDate" @else value="{{ $endDateValue }}" @endif />
+        @foreach($errors->get('endDate') as $msg)
+            <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
+        @endforeach
+    </div>
+</div>
+
+<div class="flex flex-col gap-2 my-4">
+    <span>Members</span>
+    @php
+        $creatorIdInt = (int) ($creatorId ?? 0);
+        $scrumMasterIdInt = (int) ($selectedScrumMasterId ?? 0);
+        $effectiveScrumMasterId = $scrumMasterIdInt > 0 ? $scrumMasterIdInt : $creatorIdInt;
+        $showCreatorAsScrumMaster = $isEdit && $creatorIdInt > 0 && $effectiveScrumMasterId === $creatorIdInt;
+        $creatorAccount = null;
+        if ($showCreatorAsScrumMaster) {
+            $creatorAccount = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $creatorIdInt);
+        }
+    @endphp
+    <div class="dropdown w-full">
+        <div tabindex="0" role="button"
+             class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
+            <div class="flex flex-col">
+                <span class="font-medium text-sm">Select members</span>
+                @php
+                    $selectedCount = count((array) ($selectedMemberIds ?? []));
+                @endphp
+                <span class="text-xs text-gray-500">
+                    @if($selectedCount > 0)
+                        {{ $selectedCount }} selected
+                    @else
+                        Choose one or more members
+                    @endif
+                </span>
+            </div>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </div>
+        <ul tabindex="0"
+            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+            @if($showCreatorAsScrumMaster && is_array($creatorAccount))
+                @php
+                    $cname  = $creatorAccount['name']  ?? $creatorAccount['Name']  ?? 'Project Manager';
+                    $cemail = $creatorAccount['email'] ?? $creatorAccount['Email'] ?? '';
+                @endphp
+                <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-creator-sm-{{ $creatorIdInt }}">
+                    <x-person-option
+                        :checked="true"
+                        :name="((string) $cname) . ' (Scrum Master)'"
+                        :email="$cemail"
+                        disabled
+                        class="opacity-75 cursor-not-allowed pointer-events-none" />
+                </li>
+            @endif
+            @forelse(($accounts ?? []) as $account)
+                @php
+                    $aid      = $account['id']    ?? $account['Id']    ?? null;
+                    $aname    = $account['name']   ?? $account['Name']  ?? 'Unknown';
+                    $aemail   = $account['email']  ?? $account['Email'] ?? '';
+                    $checked  = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
+                    $isCreator = $creatorId && (int) $creatorId === (int) $aid;
+                @endphp
+                @if($aid !== null && !$isCreator)
+                    <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
+                        <x-person-option
+                            :checked="$checked"
+                            :name="$aname"
+                            :email="$aemail"
+                            wire:click="toggleMember({{ (int) $aid }})" />
+                    </li>
+                @endif
+            @empty
+                <li class="px-3 py-2 text-sm text-gray-400">No accounts loaded.</li>
+            @endforelse
+        </ul>
+    </div>
+    @foreach($errors->get('memberIds') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
+    @endforeach
+    @php
+        $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
+        $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
+    @endphp
+    @if($isEdit)
+        {{-- Current selection as JSON so "Yes, Update" can sync into form before submit (fixes removed members not persisting) --}}
+        <div id="edit-form-member-ids-data" data-member-ids="{{ json_encode($hiddenIds) }}" class="hidden" aria-hidden="true"></div>
+    @endif
+    {{-- wire:key changes whenever selectedMemberIds changes, forcing Livewire to fully replace this div --}}
+    <div wire:key="{{ $hiddenKey }}" id="{{ $isEdit ? 'edit-form-member-ids-inputs' : '' }}">
+        @foreach($hiddenIds as $id)
+            <input type="hidden" name="memberIds[]" value="{{ $id }}" />
+        @endforeach
+    </div>
+    <input type="hidden" name="scrumMasterId" value="{{ $selectedScrumMasterId ?: $creatorId }}" />
+    @if($isEdit && !empty($editingProjectId))
+        <input type="hidden" name="_edit_project_id" value="{{ $editingProjectId }}" />
+    @endif
+</div>
+
+<div class="overflow-x-auto">
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Position</th>
+            <th>Action</th>
+        </tr>
+        </thead>
+        <tbody>
+        @php
+            $accountsById = [];
+            foreach(($accounts ?? []) as $acc) {
+                $id = $acc['id'] ?? $acc['Id'] ?? null;
+                if ($id !== null) {
+                    $accountsById[(int) $id] = $acc;
+                }
+            }
+        @endphp
+
+        @if(($showCreatorAsScrumMaster && $creatorIdInt > 0) || !empty($selectedMemberIds))
+            @if($showCreatorAsScrumMaster && is_array($creatorAccount))
+                @php
+                    $cname  = $creatorAccount['name']  ?? $creatorAccount['Name']  ?? 'Project Manager';
+                    $cemail = $creatorAccount['email'] ?? $creatorAccount['Email'] ?? '';
+                @endphp
+                <tr wire:key="{{ $ctx }}-member-row-creator-sm-{{ $creatorIdInt }}">
+                    <td><span>{{ $cname }}</span></td>
+                    <td><span>{{ $cemail }}</span></td>
+                    <td>
+                        <select class="select h-9 select-bordered select-sm w-full max-w-xs" disabled>
+                            <option value="Scrum Master" selected>Scrum Master</option>
+                        </select>
+                    </td>
+                    <th><span class="text-gray-400">—</span></th>
+                </tr>
+            @endif
+            @foreach($selectedMemberIds as $memberId)
+                @php
+                    $memberId = (int) $memberId;
+                    $acc = $accountsById[$memberId] ?? null;
+                    if (!$acc) continue;
+                    $name = $acc['name'] ?? $acc['Name'] ?? 'Unknown';
+                    $email = $acc['email'] ?? $acc['Email'] ?? '';
+                    $pos = $memberRoles[$memberId] ?? 'Member';
+                    // Only one Scrum Master among table members:
+                    // disable "Scrum Master" only if SOME OTHER non-creator member is already Scrum Master.
+                    // (If the project manager/creator is Scrum Master, keep the option enabled so you can transfer it.)
+                    $scrumMasterAlreadyTaken = $scrumMasterIdInt > 0
+                        && $scrumMasterIdInt !== $creatorIdInt
+                        && $scrumMasterIdInt !== $memberId;
+                @endphp
+                <tr wire:key="{{ $ctx }}-member-row-{{ $memberId }}">
+                    <td><span>{{ $name }}</span></td>
+                    <td><span>{{ $email }}</span></td>
+                    <td>
+                        <select class="select h-9 select-bordered select-sm w-full max-w-xs"
+                                x-on:change="$wire.setMemberRole({{ $memberId }}, $event.target.value)">
+                            <option value="Member" {{ $pos === 'Member' ? 'selected' : '' }}>Member</option>
+                            <option value="Scrum Master" {{ $pos === 'Scrum Master' ? 'selected' : '' }} {{ $scrumMasterAlreadyTaken ? 'disabled' : '' }}>Scrum Master</option>
+                        </select>
+                    </td>
+                    <th>
+                        <button type="button" wire:click="removeMember({{ $memberId }})" class="btn btn-ghost btn-xs text-error">Remove</button>
+                    </th>
+                </tr>
+            @endforeach
+        @else
+            <tr>
+                <td colspan="4" class="text-center text-gray-400 py-4">No members selected. Check members in the list above to add them here.</td>
+            </tr>
+        @endif
+        </tbody>
+    </table>
+</div>

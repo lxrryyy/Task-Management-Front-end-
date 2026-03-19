@@ -2,6 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-.clr-primary-bg{
+[x-cloak] {
+    display: none !important;
+}
+
+th {
+    font-weight: normal !important;
+}
+
+.clr-bg-primary {
+    background-color: #102b3c;
+}
+
+.clr-primary {
+    color: #102b3c;
+}
+
+select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
+
+.clr-bg-secondary {
     background-color: #205375;
+}
+
+.clr-accent {
+    color: #ed1c24;
+}
+
+.clr-bg-accent {
+    background-color: #ed1c24;
+}
+
+.hover-clr-bg-accent-light:hover {
+    background-color: #ff575d;
+}
+
+.hover-clr-accent:hover {
+    color: #ed1c24;
+}
+
+.active-clr-accent:active {
+    color: #ed1c24;
+}
+
+.focus-clr-accent {
+    color: #ed1c24;
+}
+
+.hover-clr-bg-accent:hover {
+    background-color: #ed1c24;
+}
+
+.hover-clr-bg-primary-light:hover {
+    background-color: #3292ce;
+}
+
+.hover-clr-bg-primary:hover {
+    background-color: #102b3c;
+}
+
+.hover-clr-primary:hover {
+    color: #102b3c;
 }
