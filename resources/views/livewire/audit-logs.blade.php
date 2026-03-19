@@ -137,7 +137,7 @@
                     <td class="py-4 whitespace-nowrap">
                         <template x-if="l.action">
                             <span class="px-2 py-1 rounded text-[10px] font-semibold"
-                                  :class="l.actionClass"
+                                  :style="l.actionStyle"
                                   x-text="l.action"></span>
                         </template>
                         <template x-if="!l.action">
@@ -169,7 +169,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
                         @click="prevPage()"
                         :disabled="page <= 1">
                     Prev
@@ -178,7 +178,7 @@
                     Page <span x-text="page"></span> / <span x-text="totalPages"></span>
                 </span>
                 <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
                         @click="nextPage()"
                         :disabled="page >= totalPages">
                     Next
@@ -189,14 +189,17 @@
 
     <script>
         function auditLogsClient(logs, pageSize) {
-            const actionClass = (action) => ({
-                'DELETED': 'bg-red-100 text-red-700',
-                'UPDATED': 'bg-pink-100 text-pink-700',
-                'CREATED': 'bg-blue-100 text-blue-700',
-                'OPENED':  'bg-gray-100 text-gray-700',
-                'POST':    'bg-gray-100 text-gray-700',
-                'PATCH':   'bg-gray-100 text-gray-700',
-            })[action] || 'bg-gray-100 text-gray-700';
+            const actionStyle = (action) => ({
+                // DELETE - FEE2E2 (TEXT - 7F1D1D)
+                'DELETE':  'background:#FEE2E2;color:#7F1D1D;',
+                'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
+                // PATCH - C11574 (TEXT - FFFFFF)
+                'PATCH':   'background:#C11574;color:#FFFFFF;',
+                // POST - EEF4FF (TEXT - 3538CD)
+                'POST':    'background:#EEF4FF;color:#3538CD;',
+                // RESTORE - F2F4F7 (TEXT - 344054)
+                'RESTORE': 'background:#F2F4F7;color:#344054;',
+            })[action] || 'background:#F2F4F7;color:#344054;';
 
             const fmtDateTime = (at) => {
                 const s = (at || '').toString().trim();
@@ -222,7 +225,7 @@
                     userRole: (raw.userRole || '').toString().trim(),
                     projectName: (raw.projectName || '').toString().trim(),
                     action,
-                    actionClass: actionClass(action),
+                    actionStyle: actionStyle(action),
                     description: (raw.message || raw.entity || '').toString().trim(),
                     status: (raw.status || '').toString().trim(),
                     at,
