@@ -674,7 +674,7 @@ document.addEventListener('change', async function (e) {
                                          },
                                          get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                      }"
-                                     class="relative inline-flex items-center rounded-full pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                     class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
                                      :style="pill">
                                     <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
                                         <x-icons.circle />
@@ -738,7 +738,7 @@ document.addEventListener('change', async function (e) {
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
-                                             class="relative inline-flex items-center rounded-full pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                             class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
                                              :style="pill">
                                             <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
                                                 <x-icons.circle />
