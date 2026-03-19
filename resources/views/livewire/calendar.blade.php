@@ -1,5 +1,6 @@
 <div>
-    <script id="calendar-tasks-data" type="application/json">@json($calendarTasks)</script>
+    <script id="calendar-tasks-data"  type="application/json">@json($calendarTasks)</script>
+    <script id="sticky-notes-data"    type="application/json">@json($stickyNotes ?? [])</script>
 
     <div
         x-data="{
@@ -123,43 +124,58 @@
                 }
             },
 
-            /* ── to-do (localStorage notepad) ───────── */
-            storageKey: 'calendar_todos_{{ Session::get("user")["id"] ?? Session::get("user")["Id"] ?? "guest" }}',
-            todos: {},
-            newTodo: '',
-            showInput: false,
+            /* ── sticky notes (API-backed) ───────────── */
+            notes: JSON.parse(document.getElementById('sticky-notes-data').textContent),
+            noteDeleting: null,
 
-            loadTodos() {
-                try { this.todos = JSON.parse(localStorage.getItem(this.storageKey) || '{}'); }
-                catch(e) { this.todos = {}; }
-            },
-            saveTodos() {
-                localStorage.setItem(this.storageKey, JSON.stringify(this.todos));
-            },
-            get selectedYmd() { return this.toYMD(this.currentDate); },
-            get todosForDay() { return this.todos[this.selectedYmd] ?? []; },
-            addTodo() {
-                const text = this.newTodo.trim();
-                if (!text) return;
-                if (!this.todos[this.selectedYmd]) this.todos[this.selectedYmd] = [];
-                this.todos[this.selectedYmd] = [...this.todos[this.selectedYmd], { id: Date.now(), text }];
-                this.saveTodos();
-                this.newTodo = '';
-                this.showInput = false;
-            },
-            deleteTodo(id) {
-                if (!this.todos[this.selectedYmd]) return;
-                this.todos[this.selectedYmd] = this.todos[this.selectedYmd].filter(t => t.id !== id);
-                if (this.todos[this.selectedYmd].length === 0) delete this.todos[this.selectedYmd];
-                this.saveTodos();
-            },
             get selectedDateLabel() {
                 return this.currentDate.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
             },
+            noteDate(iso) {
+                return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+            },
+
+            openNewNote() {
+                if (typeof window._calPopOut === 'function') {
+                    window._calPopOut(null, '');
+                }
+            },
+            openViewNote(note) {
+                if (typeof window._calPopOut === 'function') {
+                    window._calPopOut(note.id, note.content);
+                }
+            },
+            async deleteNote(id) {
+                if (!confirm('Delete this sticky note?')) return;
+                this.noteDeleting = id;
+                try {
+                    await fetch('/notes/' + id, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': window._calCsrf || document.querySelector('meta[name=csrf-token]').content },
+                    });
+                    this.notes = this.notes.filter(n => n.id !== id);
+                    if (window._calPopupClosed) window._calPopupClosed(id);
+                } finally {
+                    this.noteDeleting = null;
+                }
+            },
+
+            async refreshNotes() {
+                try {
+                    const r = await fetch('/notes', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                    const data = await r.json();
+                    this.notes = Array.isArray(data) ? data : [];
+                } catch (e) {}
+            },
+
+            init() {
+                window.addEventListener('cal-notes-refresh', () => this.refreshNotes());
+                if (typeof window._calInit === 'function') window._calInit(this);
+            },
         }"
-        x-init="loadTodos()"
+        x-init="init()"
         class="flex w-full h-full overflow-hidden"
-        style="height: calc(100vh - 8rem);"
+        style="height: calc(100vh - 4rem);"
     >
         {{-- ══════════════════ LEFT SIDE ══════════════════ --}}
         <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-100">
@@ -334,10 +350,11 @@
                                                         @click="selectDay(cell.ymd)"
                                                         :class="{
                                                             'clr-bg-primary text-white': isSelected(cell.ymd),
+                                                            'clr-bg-accent text-white': !isSelected(cell.ymd) && hasTask(cell.ymd),
                                                             'bg-gray-100': isToday(cell.ymd) && !isSelected(cell.ymd),
                                                             'text-gray-500 hover:bg-gray-100': !isSelected(cell.ymd) && !isToday(cell.ymd),
                                                         }"
-                                                        class="w-8 h-8 text-sm rounded-full flex items-center justify-center transition relative"
+                                                        class="w-6 h-6 text-sm rounded-full flex items-center justify-center transition relative"
                                                         x-text="cell.day">
                                                     </button>
                                                 </template>
@@ -354,53 +371,43 @@
                 </div>
             </div>
 
-            {{-- ── To-do notepad (gray bottom) ── --}}
+            {{-- ── Sticky Notes (API-backed) ── --}}
             <div class="bg-gray-50 rounded-b flex-1 flex flex-col overflow-hidden">
 
-                {{-- Fixed header --}}
+                {{-- Header --}}
                 <div class="px-6 py-4 shrink-0 border-b border-gray-200">
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-normal text-gray-800">To-do</p>
-                        <button @click="showInput = !showInput"
-                                class="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-200 text-xl leading-none transition">
-                            <span x-text="showInput ? '×' : '+'"></span>
-                        </button>
+                        <button @click="openNewNote()"
+                                class="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-200 text-xl leading-none transition"
+                                title="New sticky note">+</button>
                     </div>
                     <p class="text-xs text-gray-400 mt-0.5" x-text="selectedDateLabel"></p>
                 </div>
 
-                {{-- Add input --}}
-                <div x-show="showInput" class="px-6 pt-3 shrink-0" x-transition>
-                    <div class="flex gap-2">
-                        <input
-                            x-model="newTodo"
-                            @keydown.enter="addTodo()"
-                            @keydown.escape="showInput=false; newTodo=''"
-                            type="text"
-                            placeholder="Write a note..."
-                            class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-gray-400 bg-white"
-                            x-ref="todoInput"
-                            x-effect="if(showInput) $nextTick(() => $refs.todoInput?.focus())"
-                        />
-                        <button @click="addTodo()"
-                                class="px-3 py-1.5 text-xs rounded-lg clr-bg-primary text-white hover:opacity-90 transition">
-                            Add
-                        </button>
-                    </div>
-                </div>
-
                 {{-- Scrollable notes list --}}
-                <div class="flex-1 overflow-y-auto px-6 py-3">
-                    <template x-if="todosForDay.length === 0">
-                        <p class="text-xs text-gray-400 text-center py-6">No notes for this day.</p>
+                <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+                    <template x-if="notes.length === 0">
+                        <p class="text-xs text-gray-400 text-center py-6">No sticky notes yet.<br>Click + to add one.</p>
                     </template>
 
-                    <template x-for="todo in todosForDay" :key="todo.id">
-                        <div class="flex items-start justify-between gap-2 border-b border-gray-200 py-2.5 group rounded px-1 -mx-1 hover:bg-gray-100 transition-colors duration-500">
-                            <p class="text-sm text-gray-800 leading-snug flex-1" x-text="todo.text"></p>
-                            <button @click="deleteTodo(todo.id)"
-                                    class="text-gray-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100 shrink-0 mt-0.5">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <template x-for="note in notes" :key="note.id">
+                        <div class="relative group rounded-lg p-3 shadow-sm cursor-pointer transition hover:shadow-md clr-bg-secondary text-base-100"
+                             @click="openViewNote(note)">
+                            {{-- Folded corner --}}
+                            <div class="absolute bottom-0 right-0 w-0 h-0 pointer-events-none"
+                                 style="border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent rgba(255,255,255,0.22) transparent;"></div>
+                            <p class="text-sm leading-snug pr-6 whitespace-pre-wrap line-clamp-3 font-normal"
+                               x-text="note.content"></p>
+                            <p class="text-xs mt-1.5 opacity-80"
+                               x-text="noteDate(note.updatedAt || note.createdAt)"></p>
+                            {{-- Delete button (hover) --}}
+                            <button @click.stop="deleteNote(note.id)"
+                                    :disabled="noteDeleting === note.id"
+                                    class="absolute inset-y-0 right-0 flex items-center pr-2 opacity-0 group-hover:opacity-100 transition"
+                                    title="Delete note">
+                                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
+                                     viewBox="0 0 24 24" class="text-base-100">
                                     <path d="M18 6L6 18M6 6l12 12"/>
                                 </svg>
                             </button>
@@ -412,3 +419,199 @@
     </div>
 
 </div>
+
+<script>
+// Calendar sticky-note Pop Out (Picture-in-Picture window)
+// Called by Alpine methods openNewNote/openViewNote via window._calPopOut(id, content)
+(function () {
+    window._calCsrf = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+
+    async function fetchNotes() {
+        const r = await fetch('/notes', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+        const data = await r.json();
+        return Array.isArray(data) ? data : [];
+    }
+
+    window._calPopOut = async function (noteId, noteContent) {
+        if (!('documentPictureInPicture' in window)) {
+            alert('Pop Out requires Chrome or Edge.');
+            return;
+        }
+
+        const pip = await documentPictureInPicture.requestWindow({ width: 320, height: 420 });
+
+        pip.document.head.innerHTML =
+            '<meta charset="UTF-8">' +
+            '<link href="https://fonts.bunny.net/css?family=ubuntu:400,500,600&display=swap" rel="stylesheet">' +
+            '<style>' +
+            '*, *::before, *::after { box-sizing:border-box; }' +
+            'html, body { width:100%; height:100%; margin:0; font-family:Ubuntu, sans-serif; background:#F0EFEF; }' +
+            '.hdr{background:#102B3C;color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;}' +
+            '.ttl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}' +
+            '.btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;}' +
+            '.btn:disabled{opacity:.5;cursor:not-allowed;}' +
+            '.wrap{padding:10px 12px;display:flex;flex-direction:column;gap:10px;height:calc(100% - 44px);}' +
+            '#editor{flex:1;display:flex;flex-direction:column;}' +
+            '.row{display:flex;gap:8px;}' +
+            'input,textarea{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:12px;outline:none;background:#fff;}' +
+            'textarea{min-height:110px;resize:none;}' +
+            '.list{flex:1;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;}' +
+            '.item{padding:10px 10px;border-bottom:1px solid #f3f4f6;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}' +
+            '.item:last-child{border-bottom:none;}' +
+            '.item p{margin:0;font-size:12px;line-height:1.35;color:#374151;white-space:pre-wrap;word-break:break-word;flex:1;}' +
+            '.x{border:none;background:none;color:#9ca3af;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;}' +
+            '.x:hover{color:#ef4444;}' +
+            '.muted{color:#9ca3af;font-size:12px;text-align:center;padding:18px 10px;}' +
+            '</style>';
+
+        pip.document.body.innerHTML =
+            '<div class="hdr">' +
+                '<div class="ttl">To-do</div>' +
+                '<button id="modeBtn" class="btn"></button>' +
+            '</div>' +
+            '<div class="wrap">' +
+                '<div id="editor"></div>' +
+                '<div class="list" id="list"></div>' +
+            '</div>';
+
+        const modeBtn = pip.document.getElementById('modeBtn');
+        const editor = pip.document.getElementById('editor');
+        const listEl = pip.document.getElementById('list');
+
+        let mode = noteId ? 'edit' : 'new'; // 'new' | 'edit' | 'list'
+        let currentId = noteId;
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function refreshCalendarList() {
+            // force Livewire/Alpine section to refresh by reloading notes via a small fetch and storage in window var
+            try { window.dispatchEvent(new CustomEvent('cal-notes-refresh')); } catch (e) {}
+        }
+
+        async function renderList() {
+            const notes = await fetchNotes();
+            if (!notes.length) {
+                listEl.innerHTML = '<div class="muted">No notes yet.</div>';
+                return;
+            }
+            listEl.innerHTML = notes.map(n =>
+                '<div class="item" data-id="' + n.id + '">' +
+                    '<p>' + escapeHtml((n.content ?? '')).slice(0, 240) + '</p>' +
+                    '<button class="x" data-del="' + n.id + '">✕</button>' +
+                '</div>'
+            ).join('');
+
+            listEl.querySelectorAll('[data-id]').forEach(el => {
+                el.onclick = (e) => {
+                    if (e.target && e.target.getAttribute('data-del')) return;
+                    const id = parseInt(el.getAttribute('data-id'), 10);
+                    const note = notes.find(nn => nn.id === id);
+                    currentId = id;
+                    mode = 'edit';
+                    render();
+                    if (note) {
+                        pip.document.getElementById('content').value = note.content || '';
+                    }
+                };
+            });
+            listEl.querySelectorAll('[data-del]').forEach(btn => {
+                btn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.getAttribute('data-del'), 10);
+                    await fetch('/notes/' + id, {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': window._calCsrf },
+                        credentials: 'same-origin',
+                    });
+                    await renderList();
+                    await refreshCalendarList();
+                };
+            });
+        }
+
+        async function render() {
+            if (mode === 'new') {
+                modeBtn.textContent = 'View list';
+                editor.style.display = 'flex';
+                listEl.style.display = 'block';
+                editor.innerHTML =
+                    '<div class="row">' +
+                        '<input id="content" type="text" placeholder="Write a note..." />' +
+                        '<button id="save" class="btn" style="background-color:#102b3c;">Add</button>' +
+                    '</div>';
+                listEl.innerHTML = '<div class="muted">Add a note, or switch to list.</div>';
+                pip.document.getElementById('save').onclick = async () => {
+                    const content = pip.document.getElementById('content').value.trim();
+                    if (!content) return;
+                    await fetch('/notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': window._calCsrf },
+                        body: JSON.stringify({ content, isPinned: false }),
+                        credentials: 'same-origin',
+                    });
+                    pip.document.getElementById('content').value = '';
+                    await refreshCalendarList();
+                };
+                pip.document.getElementById('content').onkeydown = (e) => {
+                    if (e.key === 'Enter') pip.document.getElementById('save').click();
+                };
+                return;
+            }
+
+            if (mode === 'edit') {
+                modeBtn.textContent = 'View list';
+                editor.style.display = 'flex';
+                editor.innerHTML =
+                    '<div style="display:flex;flex-direction:column;height:100%;">' +
+                        '<textarea id="content" placeholder="Edit note..." style="flex:1;resize:none;"></textarea>' +
+                        '<div class="row" style="justify-content:flex-end;margin-top:8px;">' +
+                            '<button id="update" class="btn" style="background-color:#102b3c;">Save</button>' +
+                        '</div>' +
+                    '</div>';
+                listEl.style.display = 'none';
+                pip.document.getElementById('content').value = noteContent || '';
+                pip.document.getElementById('update').onclick = async () => {
+                    const content = pip.document.getElementById('content').value.trim();
+                    await fetch('/notes/' + currentId, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': window._calCsrf },
+                        body: JSON.stringify({ content }),
+                        credentials: 'same-origin',
+                    });
+                    await refreshCalendarList();
+                };
+                return;
+            }
+
+            // list mode
+            modeBtn.textContent = 'New note';
+            editor.innerHTML = '';
+            editor.style.display = 'none';
+            listEl.style.display = 'block';
+            await renderList();
+        }
+
+        modeBtn.onclick = async () => {
+            if (mode === 'list') {
+                mode = 'new';
+            } else {
+                mode = 'list';
+            }
+            await render();
+        };
+
+        // If opened from clicking an existing note, go edit; otherwise new.
+        if (noteId) {
+            mode = 'edit';
+        }
+        await render();
+
+        // Mark closed
+        pip.addEventListener('pagehide', function () {
+            try { if (window._calPopupClosed) window._calPopupClosed(currentId); } catch (e) {}
+        });
+    };
+})();
+</script>

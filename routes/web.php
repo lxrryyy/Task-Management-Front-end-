@@ -5,6 +5,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\StickyNoteController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -24,8 +25,13 @@ Route::get('/projects', [ProjectController::class, 'index'])
     ->name('Projects');
 
 
-Route::get('/time-logs', function () {
-    return view('time-logs');
+Route::get('/audit-logs', function () {
+    $user = \Illuminate\Support\Facades\Session::get('user', []);
+    $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+    if ($role !== 'admin') {
+        abort(403);
+    }
+    return view('audit-logs');
 })->middleware(['api.auth'])->name('Time Logs');
 
 Route::get('/tasks', function () {
@@ -36,6 +42,10 @@ Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
     ->middleware(['api.auth'])
     ->name('projects.tasks');
 
+Route::get('/tasks/calculate-due-date', [TaskController::class, 'calculateDueDate'])
+    ->middleware(['api.auth'])
+    ->name('tasks.calculateDueDate');
+
 Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
     ->middleware(['api.auth'])
     ->name('tasks.store');
@@ -43,6 +53,7 @@ Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
 Route::patch('/projects/{project}/tasks/{task}/status', [TaskController::class, 'updateStatus'])
     ->middleware(['api.auth'])
     ->name('tasks.updateStatus');
+
 
 Route::middleware(['api.auth'])->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
@@ -57,6 +68,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+// ── Sticky Notes (proxied to C# backend) ─────────────────────────────────────
+Route::middleware(['api.auth'])->group(function () {
+    Route::get   ('/notes',        [StickyNoteController::class, 'index'])  ->name('notes.index');
+    Route::post  ('/notes',        [StickyNoteController::class, 'store'])  ->name('notes.store');
+    Route::patch ('/notes/{id}',   [StickyNoteController::class, 'update']) ->name('notes.update');
+    Route::delete('/notes/{id}',   [StickyNoteController::class, 'destroy'])->name('notes.destroy');
+    // Standalone always-on-top popup window
+    Route::get   ('/note-popup',   fn () => view('note-popup'))             ->name('note-popup');
 });
 
 // Logout: no auth middleware so API-only users (session api_token) can hit it and get token_forgotten redirect

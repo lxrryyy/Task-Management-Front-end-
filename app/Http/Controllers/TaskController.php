@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -99,10 +100,6 @@ class TaskController extends Controller
     }
 
     /**
-     * Fetch all task statuses from the C# API.
-     * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
-     */
-    /**
      * Response shape: [{id, name, description, active, createdAt}, ...]
      * Returns ['map' => [name => id, ...], 'names' => [name, ...]]
      */
@@ -192,6 +189,30 @@ class TaskController extends Controller
         );
     }
 
+    /**
+     * GET /tasks/calculate-due-date
+     * Proxies to /api/Task/CalculateDueDate?startDate=...&storyPoints=...
+     */
+    public function calculateDueDate(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'startDate'   => 'required|date',
+            'storyPoints' => 'required|integer|min:0',
+        ]);
+
+        $result = $this->api->get('/api/Task/CalculateDueDate', [
+            'startDate'   => $data['startDate'],
+            'storyPoints' => $data['storyPoints'],
+        ]);
+
+        if (is_string($result)) {
+            return response()->json(['dueDate' => $result]);
+        }
+
+        $due = $result['dueDate'] ?? $result['DueDate'] ?? $result['dueAt'] ?? null;
+        return response()->json(['dueDate' => $due]);
+    }
+
     public function store(int $projectId, Request $request)
     {
         $user      = Session::get('user', []);
@@ -213,7 +234,6 @@ class TaskController extends Controller
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
-        // Support both comma-separated string (Alpine) and array (fallback)
         $raw = $request->input('assigneeIds');
         $assigneeIds = is_array($raw)
             ? array_values(array_filter(array_map('intval', $raw)))
@@ -221,7 +241,6 @@ class TaskController extends Controller
 
         $priorityId = $request->integer('priorityId');
 
-        // Build body matching the C# API spec (priorityId, not priority)
         $payload = [
             'title'        => $request->input('name'),
             'description'  => $request->input('description') ?? '',
@@ -230,18 +249,39 @@ class TaskController extends Controller
             'projectId'    => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate'    => $toDate($request->input('startDate')),
-            'dueDate'      => $toDate($request->input('dueDate')),
+            'dueDate'      => $toDate($request->input('dueDate')) ?: null,
             'assigneeIds'  => $assigneeIds,
         ];
 
-        // Remove null date values so we don't send null strings
-        if ($payload['startDate'] === null) unset($payload['startDate']);
-        if ($payload['dueDate']   === null) unset($payload['dueDate']);
+        if ($payload['startDate'] === null)    unset($payload['startDate']);
+        if ($payload['dueDate']   === null)    unset($payload['dueDate']);
         if ($payload['parentTaskId'] === null) unset($payload['parentTaskId']);
 
         try {
-            // creatorId passed as query parameter per the API spec
-            $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
+            // ✅ CHANGED: capture result to extract warnings
+            $result = $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
+
+            // ✅ NEW: Extract warning messages if any assignee is overloaded
+            $warnings = $result['warnings'] ?? [];
+            $warningMessages = [];
+            foreach ($warnings as $w) {
+                if (!empty($w['message'])) {
+                    $warningMessages[] = $w['message'];
+                }
+            }
+
+            // ✅ CHANGED: flash warnings to session alongside success
+            $redirect = (string) $request->input('redirect_to', '');
+            if ($redirect === 'dashboard') {
+                return redirect()->route('dashboard')
+                    ->with('success', 'Task created successfully.')
+                    ->with('task_warnings', $warningMessages);
+            }
+
+            return redirect()->route('projects.tasks', $projectId)
+                ->with('success', 'Task created successfully.')
+                ->with('task_warnings', $warningMessages);
+
         } catch (RequestException $e) {
             $response = $e->response;
             $status   = $response?->status();
@@ -249,7 +289,7 @@ class TaskController extends Controller
 
             $fieldErrors = $this->api->extractFieldErrors($response);
 
-            // Sanitize: never pass empty/falsey error strings to the view (they render as a blank banner).
+            // Sanitize: never pass empty/falsey error strings to the view
             $fieldErrors = array_map(function ($msgs) {
                 $clean = [];
                 foreach ((array) $msgs as $m) {
@@ -270,9 +310,6 @@ class TaskController extends Controller
                 'errors'    => $fieldErrors,
             ]);
 
-            // Some backend implementations create the task but still return an error
-            // (e.g., partial failure after persisting). If we can't extract meaningful
-            // errors, do a quick re-fetch to confirm creation and avoid showing a false error.
             if (empty($fieldErrors) && $creatorId) {
                 try {
                     $projectResponse = $this->api->get(
@@ -309,17 +346,11 @@ class TaskController extends Controller
             }
 
             return back()->withInput()->withErrors($fieldErrors);
+
         } catch (\Throwable $e) {
             Log::error('Task create exception', ['message' => $e->getMessage()]);
             return back()->withInput()->withErrors(['api_error' => ['Failed to create task. Please try again.']]);
         }
-
-        $redirect = (string) $request->input('redirect_to', '');
-        if ($redirect === 'dashboard') {
-            return redirect()->route('dashboard')->with('success', 'Task created successfully.');
-        }
-
-        return redirect()->route('projects.tasks', $projectId)->with('success', 'Task created successfully.');
     }
 
     /**
@@ -342,7 +373,6 @@ class TaskController extends Controller
             $projArr = is_array($project) ? $project : [];
             $accounts = $this->projectMemberAccounts($projArr, (array) $allAccounts);
 
-            // Dashboard create-task flow: exclude the project creator/manager from assignee list.
             $creatorId = (int) (
                 $projArr['projectManagerId']
                 ?? $projArr['ProjectManagerId']
@@ -377,10 +407,8 @@ class TaskController extends Controller
             return $allAccounts;
         }
 
-        // Collect every person ID associated with the project
         $memberIds = [];
 
-        // Project manager / creator
         foreach (['projectManagerId', 'createdById', 'createdBy'] as $key) {
             if (!empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
@@ -388,7 +416,6 @@ class TaskController extends Controller
             }
         }
 
-        // Scrum master
         foreach (['scrumMasterId', 'ScrumMasterId'] as $key) {
             if (!empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
@@ -396,7 +423,6 @@ class TaskController extends Controller
             }
         }
 
-        // Regular members by ID array
         foreach (['memberIds', 'MemberIds', 'assigneeIds'] as $key) {
             if (!empty($project[$key]) && is_array($project[$key])) {
                 foreach ($project[$key] as $mid) {
@@ -406,7 +432,6 @@ class TaskController extends Controller
             }
         }
 
-        // If member IDs are unavailable, fall back to matching memberNames against the account list
         $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
         if (!empty($memberNames) && is_array($memberNames)) {
             $normalised = array_map('mb_strtolower', array_map('trim', $memberNames));
@@ -419,7 +444,6 @@ class TaskController extends Controller
             }
         }
 
-        // If we still couldn't identify any members, return the full list
         if (empty($memberIds)) {
             return $allAccounts;
         }
@@ -429,4 +453,3 @@ class TaskController extends Controller
         ));
     }
 }
-

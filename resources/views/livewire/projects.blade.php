@@ -194,9 +194,17 @@
                                 <span class="text-sm text-gray-400">No members</span>
                             @endif
                         </td>
-                        <th>
-                            <progress class="progress w-24" value="{{ $project['completionPercentage'] ?? $project['progress'] ?? 0 }}" max="100"></progress>
-                        </th>
+                        <td>
+                            @php
+                                $progressValue = (int) ($project['completionPercentage'] ?? $project['progress'] ?? 0);
+                                if ($progressValue < 0) $progressValue = 0;
+                                if ($progressValue > 100) $progressValue = 100;
+                            @endphp
+                            <div class="flex items-center gap-2 w-32">
+                                <progress class="progress flex-1" value="{{ $progressValue }}" max="100"></progress>
+                                <span class="text-xs text-gray-600">{{ $progressValue }}%</span>
+                            </div>
+                        </td>
                         <th>
                             @php
                                 // Project status is derived from tasks; display-only (no dropdown).

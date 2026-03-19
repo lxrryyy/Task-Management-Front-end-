@@ -1,5 +1,24 @@
 <div class="flex flex-col gap-4">
 
+    {{-- Success banner --}}
+    @if(session('success'))
+    <div class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
+        <span>{{ session('success') }}</span>
+    </div>
+    @endif
+
+    {{-- Overload warning banner --}}
+    @if(session('task_warnings') && count(session('task_warnings')) > 0)
+    <div class="alert alert-warning text-sm flex flex-col items-start gap-1 py-3 px-4 rounded-lg">
+        <span class="font-semibold">Task created with warnings:</span>
+        <ul class="list-disc list-inside">
+            @foreach(session('task_warnings') as $warning)
+                <li>{{ $warning }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
     {{-- API error banner --}}
     @if($moveError)
     <div class="alert alert-error text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
@@ -70,7 +89,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('tasks.store', $projectId) }}" class="mt-4 flex flex-col gap-4">
+            <form method="POST" action="{{ route('tasks.store', $projectId) }}" class="mt-4 flex flex-col gap-4" data-due-calc="true">
                 @csrf
                 @if($taskParentId)
                     <input type="hidden" name="parentTaskId" value="{{ $taskParentId }}" />
@@ -106,14 +125,16 @@
 
                     <div class="flex flex-col gap-1 flex-1 min-w-[120px]">
                         <label class="font-medium text-sm">Story Point</label>
-                        <input
+                        @php $storyPointOptions = [1,2,3,5,8,13,21]; @endphp
+                        <select
                             name="storyPoints"
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            class="input input-bordered rounded-lg w-full"
-                            value="{{ old('storyPoints') }}"
-                        />
+                            class="select select-bordered rounded-lg w-full text-gray-900 bg-white"
+                        >
+                            <option value="">Select</option>
+                            @foreach($storyPointOptions as $sp)
+                                <option value="{{ $sp }}" @selected(old('storyPoints') == $sp)>{{ $sp }}</option>
+                            @endforeach
+                        </select>
                     </div>
 
                     <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
@@ -136,6 +157,8 @@
                             type="date"
                             class="input input-bordered rounded-lg w-full {{ $errors->has('dueDate') ? 'border-red-500' : '' }}"
                             value="{{ old('dueDate') }}"
+                            placeholder="YYYY-MM-DD"
+                            readonly
                         />
                         @foreach($errors->get('dueDate') as $msg)
                             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
@@ -323,6 +346,75 @@
             </div>
             @endif
         </div>
+
+<script>
+// Enforce due date range (startDate .. calculatedDueDate) with flatpickr for Tasks create modal.
+document.addEventListener('change', async function (e) {
+    const target = e.target;
+    if (!target) return;
+
+    const name = target.getAttribute('name');
+    if (name !== 'startDate' && name !== 'storyPoints') return;
+
+    const form = target.closest('form[data-due-calc="true"]');
+    if (!form) return;
+
+    const startInput = form.querySelector('input[name="startDate"]');
+    const spSelect   = form.querySelector('select[name="storyPoints"]');
+    const dueInput   = form.querySelector('input[name="dueDate"]');
+    if (!startInput || !spSelect || !dueInput) return;
+
+    const start = startInput.value;
+    const sp    = spSelect.value;
+    if (!start || !sp) {
+        if (dueInput._flatpickr) {
+            dueInput._flatpickr.set('minDate', null);
+            dueInput._flatpickr.set('maxDate', null);
+        } else {
+            dueInput.min = '';
+            dueInput.max = '';
+        }
+        return;
+    }
+
+    try {
+        const url = `/tasks/calculate-due-date?startDate=${encodeURIComponent(start)}&storyPoints=${encodeURIComponent(sp)}`;
+        const r   = await fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!data.dueDate) return;
+        const dueDate = String(data.dueDate).substring(0, 10);
+
+        // Initialize flatpickr once per input
+        if (window.flatpickr && !dueInput._flatpickr) {
+            window.flatpickr(dueInput, {
+                dateFormat: 'Y-m-d',
+                allowInput: true,
+            });
+        }
+
+        if (dueInput._flatpickr) {
+            dueInput._flatpickr.set('minDate', start);
+            dueInput._flatpickr.set('maxDate', dueDate);
+            // Clamp and set visible date
+            let current = dueInput.value || dueDate;
+            if (current < start) current = start;
+            if (current > dueDate) current = dueDate;
+            dueInput._flatpickr.setDate(current, true);
+        } else {
+            // Fallback to native input
+            let current = dueInput.value || dueDate;
+            if (current < start) current = start;
+            if (current > dueDate) current = dueDate;
+            dueInput.value = current;
+            dueInput.min   = start;
+            dueInput.max   = dueDate;
+        }
+    } catch (e) {
+        // ignore
+    }
+});
+</script>
         <form method="dialog" class="modal-backdrop">
             <button type="button" wire:click="closeTaskDetail">close</button>
         </form>
