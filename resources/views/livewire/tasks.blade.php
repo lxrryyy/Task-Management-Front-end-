@@ -458,7 +458,7 @@ document.addEventListener('change', async function (e) {
     </dialog>
 
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
-        <table class="table w-full table-fixed border-separate [border-spacing:0_0.25rem]">
+        <table class="table w-full table-fixed border-collapse">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
                 <col class="w-10"><!-- checkbox -->
@@ -473,8 +473,8 @@ document.addEventListener('change', async function (e) {
             <thead>
             <tr class="bg-base-200">
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal"></th>
-                <th class="sticky top-0 z-10 bg-base-200 !font-normal"></th>
-                <th class="sticky top-0 z-10 bg-base-200 !font-normal">Task Name</th>
+                <th class="sticky top-0 z-10 bg-base-200 !font-normal pr-4"></th>
+                <th class="sticky top-0 z-10 bg-base-200 !font-normal pl-0">Task Name</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Assignee</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Due Date</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Story Point</th>
@@ -483,7 +483,7 @@ document.addEventListener('change', async function (e) {
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Action</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-gray-200">
             @php
                 // Group tasks by parentTaskId (null => parents)
                 $byParent = [];
@@ -570,10 +570,10 @@ document.addEventListener('change', async function (e) {
                             </button>
                         @endif
                     </td>
-                    <td wire:click.stop>
+                    <td wire:click.stop class="pr-4">
                         <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
                     </td>
-                    <td>
+                    <td class="pl-0">
                         <span class="font-normal">{{ $p['taskName'] }}</span>
                     </td>
                     <td>{{ $p['assignee'] }}</td>
@@ -650,7 +650,7 @@ document.addEventListener('change', async function (e) {
                                     </button>
                                 @endif
                             </td>
-                            <td wire:click.stop>
+                            <td wire:click.stop class="pl-10 pr-4">
                                 <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
                             </td>
                             <td class="pl-10">
@@ -714,7 +714,7 @@ document.addEventListener('change', async function (e) {
                                 <!-- Grandchild task rows -->
                                 <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
                                     <td wire:click.stop></td>
-                                    <td wire:click.stop>
+                                    <td wire:click.stop class="pl-16 pr-4">
                                         <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
                                     <td class="pl-16">
@@ -821,7 +821,7 @@ document.addEventListener('change', async function (e) {
             'Low'       => 'background:#f3f4f6;color:#6b7280;',
         ];
     @endphp
-    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-hidden min-h-0 max-h-[calc(100vh-11rem)] rounded-lg">
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-auto min-h-0 h-[calc(100vh-11rem)] rounded-lg">
         @foreach($boardStatuses as $status)
         @php $statusJs = addslashes($status); @endphp
         <div x-data="{ dragOver: false }"
@@ -835,7 +835,7 @@ document.addEventListener('change', async function (e) {
                 <span class="font-normal text-sm">{{ $status }}</span>
                 <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
             </div>
-            <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-3">
+            <div class="flex flex-col gap-2 flex-1 min-h-0 p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                 <div x-data="{ dragging: false }"
