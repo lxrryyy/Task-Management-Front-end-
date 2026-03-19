@@ -1,4 +1,4 @@
-<div x-data="{ ...auditLogsClient(@js($allLogs ?? []), 25), exportOpen: false }">
+<div x-data="{ ...auditLogsClient(@js($allLogs ?? []), 25), exportOpen: false, exportFrom: '', exportTo: '' }">
     <div class="flex w-full items-center clr-primary">
         <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
@@ -17,7 +17,7 @@
             </label>
         </div>
         <div class="flex flex-row gap-4">
-            <button type="button" @click="exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
+            <button type="button" @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
                 <x-icons.export classes="w-6 h-6" /> Export
             </button>
         </div>
@@ -31,21 +31,36 @@
         class="fixed inset-0 z-[9999] flex items-center justify-center"
         @keydown.escape.window="exportOpen = false"
     >
-        <div class="absolute inset-0 bg-black/30" @click="exportOpen = false"></div>
+        <div class="absolute inset-0 bg-gray-700 bg-opacity-50" style="background: rgba(107,114,128,0.55);" @click="exportOpen = false"></div>
         <div class="relative w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-200 p-6">
             <div class="flex items-start justify-between">
                 <h3 class="text-lg font-medium text-gray-900">Export Audit Logs</h3>
                 <button type="button" class="btn btn-ghost btn-sm" @click="exportOpen = false">✕</button>
             </div>
-            <p class="mt-1 text-sm text-gray-500">Choose a format to export.</p>
+            <p class="mt-1 text-sm text-gray-500">Choose a date range and format to export.</p>
 
-            <div class="mt-5 grid grid-cols-1 gap-3">
-                <a href="{{ route('auditLogs.export.pdf') }}"
-                   class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-gray-600">From</label>
+                    <input x-model="exportFrom" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-gray-600">To</label>
+                    <input x-model="exportTo" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 gap-3">
+                <a
+                    :href="`{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                >
                     Export to PDF
                 </a>
-                <a href="{{ route('auditLogs.export.excel') }}"
-                   class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
+                <a
+                    :href="`{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                >
                     Export to Excel
                 </a>
             </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CsharpApiService;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Session;
 
@@ -21,13 +22,26 @@ class AuditLogExportController extends Controller
         return (int) ($user['id'] ?? $user['Id'] ?? 0);
     }
 
-    public function exportExcel(CsharpApiService $api): Response
+    private function exportQuery(Request $request, int $requesterId): array
+    {
+        $data = $request->validate([
+            'from' => 'nullable|date',
+            'to'   => 'nullable|date',
+        ]);
+
+        $q = ['requesterId' => $requesterId];
+        if (!empty($data['from'])) $q['from'] = $data['from'];
+        if (!empty($data['to']))   $q['to']   = $data['to'];
+        return $q;
+    }
+
+    public function exportExcel(Request $request, CsharpApiService $api): Response
     {
         $this->ensureAdmin();
         $requesterId = $this->requesterId();
         abort_if($requesterId <= 0, 401);
 
-        $resp = $api->rawGet('/api/AuditLog/ExportExcel', ['requesterId' => $requesterId]);
+        $resp = $api->rawGet('/api/AuditLog/ExportExcel', $this->exportQuery($request, $requesterId));
 
         return response($resp->body(), $resp->status())
             ->withHeaders([
@@ -36,13 +50,13 @@ class AuditLogExportController extends Controller
             ]);
     }
 
-    public function exportPdf(CsharpApiService $api): Response
+    public function exportPdf(Request $request, CsharpApiService $api): Response
     {
         $this->ensureAdmin();
         $requesterId = $this->requesterId();
         abort_if($requesterId <= 0, 401);
 
-        $resp = $api->rawGet('/api/AuditLog/ExportPdf', ['requesterId' => $requesterId]);
+        $resp = $api->rawGet('/api/AuditLog/ExportPdf', $this->exportQuery($request, $requesterId));
 
         return response($resp->body(), $resp->status())
             ->withHeaders([
