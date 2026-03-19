@@ -155,7 +155,7 @@
 
                             <template x-for="n in items" :key="n.id">
                                 <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
-                                     :class="!n.isRead ? 'bg-blue-50/30' : ''">
+                                     :class="!n.isRead ? 'bg-gray-100' : ''">
                                     <div class="flex items-start gap-3">
                                         <div class="flex-1 min-w-0">
                                             <p class="text-sm text-gray-900 whitespace-pre-wrap break-words" x-text="n.message || ''"></p>
