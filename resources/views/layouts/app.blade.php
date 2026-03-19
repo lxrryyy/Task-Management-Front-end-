@@ -131,8 +131,11 @@
                     </div>
 
                     <div x-show="open"
+                         x-cloak
                          x-transition
                          @click.outside="open = false"
+                         style="display:none;"
+                         :style="open ? '' : 'display:none;'"
                          class="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white text-gray-900 rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
                         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                             <span class="text-sm font-semibold">Notifications</span>
@@ -192,156 +195,12 @@
 
 </div>
 
-{{-- Toast container --}}
-<div id="toast-container" class="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+{{-- Toast container--}}
+<div
+    id="toast-container"
+    class="fixed top-20 right-6 z-[10] flex flex-col gap-3 w-80 max-w-[90vw] pointer-events-none"
+></div>
 
 @livewireScripts
-<script>
-    function notifDropdown() {
-        const csrf = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
-
-        const norm = (n) => {
-            const id = parseInt(n.id ?? n.Id ?? 0) || 0;
-            const msg = (n.message ?? n.Message ?? '').toString();
-            const isRead = !!(n.isRead ?? n.IsRead ?? false);
-            const createdAtRaw = (n.createdAt ?? n.CreatedAt ?? '').toString();
-            let createdAtLabel = createdAtRaw;
-            if (createdAtRaw) {
-                const d = new Date(createdAtRaw);
-                if (!isNaN(d.getTime())) {
-                    createdAtLabel = d.toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-                }
-            }
-            return { id, message: msg, isRead, createdAt: createdAtRaw, createdAtLabel };
-        };
-
-        const showToast = (message) => {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-
-            const toast = document.createElement('div');
-            toast.className = [
-                'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg',
-                'text-white text-sm max-w-xs w-full',
-                'translate-x-full opacity-0 transition-all duration-300 ease-out'
-            ].join(' ');
-            toast.style.backgroundColor = '#102B3C';
-            toast.innerHTML = `
-                <svg class="w-5 h-5 shrink-0" style="color:#93c5fd" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                </svg>
-                <span class="flex-1">${message}</span>
-                <button onclick="this.closest('[data-toast]').remove()" style="opacity:0.6;font-size:1rem;line-height:1;background:none;border:none;color:white;cursor:pointer;">&times;</button>
-            `;
-            toast.setAttribute('data-toast', '');
-            container.appendChild(toast);
-
-            // Animate in
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    toast.classList.remove('translate-x-full', 'opacity-0');
-                });
-            });
-
-            // Auto-dismiss after 4s
-            setTimeout(() => {
-                toast.classList.add('translate-x-full', 'opacity-0');
-                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-            }, 4000);
-        };
-
-        return {
-            open: false,
-            loading: false,
-            items: [],
-            unreadCount: 0,
-
-            async init() {
-                await this.refreshUnread();
-                // Poll every 30s; toast if new notifications arrive
-                setInterval(async () => {
-                    const prevCount = this.unreadCount;
-                    await this.refreshUnread();
-                    if (this.unreadCount > prevCount) {
-                        const diff = this.unreadCount - prevCount;
-                        showToast(`You have ${diff} new notification${diff > 1 ? 's' : ''}!`);
-                    }
-                }, 30000);
-            },
-
-            toggle() {
-                this.open = !this.open;
-                if (this.open) {
-                    this.load();
-                }
-            },
-
-            async refreshUnread() {
-                try {
-                    const r = await fetch('/notifications/unread', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
-                    const data = await r.json();
-                    this.unreadCount = Array.isArray(data) ? data.filter(x => !(x.isRead ?? x.IsRead)).length : 0;
-                } catch (e) {
-                    // ignore
-                }
-            },
-
-            async load() {
-                this.loading = true;
-                try {
-                    const r = await fetch('/notifications', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
-                    const data = await r.json();
-                    this.items = Array.isArray(data) ? data.map(norm) : [];
-                    this.unreadCount = this.items.filter(x => !x.isRead).length;
-                } catch (e) {
-                    this.items = [];
-                } finally {
-                    this.loading = false;
-                }
-            },
-
-            async markRead(n) {
-                if (!n || !n.id || n.isRead) return;
-                try {
-                    await fetch(`/notifications/${n.id}/read`, {
-                        method: 'PUT',
-                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-                        credentials: 'same-origin',
-                    });
-                    n.isRead = true;
-                    this.unreadCount = Math.max(0, this.items.filter(x => !x.isRead).length);
-                } catch (e) {}
-            },
-
-            async markAllRead() {
-                if (this.unreadCount <= 0) return;
-                try {
-                    await fetch('/notifications/read-all', {
-                        method: 'PUT',
-                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({}),
-                    });
-                    this.items = this.items.map(x => ({ ...x, isRead: true }));
-                    this.unreadCount = 0;
-                } catch (e) {}
-            },
-
-            async remove(n) {
-                if (!n || !n.id) return;
-                try {
-                    await fetch(`/notifications/${n.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-                        credentials: 'same-origin',
-                    });
-                    this.items = this.items.filter(x => x.id !== n.id);
-                    this.unreadCount = Math.max(0, this.items.filter(x => !x.isRead).length);
-                } catch (e) {}
-            },
-        };
-    }
-</script>
 </body>
 </html>
