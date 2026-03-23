@@ -495,12 +495,13 @@ document.addEventListener('change', async function (e) {
 
                 $parents = $byParent['__root__'] ?? [];
 
-                $fmt = function (array $task) use ($accountMap, $taskPriorityMap) {
+                $fmt = function (array $task) use ($accountMap, $accountProfiles, $taskPriorityMap) {
                     $taskName = $task['name'] ?? $task['title'] ?? '';
 
                     // Resolve assignee name: prefer API-provided name fields,
                     // then look up each ID in the accounts map
                     $assignee = $task['assigneeName'] ?? $task['assignedToName'] ?? $task['reporterName'] ?? null;
+                    $assigneeProfiles = [];
                     if ($assignee === null || $assignee === '') {
                         $ids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
                         if (!is_array($ids)) $ids = [$ids];
@@ -512,6 +513,18 @@ document.addEventListener('change', async function (e) {
                         }
                         $assignee = implode(', ', $names);
                     }
+
+                    // Build assignee avatar profiles from IDs (if present).
+                    $rawIds = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
+                    if (!is_array($rawIds)) $rawIds = [$rawIds];
+                    foreach ($rawIds as $aid) {
+                        $aidInt = (int) $aid;
+                        if ($aidInt > 0 && isset($accountProfiles[$aidInt])) {
+                            $assigneeProfiles[] = $accountProfiles[$aidInt];
+                        }
+                    }
+                    // De-dupe (in case API returns duplicates)
+                    $assigneeProfiles = array_values(array_unique($assigneeProfiles, SORT_REGULAR));
                     $dueDateRaw  = $task['dueDate'] ?? $task['dueAt'] ?? null;
                     $storyPoints = $task['storyPoints'] ?? $task['storyPoint'] ?? $task['points'] ?? null;
                     $status      = $task['statusName'] ?? $task['status'] ?? '';
@@ -545,7 +558,7 @@ document.addEventListener('change', async function (e) {
                         default     => 'background:#f3f4f6;color:#6b7280;',
                     };
 
-                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityStyle','statusStyle');
+                    return compact('id','taskName','assignee','assigneeProfiles','dueDateRaw','storyPoints','status','priority','statusBadge','priorityStyle','statusStyle');
                 };
             @endphp
 
@@ -576,7 +589,53 @@ document.addEventListener('change', async function (e) {
                     <td class="pl-0">
                         <span class="font-normal">{{ $p['taskName'] }}</span>
                     </td>
-                    <td>{{ $p['assignee'] }}</td>
+                    <td>
+                        @php
+                            $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                            $assigneeCount = count($profiles);
+                            $visibleProfiles = array_slice($profiles, 0, 3);
+                            $overflowCount = max(0, $assigneeCount - 3);
+                        @endphp
+                        @if($assigneeCount > 0)
+                            <div class="avatar-group -space-x-6">
+                                @foreach($visibleProfiles as $mp)
+                                    <div class="avatar">
+                                        <div
+                                            data-assignee-avatar
+                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                        >
+                                            <span
+                                                data-assignee-initials
+                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                            >
+                                                {{ $mp['initials'] ?? '?' }}
+                                            </span>
+                                            @if(!empty($mp['profilePicture']))
+                                                <img
+                                                    src="{{ $mp['profilePicture'] }}"
+                                                    alt=""
+                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                    loading="lazy"
+                                                    referrerpolicy="no-referrer"
+                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                />
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+
+                                @if($overflowCount > 0)
+                                    <div class="avatar avatar-placeholder">
+                                        <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
+                        @endif
+                    </td>
                     <td>
                         @if($p['dueDateRaw'])
                             {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
@@ -656,7 +715,53 @@ document.addEventListener('change', async function (e) {
                             <td class="pl-10">
                                 <span class="font-normal">{{ $c['taskName'] }}</span>
                             </td>
-                            <td>{{ $c['assignee'] }}</td>
+                            <td>
+                                @php
+                                    $profiles = is_array($c['assigneeProfiles'] ?? null) ? ($c['assigneeProfiles'] ?? []) : [];
+                                    $assigneeCount = count($profiles);
+                                    $visibleProfiles = array_slice($profiles, 0, 3);
+                                    $overflowCount = max(0, $assigneeCount - 3);
+                                @endphp
+                                @if($assigneeCount > 0)
+                                    <div class="avatar-group -space-x-6">
+                                        @foreach($visibleProfiles as $mp)
+                                            <div class="avatar">
+                                                <div
+                                                    data-assignee-avatar
+                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                                >
+                                                    <span
+                                                        data-assignee-initials
+                                                        class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                                    >
+                                                        {{ $mp['initials'] ?? '?' }}
+                                                    </span>
+                                                    @if(!empty($mp['profilePicture']))
+                                                        <img
+                                                            src="{{ $mp['profilePicture'] }}"
+                                                            alt=""
+                                                            class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                            loading="lazy"
+                                                            referrerpolicy="no-referrer"
+                                                            onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                        />
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+
+                                        @if($overflowCount > 0)
+                                            <div class="avatar avatar-placeholder">
+                                                <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                                    <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-sm">{{ $c['assignee'] ?: '—' }}</span>
+                                @endif
+                            </td>
                             <td>
                                 @if($c['dueDateRaw'])
                                     {{ \Carbon\Carbon::parse($c['dueDateRaw'])->format('Y-m-d') }}
@@ -720,7 +825,53 @@ document.addEventListener('change', async function (e) {
                                     <td class="pl-16">
                                         <span class="font-normal">{{ $g['taskName'] }}</span>
                                     </td>
-                                    <td>{{ $g['assignee'] }}</td>
+                                    <td>
+                                        @php
+                                            $profiles = is_array($g['assigneeProfiles'] ?? null) ? ($g['assigneeProfiles'] ?? []) : [];
+                                            $assigneeCount = count($profiles);
+                                            $visibleProfiles = array_slice($profiles, 0, 3);
+                                            $overflowCount = max(0, $assigneeCount - 3);
+                                        @endphp
+                                        @if($assigneeCount > 0)
+                                            <div class="avatar-group -space-x-6">
+                                                @foreach($visibleProfiles as $mp)
+                                                    <div class="avatar">
+                                                        <div
+                                                            data-assignee-avatar
+                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                                        >
+                                                            <span
+                                                                data-assignee-initials
+                                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                                            >
+                                                                {{ $mp['initials'] ?? '?' }}
+                                                            </span>
+                                                            @if(!empty($mp['profilePicture']))
+                                                                <img
+                                                                    src="{{ $mp['profilePicture'] }}"
+                                                                    alt=""
+                                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                                    loading="lazy"
+                                                                    referrerpolicy="no-referrer"
+                                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                                />
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+
+                                                @if($overflowCount > 0)
+                                                    <div class="avatar avatar-placeholder">
+                                                        <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <span class="text-sm">{{ $g['assignee'] ?: '—' }}</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         @if($g['dueDateRaw'])
                                             {{ \Carbon\Carbon::parse($g['dueDateRaw'])->format('Y-m-d') }}
