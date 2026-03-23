@@ -17,11 +17,12 @@
         @php
             $manifest = json_decode(file_get_contents($manifestPath), true) ?? [];
         @endphp
+        {{-- Root-relative URLs so CSS/JS load from the same host as the page (LAN IP), not APP_URL/localhost --}}
         @if(!empty($manifest['resources/css/app.css']['file']))
-            <link rel="stylesheet" href="{{ asset('build/'.$manifest['resources/css/app.css']['file']) }}">
+            <link rel="stylesheet" href="/build/{{ $manifest['resources/css/app.css']['file'] }}">
         @endif
         @if(!empty($manifest['resources/js/app.js']['file']))
-            <script type="module" src="{{ asset('build/'.$manifest['resources/js/app.js']['file']) }}"></script>
+            <script type="module" src="/build/{{ $manifest['resources/js/app.js']['file'] }}"></script>
         @endif
     @else
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -37,9 +38,9 @@
          style="background-color: #102B3C;">
 
         <div class="flex items-center h-16 px-3 border-b border-white/20">
-            <img src="{{ asset('images/icon-white.png') }}" alt="Icon"
+            <img src="/images/icon-white.png" alt="Icon"
                  class="w-8 block group-hover:hidden" />
-            <img src="{{ asset('images/odecci-plain-logo.png') }}" alt="Logo"
+            <img src="/images/odecci-plain-logo.png" alt="Logo"
                  class="w-36 hidden group-hover:block" />
         </div>
 

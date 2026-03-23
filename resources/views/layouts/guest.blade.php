@@ -21,10 +21,10 @@
                 $manifest = json_decode(file_get_contents($manifestPath), true) ?? [];
             @endphp
             @if(!empty($manifest['resources/css/app.css']['file']))
-                <link rel="stylesheet" href="{{ asset('build/'.$manifest['resources/css/app.css']['file']) }}">
+                <link rel="stylesheet" href="/build/{{ $manifest['resources/css/app.css']['file'] }}">
             @endif
             @if(!empty($manifest['resources/js/app.js']['file']))
-                <script type="module" src="{{ asset('build/'.$manifest['resources/js/app.js']['file']) }}"></script>
+                <script type="module" src="/build/{{ $manifest['resources/js/app.js']['file'] }}"></script>
             @endif
         @else
             @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -32,7 +32,7 @@
     </head>
     <body class="font-sans text-gray-900 antialiased">
         <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100"
-        style="background-image: url('{{ asset('images/odecci-bg.png') }}');
+        style="background-image: url('/images/odecci-bg.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;">

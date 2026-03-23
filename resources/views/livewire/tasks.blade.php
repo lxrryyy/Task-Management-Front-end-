@@ -821,11 +821,11 @@ document.addEventListener('change', async function (e) {
             'Low'       => 'background:#f3f4f6;color:#6b7280;',
         ];
     @endphp
-    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-auto min-h-0 h-[calc(100vh-11rem)] rounded-lg">
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex items-stretch gap-4 w-full p-4 overflow-x-auto rounded-lg">
         @foreach($boardStatuses as $status)
         @php $statusJs = addslashes($status); @endphp
         <div x-data="{ dragOver: false }"
-             class="flex flex-col flex-1 min-w-[260px] max-w-[320px] min-h-0 rounded-lg transition-all duration-150 shrink-0"
+             class="flex flex-col flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
              :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''"
              @dragover.prevent
              @dragenter.prevent="dragOver = true"
@@ -835,7 +835,7 @@ document.addEventListener('change', async function (e) {
                 <span class="font-normal text-sm">{{ $status }}</span>
                 <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
             </div>
-            <div class="flex flex-col gap-2 flex-1 min-h-0 p-3">
+            <div class="flex flex-col gap-2 p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                 <div x-data="{ dragging: false }"
