@@ -197,6 +197,20 @@ class Settings extends Component
 
             // Refresh profile so initials + avatar background are consistent
             $this->loadProfile();
+
+            $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
+
+            // Keep header (and other pages) in sync without requiring manual refresh
+            $user = Session::get('user', []);
+            $user['profilePicture'] = $this->profilePicture;
+            $user['ProfilePicture'] = $this->profilePicture;
+            $user['name'] = $this->fullName;
+            $user['Name'] = $this->fullName;
+            $user['id'] = $this->accountId;
+            $user['Id'] = $this->accountId;
+            Session::put('user', $user);
+
+            $this->dispatch('avatar-updated', profilePicture: $this->profilePicture, initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName), avatarBg: $this->avatarBg, initialsTextClass: $initialsTextClass);
         } catch (\Throwable $e) {
             $this->saveError = 'Failed to remove profile picture. Please try again.';
         }
@@ -226,23 +240,55 @@ class Settings extends Component
         $this->showPhotoConfirmModal = false;
 
         try {
+            // If user selected a new photo, compute it once for both:
+            // 1) sending to the backend
+            // 2) instant UI update for the header (in case refresh response is delayed)
+            $pendingPicForUi = null;
+            if ($this->photo) {
+                $pendingPicForUi = $this->photoFileToDataUrl($this->photo);
+            }
+
             // Base payload follows your Swagger example for PATCH /api/Account/UpdateAccount/{id}
             $payload = [
-                'passwordHash' => $this->currentPassword,
-                'role' => $this->role,
                 'isActive' => true,
-                'profilePicture' => $this->profilePicture, // overwritten if new photo selected
-                'specializationPassword' => $this->bio,
-                'newPassword' => $this->newPassword,
-                'confirmPassword' => $this->confirmPassword,
-                // Extra fields (ignored server-side if not supported)
-                'firstName' => $this->firstName,
-                'lastName' => $this->lastName,
-                'email' => $this->email,
             ];
 
+            // Only send values that exist in the inputs
+            if (trim((string) $this->role) !== '') {
+                $payload['role'] = $this->role;
+            }
+
+            if ($this->bio !== '') {
+                $payload['specializationPassword'] = $this->bio;
+            }
+
+            if (trim((string) $this->currentPassword) !== '') {
+                $payload['passwordHash'] = $this->currentPassword;
+            }
+
+            if (trim((string) $this->newPassword) !== '') {
+                $payload['newPassword'] = $this->newPassword;
+            }
+
+            if (trim((string) $this->confirmPassword) !== '') {
+                $payload['confirmPassword'] = $this->confirmPassword;
+            }
+
+            if (trim((string) $this->firstName) !== '') {
+                $payload['firstName'] = $this->firstName;
+            }
+
+            if (trim((string) $this->lastName) !== '') {
+                $payload['lastName'] = $this->lastName;
+            }
+
+            if (trim((string) $this->email) !== '') {
+                $payload['email'] = $this->email;
+            }
+
+            // Only send profilePicture if user actually selected a new photo
             if ($this->photo) {
-                $payload['profilePicture'] = $this->photoFileToDataUrl($this->photo);
+                $payload['profilePicture'] = $pendingPicForUi;
             }
 
             app(CsharpApiService::class)->patch("/api/Account/UpdateAccount/{$this->accountId}", $payload);
@@ -253,6 +299,29 @@ class Settings extends Component
             $this->pendingPhotoName = null;
             $this->loadProfile();
             $this->saveSuccess = true;
+
+            $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
+            $picForHeader = !empty($this->profilePicture) ? $this->profilePicture : $pendingPicForUi;
+
+            // Update the session user object so the header has the latest profile picture.
+            $user = Session::get('user', []);
+            if (!empty($picForHeader)) {
+                $user['profilePicture'] = $picForHeader;
+                $user['ProfilePicture'] = $picForHeader;
+            }
+            $user['name'] = $this->fullName;
+            $user['Name'] = $this->fullName;
+            $user['id'] = $this->accountId;
+            $user['Id'] = $this->accountId;
+            Session::put('user', $user);
+
+            $this->dispatch(
+                'avatar-updated',
+                profilePicture: $picForHeader,
+                initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName),
+                avatarBg: $this->avatarBg,
+                initialsTextClass: $initialsTextClass
+            );
         } catch (RequestException $e) {
             $status = $e->response?->status();
             $body = null;

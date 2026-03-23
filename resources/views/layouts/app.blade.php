@@ -184,7 +184,53 @@
                         </div>
                     </div>
                 </div>
-                <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">👤</div>
+                @php
+                    $navUser = \Illuminate\Support\Facades\Session::get('user', []);
+                    $pic = $navUser['profilePicture'] ?? $navUser['ProfilePicture'] ?? null;
+                    $avatarSrc = $pic;
+                    $avatarHasImage = !empty($avatarSrc);
+                    $fullName = (string) ($navUser['name'] ?? $navUser['Name'] ?? $navUser['fullName'] ?? '');
+                    $parts = preg_split('/\s+/', trim($fullName));
+                    $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                    $first = (string) ($parts[0] ?? '');
+                    $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                    $initials = '';
+                    $a = mb_substr(trim($first), 0, 1);
+                    $b = mb_substr(trim($last), 0, 1);
+                    if ($a !== '' && $b !== '') $initials = mb_strtoupper($a.$b);
+                    else if ($a !== '') $initials = mb_strtoupper($a);
+                    else $initials = '?';
+
+                    $bgColors = ['#102B3C', '#205375', '#F0EFEF', '#ED1C24'];
+                    $seed = (string) ($navUser['id'] ?? $navUser['Id'] ?? $fullName);
+                    $bg = $bgColors[(int) (abs(crc32($seed)) % count($bgColors))];
+                    $initialsTextClass = $bg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
+                @endphp
+                <div
+                    id="header-avatar"
+                    class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
+                    style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
+                    data-avatar-bg="{{ $bg }}"
+                    data-avatar-initials-text-class="{{ $initialsTextClass }}"
+                >
+                    {{-- Always render initials; hide it only when the image loads --}}
+                    <span
+                        id="header-avatar-initials"
+                        class="font-semibold {{ $initialsTextClass }}"
+                        style="{{ $avatarHasImage ? 'display:none;' : '' }}"
+                    >
+                        {{ $initials }}
+                    </span>
+                    <img
+                        id="header-avatar-img"
+                        src="{{ $avatarSrc ?? '' }}"
+                        alt="Profile"
+                        class="h-full w-full object-cover"
+                        onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
+                        onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
+                        style="{{ empty($avatarSrc) ? 'display:none;' : '' }}"
+                    />
+                </div>
             </div>
         </div>
 
@@ -203,5 +249,36 @@
 ></div>
 
 @livewireScripts
+
+<script>
+    document.addEventListener('livewire:load', () => {
+        if (typeof Livewire === 'undefined') return;
+        Livewire.on('avatar-updated', (payload) => {
+            const wrap = document.getElementById('header-avatar');
+            const img = document.getElementById('header-avatar-img');
+            const span = document.getElementById('header-avatar-initials');
+            if (!wrap || !img || !span) return;
+
+            const pic = payload?.profilePicture;
+            const initialsTextClass = payload?.initialsTextClass || 'text-white';
+            const avatarBg = payload?.avatarBg || wrap.dataset.avatarBg || '#102B3C';
+
+            if (pic) {
+                wrap.style.backgroundColor = 'transparent';
+                img.src = pic;
+                img.style.display = '';
+                span.style.display = 'none';
+            } else {
+                img.style.display = 'none';
+                span.style.display = 'flex';
+                span.className = 'font-semibold ' + initialsTextClass;
+
+                wrap.style.backgroundColor = avatarBg;
+            }
+
+            if (payload?.initials) span.textContent = payload.initials;
+        });
+    });
+</script>
 </body>
 </html>
