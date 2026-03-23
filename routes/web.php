@@ -21,6 +21,10 @@ Route::get('/calendar', function () {
     return view('calendar');
 })->middleware(['api.auth'])->name('calendar');
 
+Route::get('/settings', function () {
+    return view('settings');
+})->middleware(['api.auth'])->name('settings');
+
 Route::get('/projects', [ProjectController::class, 'index'])
     ->middleware(['api.auth'])
     ->name('Projects');
