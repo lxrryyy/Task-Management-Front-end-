@@ -2,22 +2,18 @@
 
     {{-- Success banner --}}
     @if(session('success'))
-    <div class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
+    <div
+        x-data="{ show: true }"
+        x-init="setTimeout(() => show = false, 3500)"
+        x-show="show"
+        x-transition.opacity.duration.300ms
+        class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg"
+    >
         <span>{{ session('success') }}</span>
     </div>
     @endif
 
-    {{-- Overload warning banner --}}
-    @if(session('task_warnings') && count(session('task_warnings')) > 0)
-    <div class="alert alert-warning text-sm flex flex-col items-start gap-1 py-3 px-4 rounded-lg">
-        <span class="font-semibold">Task created with warnings:</span>
-        <ul class="list-disc list-inside">
-            @foreach(session('task_warnings') as $warning)
-                <li>{{ $warning }}</li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
+    {{-- Warning is shown under Due Date in the modal (not here) --}}
 
     {{-- API error banner --}}
     @if($moveError)
@@ -91,9 +87,67 @@
 
             <form method="POST" action="{{ route('tasks.store', $projectId) }}" class="mt-4 flex flex-col gap-4" data-due-calc="true">
                 @csrf
+                <input type="hidden" name="projectId" value="{{ (int) $projectId }}" />
                 @if($taskParentId)
                     <input type="hidden" name="parentTaskId" value="{{ $taskParentId }}" />
                 @endif
+
+                {{-- Assignees (multiple) — same style as project members, no table --}}
+                @php
+                    $rawOld = old('assigneeIds');
+                    $oldAssigneeIds = is_array($rawOld)
+                        ? array_map('intval', $rawOld)
+                        : array_filter(array_map('intval', array_filter(explode(',', (string) ($rawOld ?? '')))));
+                @endphp
+                <div class="flex flex-col gap-2"
+                     x-data="{
+                         selectedIds: {{ json_encode($oldAssigneeIds) }},
+                         toggle(id) {
+                             const idx = this.selectedIds.indexOf(id);
+                             if (idx >= 0) this.selectedIds.splice(idx, 1);
+                             else this.selectedIds.push(id);
+                             // Trigger due-date recalculation + overload precheck
+                             queueMicrotask(() => window.__tasksDueCalc?.recalc?.());
+                         }
+                     }">
+                    <label class="font-medium text-sm">Assignees</label>
+                    <div class="dropdown w-full">
+                        <div tabindex="0" role="button"
+                             class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
+                            <div class="flex flex-col">
+                                <span class="font-medium text-sm">Select assignees</span>
+                                <span class="text-xs text-gray-500" x-text="selectedIds.length ? selectedIds.length + ' selected' : 'Choose one or more assignees'"></span>
+                            </div>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                        <ul tabindex="0"
+                            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+                            @foreach($assignableAccounts as $account)
+                                @php
+                                    $aid    = $account['id']    ?? $account['Id']    ?? null;
+                                    $aname  = $account['name']  ?? $account['Name']  ?? 'Unknown';
+                                    $aemail = $account['email'] ?? $account['Email'] ?? '';
+                                @endphp
+                                @if($aid !== null)
+                                    <li class="px-2 py-1">
+                                        <x-person-option name="{{ $aname }}" :email="$aemail"
+                                                         @click="toggle({{ (int) $aid }})">
+                                            <template x-if="selectedIds.includes({{ (int) $aid }})">
+                                                <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
+                                                    <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
+                                                    <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </template>
+                                        </x-person-option>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
+                    <input type="hidden" name="assigneeIds" :value="selectedIds.join(',')" />
+                </div>
 
                 {{-- Task Name --}}
                 <div class="flex flex-col gap-1">
@@ -139,11 +193,18 @@
 
                     <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
                         <label class="font-medium text-sm">Start Date</label>
+                        @php
+                            $oldStartRaw = old('startDate');
+                            $oldStartVal = '';
+                            if ($oldStartRaw) {
+                                try { $oldStartVal = \Carbon\Carbon::parse($oldStartRaw)->format('Y-m-d\TH:i'); } catch (\Throwable) { $oldStartVal = (string) $oldStartRaw; }
+                            }
+                        @endphp
                         <input
                             name="startDate"
-                            type="date"
+                            type="datetime-local"
                             class="input input-bordered rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
-                            value="{{ old('startDate') }}"
+                            value="{{ $oldStartVal }}"
                         />
                         @foreach($errors->get('startDate') as $msg)
                             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
@@ -152,73 +213,40 @@
 
                     <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
                         <label class="font-medium text-sm">Due Date</label>
+                        @php
+                            $oldDueRaw = old('dueDate');
+                            $oldDueVal = '';
+                            if ($oldDueRaw) {
+                                try { $oldDueVal = \Carbon\Carbon::parse($oldDueRaw)->format('Y-m-d\TH:i'); } catch (\Throwable) { $oldDueVal = (string) $oldDueRaw; }
+                            }
+                        @endphp
                         <input
                             name="dueDate"
-                            type="date"
+                            type="datetime-local"
                             class="input input-bordered rounded-lg w-full {{ $errors->has('dueDate') ? 'border-red-500' : '' }}"
-                            value="{{ old('dueDate') }}"
-                            placeholder="YYYY-MM-DD"
-                            readonly
+                            value="{{ $oldDueVal }}"
                         />
                         @foreach($errors->get('dueDate') as $msg)
                             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
                         @endforeach
-                    </div>
-                </div>
 
-                {{-- Assignees (multiple) — same style as project members, no table --}}
-                @php
-                    $rawOld = old('assigneeIds');
-                    $oldAssigneeIds = is_array($rawOld)
-                        ? array_map('intval', $rawOld)
-                        : array_filter(array_map('intval', array_filter(explode(',', (string) ($rawOld ?? '')))));
-                @endphp
-                <div class="flex flex-col gap-2"
-                     x-data="{
-                         selectedIds: {{ json_encode($oldAssigneeIds) }},
-                         toggle(id) {
-                             const idx = this.selectedIds.indexOf(id);
-                             if (idx >= 0) this.selectedIds.splice(idx, 1);
-                             else this.selectedIds.push(id);
-                         }
-                     }">
-                    <label class="font-medium text-sm">Assignees</label>
-                    <div class="dropdown w-full">
-                        <div tabindex="0" role="button"
-                             class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
-                            <div class="flex flex-col">
-                                <span class="font-medium text-sm">Select assignees</span>
-                                <span class="text-xs text-gray-500" x-text="selectedIds.length ? selectedIds.length + ' selected' : 'Choose one or more assignees'"></span>
-                            </div>
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
+                        <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 hidden"
+                             data-overload-warnings>
+                            <p class="font-semibold mb-1">Task created with warnings:</p>
+                            <ul class="list-disc list-inside space-y-0.5" data-overload-warnings-list></ul>
                         </div>
-                        <ul tabindex="0"
-                            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
-                            @foreach($assignableAccounts as $account)
-                                @php
-                                    $aid    = $account['id']    ?? $account['Id']    ?? null;
-                                    $aname  = $account['name']  ?? $account['Name']  ?? 'Unknown';
-                                    $aemail = $account['email'] ?? $account['Email'] ?? '';
-                                @endphp
-                                @if($aid !== null)
-                                    <li class="px-2 py-1">
-                                        <x-person-option name="{{ $aname }}" :email="$aemail"
-                                                         @click="toggle({{ (int) $aid }})">
-                                            <template x-if="selectedIds.includes({{ (int) $aid }})">
-                                                <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
-                                                    <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827"/>
-                                                    <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            </template>
-                                        </x-person-option>
-                                    </li>
-                                @endif
-                            @endforeach
-                        </ul>
+
+                        @if(!empty($taskWarnings))
+                            <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
+                                <p class="font-semibold mb-1">Task created with warnings:</p>
+                                <ul class="list-disc list-inside space-y-0.5">
+                                    @foreach($taskWarnings as $warning)
+                                        <li>{{ $warning }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
                     </div>
-                    <input type="hidden" name="assigneeIds" :value="selectedIds.join(',')" />
                 </div>
 
                 {{-- Description --}}
@@ -348,71 +376,80 @@
         </div>
 
 <script>
-// Enforce due date range (startDate .. calculatedDueDate) with flatpickr for Tasks create modal.
-document.addEventListener('change', async function (e) {
-    const target = e.target;
-    if (!target) return;
+const toDateOnly = (v) => (v || '').toString().trim().substring(0, 10);
+const toDateTimeLocal = (v) => (v || '').toString().trim().substring(0, 16); // YYYY-MM-DDTHH:MM
 
-    const name = target.getAttribute('name');
-    if (name !== 'startDate' && name !== 'storyPoints') return;
+function setOverloadWarnings(form, warnings) {
+    const box  = form?.querySelector('[data-overload-warnings]');
+    const list = form?.querySelector('[data-overload-warnings-list]');
+    if (!box || !list) return;
 
-    const form = target.closest('form[data-due-calc="true"]');
+    const msgs = Array.isArray(warnings) ? warnings.filter(Boolean).map(String) : [];
+    list.innerHTML = msgs.map(m => `<li>${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</li>`).join('');
+    box.classList.toggle('hidden', msgs.length === 0);
+}
+
+async function recalcDueAndWarnings(form) {
     if (!form) return;
-
     const startInput = form.querySelector('input[name="startDate"]');
     const spSelect   = form.querySelector('select[name="storyPoints"]');
     const dueInput   = form.querySelector('input[name="dueDate"]');
+    const assignees  = form.querySelector('input[name="assigneeIds"]');
+    const projectId  = form.querySelector('input[name="projectId"]');
     if (!startInput || !spSelect || !dueInput) return;
 
     const start = startInput.value;
     const sp    = spSelect.value;
     if (!start || !sp) {
-        if (dueInput._flatpickr) {
-            dueInput._flatpickr.set('minDate', null);
-            dueInput._flatpickr.set('maxDate', null);
-        } else {
-            dueInput.min = '';
-            dueInput.max = '';
-        }
+        dueInput.min = '';
+        dueInput.max = '';
+        setOverloadWarnings(form, []);
         return;
     }
 
     try {
-        const url = `/tasks/calculate-due-date?startDate=${encodeURIComponent(start)}&storyPoints=${encodeURIComponent(sp)}`;
+        // Use the full datetime-local value so the API can calculate correctly.
+        const startDateParam = toDateTimeLocal(start);
+        const aid = assignees?.value ? String(assignees.value) : '';
+        const pid = projectId?.value ? String(projectId.value) : '';
+        const url = `/tasks/calculate-due-date?startDate=${encodeURIComponent(startDateParam)}&storyPoints=${encodeURIComponent(sp)}&assigneeIds=${encodeURIComponent(aid)}&projectId=${encodeURIComponent(pid)}`;
         const r   = await fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
         if (!r.ok) return;
         const data = await r.json();
-        if (!data.dueDate) return;
-        const dueDate = String(data.dueDate).substring(0, 10);
 
-        // Initialize flatpickr once per input
-        if (window.flatpickr && !dueInput._flatpickr) {
-            window.flatpickr(dueInput, {
-                dateFormat: 'Y-m-d',
-                allowInput: true,
-            });
-        }
+        if (data?.dueDate) {
+            const dueRaw = String(data.dueDate);
+            const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
 
-        if (dueInput._flatpickr) {
-            dueInput._flatpickr.set('minDate', start);
-            dueInput._flatpickr.set('maxDate', dueDate);
-            // Clamp and set visible date
-            let current = dueInput.value || dueDate;
+            let current = dueInput.value || maxDue;
             if (current < start) current = start;
-            if (current > dueDate) current = dueDate;
-            dueInput._flatpickr.setDate(current, true);
-        } else {
-            // Fallback to native input
-            let current = dueInput.value || dueDate;
-            if (current < start) current = start;
-            if (current > dueDate) current = dueDate;
+            if (current > maxDue) current = maxDue;
             dueInput.value = current;
-            dueInput.min   = start;
-            dueInput.max   = dueDate;
+            dueInput.min = start;
+            dueInput.max = maxDue;
         }
-    } catch (e) {
+
+        setOverloadWarnings(form, data?.warnings || []);
+    } catch {
         // ignore
     }
+}
+
+// Expose helper so assignee toggles can trigger recalculation too.
+window.__tasksDueCalc = {
+    recalc() {
+        const form = document.querySelector('form[data-due-calc="true"]');
+        recalcDueAndWarnings(form);
+    }
+};
+
+document.addEventListener('change', async function (e) {
+    const target = e.target;
+    if (!target) return;
+    const name = target.getAttribute('name');
+    if (name !== 'startDate' && name !== 'storyPoints') return;
+    const form = target.closest('form[data-due-calc="true"]');
+    recalcDueAndWarnings(form);
 });
 </script>
         <form method="dialog" class="modal-backdrop">
@@ -421,7 +458,7 @@ document.addEventListener('change', async function (e) {
     </dialog>
 
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
-        <table class="table w-full table-fixed border-separate [border-spacing:0_0.25rem]">
+        <table class="table w-full table-fixed border-collapse">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
                 <col class="w-10"><!-- checkbox -->
@@ -436,8 +473,8 @@ document.addEventListener('change', async function (e) {
             <thead>
             <tr class="bg-base-200">
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal"></th>
-                <th class="sticky top-0 z-10 bg-base-200 !font-normal"></th>
-                <th class="sticky top-0 z-10 bg-base-200 !font-normal">Task Name</th>
+                <th class="sticky top-0 z-10 bg-base-200 !font-normal pr-4"></th>
+                <th class="sticky top-0 z-10 bg-base-200 !font-normal pl-0">Task Name</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Assignee</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Due Date</th>
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Story Point</th>
@@ -446,7 +483,7 @@ document.addEventListener('change', async function (e) {
                 <th class="sticky top-0 z-10 bg-base-200 !font-normal">Action</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-gray-200">
             @php
                 // Group tasks by parentTaskId (null => parents)
                 $byParent = [];
@@ -458,12 +495,13 @@ document.addEventListener('change', async function (e) {
 
                 $parents = $byParent['__root__'] ?? [];
 
-                $fmt = function (array $task) use ($accountMap, $taskPriorityMap) {
+                $fmt = function (array $task) use ($accountMap, $accountProfiles, $taskPriorityMap) {
                     $taskName = $task['name'] ?? $task['title'] ?? '';
 
                     // Resolve assignee name: prefer API-provided name fields,
                     // then look up each ID in the accounts map
                     $assignee = $task['assigneeName'] ?? $task['assignedToName'] ?? $task['reporterName'] ?? null;
+                    $assigneeProfiles = [];
                     if ($assignee === null || $assignee === '') {
                         $ids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
                         if (!is_array($ids)) $ids = [$ids];
@@ -475,6 +513,18 @@ document.addEventListener('change', async function (e) {
                         }
                         $assignee = implode(', ', $names);
                     }
+
+                    // Build assignee avatar profiles from IDs (if present).
+                    $rawIds = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
+                    if (!is_array($rawIds)) $rawIds = [$rawIds];
+                    foreach ($rawIds as $aid) {
+                        $aidInt = (int) $aid;
+                        if ($aidInt > 0 && isset($accountProfiles[$aidInt])) {
+                            $assigneeProfiles[] = $accountProfiles[$aidInt];
+                        }
+                    }
+                    // De-dupe (in case API returns duplicates)
+                    $assigneeProfiles = array_values(array_unique($assigneeProfiles, SORT_REGULAR));
                     $dueDateRaw  = $task['dueDate'] ?? $task['dueAt'] ?? null;
                     $storyPoints = $task['storyPoints'] ?? $task['storyPoint'] ?? $task['points'] ?? null;
                     $status      = $task['statusName'] ?? $task['status'] ?? '';
@@ -508,7 +558,7 @@ document.addEventListener('change', async function (e) {
                         default     => 'background:#f3f4f6;color:#6b7280;',
                     };
 
-                    return compact('id','taskName','assignee','dueDateRaw','storyPoints','status','priority','statusBadge','priorityStyle','statusStyle');
+                    return compact('id','taskName','assignee','assigneeProfiles','dueDateRaw','storyPoints','status','priority','statusBadge','priorityStyle','statusStyle');
                 };
             @endphp
 
@@ -533,13 +583,59 @@ document.addEventListener('change', async function (e) {
                             </button>
                         @endif
                     </td>
-                    <td wire:click.stop>
+                    <td wire:click.stop class="pr-4">
                         <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
                     </td>
-                    <td>
+                    <td class="pl-0">
                         <span class="font-normal">{{ $p['taskName'] }}</span>
                     </td>
-                    <td>{{ $p['assignee'] }}</td>
+                    <td>
+                        @php
+                            $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                            $assigneeCount = count($profiles);
+                            $visibleProfiles = array_slice($profiles, 0, 3);
+                            $overflowCount = max(0, $assigneeCount - 3);
+                        @endphp
+                        @if($assigneeCount > 0)
+                            <div class="avatar-group -space-x-6">
+                                @foreach($visibleProfiles as $mp)
+                                    <div class="avatar">
+                                        <div
+                                            data-assignee-avatar
+                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                        >
+                                            <span
+                                                data-assignee-initials
+                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                            >
+                                                {{ $mp['initials'] ?? '?' }}
+                                            </span>
+                                            @if(!empty($mp['profilePicture']))
+                                                <img
+                                                    src="{{ $mp['profilePicture'] }}"
+                                                    alt=""
+                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                    loading="lazy"
+                                                    referrerpolicy="no-referrer"
+                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                />
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+
+                                @if($overflowCount > 0)
+                                    <div class="avatar avatar-placeholder">
+                                        <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
+                        @endif
+                    </td>
                     <td>
                         @if($p['dueDateRaw'])
                             {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
@@ -613,13 +709,59 @@ document.addEventListener('change', async function (e) {
                                     </button>
                                 @endif
                             </td>
-                            <td wire:click.stop>
+                            <td wire:click.stop class="pl-10 pr-4">
                                 <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
                             </td>
                             <td class="pl-10">
                                 <span class="font-normal">{{ $c['taskName'] }}</span>
                             </td>
-                            <td>{{ $c['assignee'] }}</td>
+                            <td>
+                                @php
+                                    $profiles = is_array($c['assigneeProfiles'] ?? null) ? ($c['assigneeProfiles'] ?? []) : [];
+                                    $assigneeCount = count($profiles);
+                                    $visibleProfiles = array_slice($profiles, 0, 3);
+                                    $overflowCount = max(0, $assigneeCount - 3);
+                                @endphp
+                                @if($assigneeCount > 0)
+                                    <div class="avatar-group -space-x-6">
+                                        @foreach($visibleProfiles as $mp)
+                                            <div class="avatar">
+                                                <div
+                                                    data-assignee-avatar
+                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                                >
+                                                    <span
+                                                        data-assignee-initials
+                                                        class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                                    >
+                                                        {{ $mp['initials'] ?? '?' }}
+                                                    </span>
+                                                    @if(!empty($mp['profilePicture']))
+                                                        <img
+                                                            src="{{ $mp['profilePicture'] }}"
+                                                            alt=""
+                                                            class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                            loading="lazy"
+                                                            referrerpolicy="no-referrer"
+                                                            onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                        />
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+
+                                        @if($overflowCount > 0)
+                                            <div class="avatar avatar-placeholder">
+                                                <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                                    <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-sm">{{ $c['assignee'] ?: '—' }}</span>
+                                @endif
+                            </td>
                             <td>
                                 @if($c['dueDateRaw'])
                                     {{ \Carbon\Carbon::parse($c['dueDateRaw'])->format('Y-m-d') }}
@@ -637,7 +779,7 @@ document.addEventListener('change', async function (e) {
                                          },
                                          get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                      }"
-                                     class="relative inline-flex items-center rounded-full pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                     class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
                                      :style="pill">
                                     <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
                                         <x-icons.circle />
@@ -677,13 +819,59 @@ document.addEventListener('change', async function (e) {
                                 <!-- Grandchild task rows -->
                                 <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
                                     <td wire:click.stop></td>
-                                    <td wire:click.stop>
+                                    <td wire:click.stop class="pl-16 pr-4">
                                         <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
                                     <td class="pl-16">
                                         <span class="font-normal">{{ $g['taskName'] }}</span>
                                     </td>
-                                    <td>{{ $g['assignee'] }}</td>
+                                    <td>
+                                        @php
+                                            $profiles = is_array($g['assigneeProfiles'] ?? null) ? ($g['assigneeProfiles'] ?? []) : [];
+                                            $assigneeCount = count($profiles);
+                                            $visibleProfiles = array_slice($profiles, 0, 3);
+                                            $overflowCount = max(0, $assigneeCount - 3);
+                                        @endphp
+                                        @if($assigneeCount > 0)
+                                            <div class="avatar-group -space-x-6">
+                                                @foreach($visibleProfiles as $mp)
+                                                    <div class="avatar">
+                                                        <div
+                                                            data-assignee-avatar
+                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                                        >
+                                                            <span
+                                                                data-assignee-initials
+                                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                                            >
+                                                                {{ $mp['initials'] ?? '?' }}
+                                                            </span>
+                                                            @if(!empty($mp['profilePicture']))
+                                                                <img
+                                                                    src="{{ $mp['profilePicture'] }}"
+                                                                    alt=""
+                                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                                    loading="lazy"
+                                                                    referrerpolicy="no-referrer"
+                                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                                />
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+
+                                                @if($overflowCount > 0)
+                                                    <div class="avatar avatar-placeholder">
+                                                        <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <span class="text-sm">{{ $g['assignee'] ?: '—' }}</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         @if($g['dueDateRaw'])
                                             {{ \Carbon\Carbon::parse($g['dueDateRaw'])->format('Y-m-d') }}
@@ -701,7 +889,7 @@ document.addEventListener('change', async function (e) {
                                                  },
                                                  get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
                                              }"
-                                             class="relative inline-flex items-center rounded-full pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
+                                             class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
                                              :style="pill">
                                             <span class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
                                                 <x-icons.circle />
@@ -784,11 +972,11 @@ document.addEventListener('change', async function (e) {
             'Low'       => 'background:#f3f4f6;color:#6b7280;',
         ];
     @endphp
-    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex gap-4 w-full p-4 overflow-x-auto overflow-y-hidden min-h-0 max-h-[calc(100vh-11rem)] rounded-lg">
+    <div class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex items-stretch gap-4 w-full p-4 overflow-x-auto rounded-lg">
         @foreach($boardStatuses as $status)
         @php $statusJs = addslashes($status); @endphp
         <div x-data="{ dragOver: false }"
-             class="flex flex-col flex-1 min-w-[260px] max-w-[320px] min-h-0 rounded-lg transition-all duration-150 shrink-0"
+             class="flex flex-col flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
              :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''"
              @dragover.prevent
              @dragenter.prevent="dragOver = true"
@@ -798,7 +986,7 @@ document.addEventListener('change', async function (e) {
                 <span class="font-normal text-sm">{{ $status }}</span>
                 <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
             </div>
-            <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-3">
+            <div class="flex flex-col gap-2 p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                 <div x-data="{ dragging: false }"

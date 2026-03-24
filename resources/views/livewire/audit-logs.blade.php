@@ -1,4 +1,4 @@
-<div x-data="auditLogsClient(@js($allLogs ?? []), 25)">
+<div x-data="{ ...auditLogsClient(@js($allLogs ?? []), 25), exportOpen: false, exportFrom: '', exportTo: '' }">
     <div class="flex w-full items-center clr-primary">
         <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
@@ -17,7 +17,53 @@
             </label>
         </div>
         <div class="flex flex-row gap-4">
-            <button class="btn clr-bg-primary text-base-100 rounded-lg p-4"><x-icons.export classes="w-6 h-6" /> Export</button>
+            <button type="button" @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
+                <x-icons.export classes="w-6 h-6" /> Export
+            </button>
+        </div>
+    </div>
+
+    {{-- Export modal --}}
+    <div
+        x-cloak
+        x-show="exportOpen"
+        x-transition.opacity
+        class="fixed inset-0 z-[9999] flex items-center justify-center"
+        @keydown.escape.window="exportOpen = false"
+    >
+        <div class="absolute inset-0 bg-gray-700 bg-opacity-50" style="background: rgba(107,114,128,0.55);" @click="exportOpen = false"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-200 p-6">
+            <div class="flex items-start justify-between">
+                <h3 class="text-lg font-medium text-gray-900">Export Audit Logs</h3>
+                <button type="button" class="btn btn-ghost btn-sm" @click="exportOpen = false">✕</button>
+            </div>
+            <p class="mt-1 text-sm text-gray-500">Choose a date range and format to export.</p>
+
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-gray-600">From</label>
+                    <input x-model="exportFrom" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs text-gray-600">To</label>
+                    <input x-model="exportTo" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 gap-3">
+                <a
+                    :href="`{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                >
+                    Export to PDF
+                </a>
+                <a
+                    :href="`{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                >
+                    Export to Excel
+                </a>
+            </div>
         </div>
     </div>
 
@@ -137,7 +183,7 @@
                     <td class="py-4 whitespace-nowrap">
                         <template x-if="l.action">
                             <span class="px-2 py-1 rounded text-[10px] font-semibold"
-                                  :class="l.actionClass"
+                                  :style="l.actionStyle"
                                   x-text="l.action"></span>
                         </template>
                         <template x-if="!l.action">
@@ -169,7 +215,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
                         @click="prevPage()"
                         :disabled="page <= 1">
                     Prev
@@ -178,7 +224,7 @@
                     Page <span x-text="page"></span> / <span x-text="totalPages"></span>
                 </span>
                 <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700"
+                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
                         @click="nextPage()"
                         :disabled="page >= totalPages">
                     Next
@@ -189,14 +235,17 @@
 
     <script>
         function auditLogsClient(logs, pageSize) {
-            const actionClass = (action) => ({
-                'DELETED': 'bg-red-100 text-red-700',
-                'UPDATED': 'bg-pink-100 text-pink-700',
-                'CREATED': 'bg-blue-100 text-blue-700',
-                'OPENED':  'bg-gray-100 text-gray-700',
-                'POST':    'bg-gray-100 text-gray-700',
-                'PATCH':   'bg-gray-100 text-gray-700',
-            })[action] || 'bg-gray-100 text-gray-700';
+            const actionStyle = (action) => ({
+                // DELETE - FEE2E2 (TEXT - 7F1D1D)
+                'DELETE':  'background:#FEE2E2;color:#7F1D1D;',
+                'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
+                // PATCH - C11574 (TEXT - FFFFFF)
+                'PATCH':   'background:#C11574;color:#FFFFFF;',
+                // POST - EEF4FF (TEXT - 3538CD)
+                'POST':    'background:#EEF4FF;color:#3538CD;',
+                // RESTORE - F2F4F7 (TEXT - 344054)
+                'RESTORE': 'background:#F2F4F7;color:#344054;',
+            })[action] || 'background:#F2F4F7;color:#344054;';
 
             const fmtDateTime = (at) => {
                 const s = (at || '').toString().trim();
@@ -222,7 +271,7 @@
                     userRole: (raw.userRole || '').toString().trim(),
                     projectName: (raw.projectName || '').toString().trim(),
                     action,
-                    actionClass: actionClass(action),
+                    actionStyle: actionStyle(action),
                     description: (raw.message || raw.entity || '').toString().trim(),
                     status: (raw.status || '').toString().trim(),
                     at,

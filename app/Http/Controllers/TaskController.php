@@ -191,26 +191,51 @@ class TaskController extends Controller
 
     /**
      * GET /tasks/calculate-due-date
-     * Proxies to /api/Task/CalculateDueDate?startDate=...&storyPoints=...
+     * Proxies to /api/Task/CheckAssigneeWorkload (new response shape)
      */
     public function calculateDueDate(Request $request): JsonResponse
     {
         $data = $request->validate([
             'startDate'   => 'required|date',
             'storyPoints' => 'required|integer|min:0',
+            'assigneeIds' => 'nullable|string',
+            'projectId'   => 'nullable|integer|min:1',
         ]);
 
-        $result = $this->api->get('/api/Task/CalculateDueDate', [
+        $params = [
             'startDate'   => $data['startDate'],
             'storyPoints' => $data['storyPoints'],
-        ]);
+        ];
+        if (!empty($data['assigneeIds'])) $params['assigneeIds'] = $data['assigneeIds'];
+        if (!empty($data['projectId']))  $params['projectId']  = (int) $data['projectId'];
 
-        if (is_string($result)) {
-            return response()->json(['dueDate' => $result]);
+        // New API shape:
+        // { projectedStartDate, projectedDueDate, storyPoints, warnings: [{message,...}] }
+        $result = $this->api->get('/api/Task/CheckAssigneeWorkload', $params);
+
+        $due = null;
+        if (is_array($result)) {
+            $due = $result['projectedDueDate']
+                ?? $result['ProjectedDueDate']
+                ?? $result['dueDate']
+                ?? $result['DueDate']
+                ?? $result['dueAt']
+                ?? null;
         }
 
-        $due = $result['dueDate'] ?? $result['DueDate'] ?? $result['dueAt'] ?? null;
-        return response()->json(['dueDate' => $due]);
+        $warningsRaw = is_array($result)
+            ? ($result['warnings'] ?? $result['Warnings'] ?? [])
+            : [];
+        $warningMessages = [];
+        foreach ((array) $warningsRaw as $w) {
+            if (is_array($w) && !empty($w['message'])) {
+                $warningMessages[] = (string) $w['message'];
+            } elseif (is_string($w) && trim($w) !== '') {
+                $warningMessages[] = trim($w);
+            }
+        }
+
+        return response()->json(['dueDate' => $due, 'warnings' => array_values(array_unique($warningMessages))]);
     }
 
     public function store(int $projectId, Request $request)
@@ -275,6 +300,7 @@ class TaskController extends Controller
             if ($redirect === 'dashboard') {
                 return redirect()->route('dashboard')
                     ->with('success', 'Task created successfully.')
+                    ->with('last_project_id', $projectId)
                     ->with('task_warnings', $warningMessages);
             }
 

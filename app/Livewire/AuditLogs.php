@@ -192,8 +192,9 @@ class AuditLogs extends Component
         $userName = trim($userName);
         $userEmail = (string) ($log['userEmail'] ?? $log['UserEmail'] ?? $log['email'] ?? $log['Email'] ?? '');
         $userEmail = trim($userEmail);
-        $userRole = (string) ($log['role'] ?? $log['Role'] ?? $log['roleName'] ?? $log['RoleName'] ?? '');
-        $userRole = trim($userRole);
+        $projectRole = (string) ($log['projectRole'] ?? $log['ProjectRole'] ?? '');
+        $projectRole = trim($projectRole);
+        $userRole = $projectRole; 
 
         $taskId = (int) ($log['taskId'] ?? $log['TaskId'] ?? $log['entityId'] ?? $log['EntityId'] ?? 0);
         $entity = (string) ($log['entity'] ?? $log['Entity'] ?? $log['entityType'] ?? $log['EntityType'] ?? '');
@@ -228,6 +229,7 @@ class AuditLogs extends Component
             'userName' => $userName,
             'userEmail' => $userEmail,
             'userRole' => $userRole,
+            'projectRole' => $projectRole,
             'taskId' => $taskId,
             'projectName' => $projectName,
             'status' => $status,
@@ -268,10 +270,8 @@ class AuditLogs extends Component
                 $email = trim((string) ($acc['email'] ?? ''));
             }
 
-            $role = trim((string) ($l['userRole'] ?? ''));
-            if ($role === '' && is_array($acc)) {
-                $role = trim((string) ($acc['role'] ?? ''));
-            }
+            // Role shown in the table/dropdown is projectRole (do not fall back to account role)
+            $role = trim((string) ($l['userRole'] ?? $l['projectRole'] ?? ''));
 
             $l['userName']  = $name;
             $l['userEmail'] = $email;
@@ -373,11 +373,6 @@ class AuditLogs extends Component
         sort($actionOptions);
 
         $roles = [];
-        foreach ($this->accounts as $a) {
-            if (!is_array($a)) continue;
-            $r = trim((string) ($a['role'] ?? ''));
-            if ($r !== '') $roles[$r] = true;
-        }
         foreach ($this->logs as $l) {
             $r = trim((string) ($l['userRole'] ?? ''));
             if ($r !== '') $roles[$r] = true;

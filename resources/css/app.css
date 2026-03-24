@@ -67,3 +67,7 @@ select:focus {
 .hover-clr-primary:hover {
     color: #102b3c;
 }
+
+.hover-clr-bg-white:hover {
+    background-color: white;
+}
