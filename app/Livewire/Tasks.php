@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Services\CsharpApiService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -35,6 +36,11 @@ class Tasks extends Component
 
     public bool $showTaskDetailModal = false;
     public ?array $detailTask = null;
+    public array $taskComments = [];
+    public string $newComment = '';
+    public ?int $editingCommentId = null;
+    public string $editingCommentContent = '';
+    public ?string $commentError = null;
 
     public function mount(
         ?int $projectId = null,
@@ -75,12 +81,141 @@ class Tasks extends Component
         $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
         $this->detailTask = $task ?: null;
         $this->showTaskDetailModal = $this->detailTask !== null;
+        $this->newComment = '';
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+        $this->commentError = null;
+        $this->taskComments = [];
+
+        if ($this->showTaskDetailModal) {
+            $this->loadTaskComments($taskId);
+        }
     }
 
     public function closeTaskDetail(): void
     {
         $this->showTaskDetailModal = false;
         $this->detailTask = null;
+        $this->taskComments = [];
+        $this->newComment = '';
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+        $this->commentError = null;
+    }
+
+    private function currentAccountId(): int
+    {
+        $user = Session::get('user', []);
+        return (int) ($user['id'] ?? $user['Id'] ?? 0);
+    }
+
+    private function loadTaskComments(int $taskId): void
+    {
+        $this->commentError = null;
+        try {
+            $raw = app(CsharpApiService::class)->get("/api/TaskComment/GetCommentsByTask/{$taskId}");
+            $list = is_array($raw)
+                ? ($raw['data'] ?? $raw['comments'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
+                : [];
+
+            $comments = [];
+            foreach ((array) $list as $c) {
+                if (!is_array($c)) continue;
+                $comments[] = [
+                    'id' => (int) ($c['id'] ?? $c['Id'] ?? 0),
+                    'taskId' => (int) ($c['taskId'] ?? $c['TaskId'] ?? 0),
+                    'accountId' => (int) ($c['accountId'] ?? $c['AccountId'] ?? 0),
+                    'accountName' => (string) ($c['accountName'] ?? $c['AccountName'] ?? 'User'),
+                    'content' => (string) ($c['content'] ?? $c['Content'] ?? ''),
+                    'createdAt' => (string) ($c['createdAt'] ?? $c['CreatedAt'] ?? ''),
+                    'updatedAt' => (string) ($c['updatedAt'] ?? $c['UpdatedAt'] ?? ''),
+                ];
+            }
+            $this->taskComments = $comments;
+        } catch (\Throwable $e) {
+            $this->taskComments = [];
+            $this->commentError = 'Failed to load comments.';
+        }
+    }
+
+    public function addComment(): void
+    {
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        $accountId = $this->currentAccountId();
+        $content = trim($this->newComment);
+
+        if ($taskId <= 0 || $accountId <= 0) return;
+        if ($content === '') return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->post(
+                "/api/TaskComment/CreateComment?accountId={$accountId}",
+                [
+                    'taskId' => $taskId,
+                    'content' => $content,
+                ]
+            );
+            $this->newComment = '';
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to add comment.';
+        }
+    }
+
+    public function startEditComment(int $commentId): void
+    {
+        $comment = collect($this->taskComments)->first(fn ($c) => (int)($c['id'] ?? 0) === $commentId);
+        if (!$comment) return;
+        $this->editingCommentId = $commentId;
+        $this->editingCommentContent = (string) ($comment['content'] ?? '');
+    }
+
+    public function cancelEditComment(): void
+    {
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+    }
+
+    public function updateComment(int $commentId): void
+    {
+        $accountId = $this->currentAccountId();
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        $content = trim($this->editingCommentContent);
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
+        if ($content === '') return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->patch(
+                "/api/TaskComment/UpdateComment/{$commentId}?accountId={$accountId}",
+                ['content' => $content]
+            );
+            $this->editingCommentId = null;
+            $this->editingCommentContent = '';
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to update comment.';
+        }
+    }
+
+    public function deleteComment(int $commentId): void
+    {
+        $accountId = $this->currentAccountId();
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->delete("/api/TaskComment/DeleteComment/{$commentId}?accountId={$accountId}");
+            if ($this->editingCommentId === $commentId) {
+                $this->editingCommentId = null;
+                $this->editingCommentContent = '';
+            }
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to delete comment.';
+        }
     }
 
     #[On('task-status-changed')]

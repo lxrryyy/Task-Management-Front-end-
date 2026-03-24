@@ -364,13 +364,65 @@
 
             <div class="mb-6">
                 <p class="text-sm font-normal text-gray-700 mb-2">Comment</p>
-                <div class="border border-gray-300 rounded-lg bg-white p-4 min-h-[80px] flex items-center">
-                    <span class="text-gray-400 text-sm cursor-pointer hover:text-gray-600">Write a comment..</span>
-                </div>
-            </div>
+                <div class="border border-gray-300 rounded-lg bg-white p-4 min-h-[80px]">
+                    @if($commentError)
+                        <div class="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ $commentError }}</div>
+                    @endif
 
-            <div class="flex justify-end">
-                <button type="button" class="btn clr-bg-primary text-base-100 px-6">Send</button>
+                    <div class="flex items-start gap-2 mb-4">
+                        <textarea
+                            wire:model.defer="newComment"
+                            class="textarea textarea-bordered w-full min-h-[64px]"
+                            placeholder="Write a comment..."
+                        ></textarea>
+                        <button type="button" wire:click="addComment" class="btn clr-bg-primary text-base-100 px-4">Send</button>
+                    </div>
+
+                    <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        @forelse($taskComments as $cmt)
+                            @php
+                                $isMine = (int)($cmt['accountId'] ?? 0) === (int)$currentUserId;
+                                $isEditing = (int)($editingCommentId ?? 0) === (int)($cmt['id'] ?? 0);
+                            @endphp
+                            <div class="rounded-lg border border-gray-200 p-3 bg-gray-50/40">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">{{ $cmt['accountName'] ?? 'User' }}</p>
+                                        <p class="text-xs text-gray-500">
+                                            @if(!empty($cmt['createdAt']))
+                                                {{ \Carbon\Carbon::parse($cmt['createdAt'])->format('M d, Y h:i A') }}
+                                            @else
+                                                —
+                                            @endif
+                                        </p>
+                                    </div>
+                                    @if($isMine)
+                                        <div class="flex items-center gap-2">
+                                            @if(!$isEditing)
+                                                <button type="button" wire:click="startEditComment({{ (int)($cmt['id'] ?? 0) }})" class="text-xs text-blue-600 hover:underline">Edit</button>
+                                            @endif
+                                            <button type="button" wire:click="deleteComment({{ (int)($cmt['id'] ?? 0) }})" class="text-xs text-red-600 hover:underline">Delete</button>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                @if($isEditing)
+                                    <div class="mt-2 flex items-start gap-2">
+                                        <textarea wire:model.defer="editingCommentContent" class="textarea textarea-bordered w-full min-h-[56px]"></textarea>
+                                        <div class="flex flex-col gap-1">
+                                            <button type="button" wire:click="updateComment({{ (int)($cmt['id'] ?? 0) }})" class="btn btn-xs clr-bg-primary text-base-100">Save</button>
+                                            <button type="button" wire:click="cancelEditComment" class="btn btn-xs">Cancel</button>
+                                        </div>
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">{{ $cmt['content'] ?? '' }}</p>
+                                @endif
+                            </div>
+                        @empty
+                            <p class="text-sm text-gray-400">No comments yet.</p>
+                        @endforelse
+                    </div>
+                </div>
             </div>
             @endif
         </div>
