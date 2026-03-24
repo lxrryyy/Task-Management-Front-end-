@@ -136,7 +136,7 @@
                         <th class="!font-normal">Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
                 @forelse(($filteredProjects ?? []) as $project)
                     @php
                         $projectId = $project['id'] ?? $project['Id'] ?? null;
@@ -150,6 +150,7 @@
 
                         // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
                         $memberNames = [];
+                        $memberProfiles = [];
                         $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
                         if (is_array($assigneeIds) && !empty($assigneeIds)) {
                             $creatorIdInt = (int)($creatorId ?? 0);
@@ -158,7 +159,26 @@
                                 if ($aid === $creatorIdInt) continue;
                                 $acc = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $aid);
                                 if ($acc) {
-                                    $memberNames[] = trim($acc['name'] ?? $acc['Name'] ?? '');
+                                    $memberName = trim($acc['name'] ?? $acc['Name'] ?? '');
+                                    if ($memberName !== '') $memberNames[] = $memberName;
+
+                                    $pp = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
+
+                                    // Build initials from name (fallback if no picture)
+                                    $parts = preg_split('/\s+/', trim($memberName));
+                                    $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                                    $first = (string) ($parts[0] ?? '');
+                                    $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                                    $a0 = mb_substr(trim($first), 0, 1);
+                                    $b0 = mb_substr(trim($last), 0, 1);
+                                    $initials = '';
+                                    if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
+                                    elseif ($a0 !== '') $initials = mb_strtoupper($a0);
+
+                                    $memberProfiles[] = [
+                                        'profilePicture' => $pp,
+                                        'initials' => $initials ?: '?',
+                                    ];
                                 }
                             }
                         }
@@ -174,13 +194,37 @@
                                 }
                                 $memberNames = array_values(array_unique(array_map('trim', $memberNames)));
                             }
+
+                            // If backend didn't provide assigneeIds, we can only approximate member avatars from names.
+                            if (!empty($memberNames)) {
+                                $accountsList = collect($accounts ?? []);
+                                foreach ($memberNames as $mn) {
+                                    $mn = (string) trim($mn);
+                                    $acc = $accountsList->first(function ($a) use ($mn) {
+                                        $name = (string) ($a['name'] ?? $a['Name'] ?? '');
+                                        return trim($name) === trim($mn);
+                                    });
+
+                                    $pp = $acc ? ($acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null) : null;
+
+                                    $parts = preg_split('/\s+/', trim($mn));
+                                    $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                                    $first = (string) ($parts[0] ?? '');
+                                    $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                                    $a0 = mb_substr(trim($first), 0, 1);
+                                    $b0 = mb_substr(trim($last), 0, 1);
+                                    $initials = '';
+                                    if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
+                                    elseif ($a0 !== '') $initials = mb_strtoupper($a0);
+                                    $memberProfiles[] = ['profilePicture' => $pp, 'initials' => $initials ?: '?'];
+                                }
+                            }
                         }
-                        $membersDisplay = is_array($memberNames) && !empty($memberNames) ? implode(', ', $memberNames) : '—';
-                        $memberCount = is_array($memberNames) ? count($memberNames) : ($project['memberCount'] ?? '—');
+                        $memberCount = is_array($memberProfiles) ? count($memberProfiles) : 0;
                         $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
                         $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
                     @endphp
-                    <tr class="hover:bg-gray-50 cursor-pointer"
+                    <tr class="hover:bg-gray-50 cursor-pointer border-b border-gray-200"
                         @if($projectId)
                             @click="window.location='{{ route('projects.tasks', $projectId) }}'"
                         @endif
@@ -188,8 +232,46 @@
                         <td><span class="underline-offset-2">{{ $name }}</span></td>
                         <td>{{ $leaderDisplay }}</td>
                         <td>
-                            @if($membersDisplay !== '—')
-                                <span class="block text-sm">{{ $membersDisplay }}</span>
+                            @if($memberCount > 0)
+                                @php
+                                    $visibleProfiles = array_slice($memberProfiles, 0, 3);
+                                    $overflowCount = max(0, (int) $memberCount - 3);
+                                @endphp
+                                <div class="avatar-group -space-x-3">
+                                    @foreach($visibleProfiles as $mp)
+                                        <div class="avatar" data-member-avatar>
+                                            <div
+                                                class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
+                                            >
+                                                <span
+                                                    data-member-initials
+                                                    class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
+                                                >
+                                                    {{ $mp['initials'] ?? '?' }}
+                                                </span>
+
+                                                @if(!empty($mp['profilePicture']))
+                                                    <img
+                                                        src="{{ $mp['profilePicture'] }}"
+                                                        alt=""
+                                                        class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                        loading="lazy"
+                                                        referrerpolicy="no-referrer"
+                                                        onerror="this.style.display='none'; var wrap=this.closest('[data-member-avatar]'); if(wrap){var sp=wrap.querySelector('[data-member-initials]'); if(sp){sp.classList.remove('hidden');}}"
+                                                    />
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+
+                                    @if($overflowCount > 0)
+                                        <div class="avatar avatar-placeholder">
+                                            <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
+                                                <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
                             @else
                                 <span class="text-sm text-gray-400">No members</span>
                             @endif
@@ -257,7 +339,7 @@
                         </th>
                     </tr>
                 @empty
-                    <tr>
+                    <tr class="border-b border-gray-200">
                         <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
                     </tr>
                 @endforelse

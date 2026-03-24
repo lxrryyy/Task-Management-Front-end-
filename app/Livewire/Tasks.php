@@ -30,6 +30,9 @@ class Tasks extends Component
     public bool $showAddTaskModal = false;
     public ?int $taskParentId = null;
 
+    /** Persist overload warnings across Livewire re-renders */
+    public array $taskWarnings = [];
+
     public bool $showTaskDetailModal = false;
     public ?array $detailTask = null;
 
@@ -45,6 +48,7 @@ class Tasks extends Component
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
         $this->taskParentId = $taskParentId;
+        $this->taskWarnings = array_values(array_filter((array) Session::get('task_warnings', [])));
 
         $statusData = app(TaskController::class)->getStatuses();
         $this->statusMap = $statusData['map'] ?? [];
@@ -262,6 +266,7 @@ class Tasks extends Component
     {
         $this->showAddTaskModal = false;
         $this->taskParentId = null;
+        $this->taskWarnings = [];
     }
 
     public function addSubtask(int $parentTaskId): void
@@ -322,6 +327,7 @@ class Tasks extends Component
         }
 
         $accountMap = [];
+        $accountProfiles = [];
         foreach ($this->accounts as $account) {
             $id = $account['id'] ?? $account['Id'] ?? null;
             $name = $account['name']
@@ -329,7 +335,36 @@ class Tasks extends Component
                 ?? $account['username']
                 ?? trim(($account['firstName'] ?? '') . ' ' . ($account['lastName'] ?? ''))
                 ?: null;
-            if ($id !== null && $name !== null) $accountMap[(int) $id] = $name;
+            if ($id === null) {
+                continue;
+            }
+
+            $accountId = (int) $id;
+            if ($name !== null) {
+                $accountMap[$accountId] = $name;
+            }
+
+            $profilePicture = $account['profilePicture'] ?? $account['ProfilePicture'] ?? null;
+
+            $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
+            $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+            $first = (string) ($parts[0] ?? '');
+            $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+            $a0 = mb_substr(trim($first), 0, 1);
+            $b0 = mb_substr(trim($last), 0, 1);
+            if ($a0 !== '' && $b0 !== '') {
+                $initials = mb_strtoupper($a0 . $b0);
+            } elseif ($a0 !== '') {
+                $initials = mb_strtoupper($a0);
+            } else {
+                $initials = '?';
+            }
+
+            $accountProfiles[$accountId] = [
+                'profilePicture' => $profilePicture,
+                'initials' => $initials,
+                'name' => $name,
+            ];
         }
 
         $user = Session::get('user', []);
@@ -354,6 +389,7 @@ class Tasks extends Component
             'boardStatuses'      => $statuses,
             'boardGrouped'       => $grouped,
             'accountMap'         => $accountMap,
+            'accountProfiles'   => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,
             'taskPriorities'     => $this->taskPriorities['items'] ?? [],
             'taskPriorityNames'  => $this->taskPriorities['names'] ?? [],

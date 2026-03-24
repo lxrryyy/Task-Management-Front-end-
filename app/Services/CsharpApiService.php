@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Http\Client\Response as HttpResponse;
 
 class CsharpApiService
 {
@@ -40,6 +41,14 @@ class CsharpApiService
     {
         $result = $this->client()->get($endpoint, $query)->throw()->json();
         return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Raw GET (for file downloads / non-JSON responses).
+     */
+    public function rawGet(string $endpoint, array $query = []): HttpResponse
+    {
+        return $this->client()->get($endpoint, $query)->throw();
     }
 
     public function post(string $endpoint, array $data = []): array
