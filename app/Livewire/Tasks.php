@@ -12,6 +12,8 @@ use Livewire\Component;
 class Tasks extends Component
 {
     public ?int $projectId = null;
+    /** Project payload from GetProjectById (used for delete permissions: PM / Scrum Master). */
+    public ?array $project = null;
     public array $tasks = [];
     public array $accounts = [];
 
@@ -42,6 +44,11 @@ class Tasks extends Component
     public string $editingCommentContent = '';
     public ?string $commentError = null;
 
+    // Delete confirmation modal state
+    public bool $showDeleteConfirmModal = false;
+    public ?int $pendingDeleteTaskId = null;
+    public ?string $pendingDeleteTaskName = null;
+
     public function mount(
         ?int $projectId = null,
         array $tasks = [],
@@ -50,8 +57,10 @@ class Tasks extends Component
         ?int $taskParentId = null,
         ?int $openTaskId = null,
         ?int $openCommentId = null,
+        ?array $project = null,
     ): void {
         $this->projectId = $projectId;
+        $this->project = $project;
         $this->tasks = $tasks;
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
@@ -418,6 +427,150 @@ class Tasks extends Component
         $this->showAddTaskModal = true;
     }
 
+    private function canDeleteTasks(): bool
+    {
+        $user = Session::get('user', []);
+        $uid = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($uid <= 0) {
+            return false;
+        }
+
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        if ($role === 'admin' || $role === 'superadmin') {
+            return true;
+        }
+
+        $proj = $this->project;
+        if (! is_array($proj) || $proj === []) {
+            return false;
+        }
+
+        $pmId = (int) (
+            $proj['projectManagerId'] ?? $proj['ProjectManagerId']
+            ?? $proj['createdById'] ?? $proj['CreatedById']
+            ?? $proj['createdBy'] ?? $proj['CreatedBy'] ?? 0
+        );
+
+        if ($pmId > 0 && $pmId === $uid) {
+            return true;
+        }
+
+        $smId = (int) ($proj['scrumMasterId'] ?? $proj['ScrumMasterId'] ?? 0);
+        if ($smId > 0 && $smId === $uid) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function reloadTasksFromApi(): void
+    {
+        $pid = (int) ($this->projectId ?? 0);
+        $requesterId = $this->currentAccountId();
+        if ($pid <= 0 || $requesterId <= 0) {
+            return;
+        }
+
+        try {
+            $api = app(CsharpApiService::class);
+            $projectResponse = $api->get(
+                "/api/Task/GetTasksByProject/{$pid}",
+                ['requesterId' => $requesterId]
+            );
+            $allTasks = is_array($projectResponse)
+                ? $projectResponse
+                : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+
+            $assignedIds = [];
+            try {
+                $assignedResponse = $api->get("/api/Task/GetTasksByAssignee/{$requesterId}");
+                $assignedTasks = is_array($assignedResponse)
+                    ? $assignedResponse
+                    : ($assignedResponse['data'] ?? $assignedResponse['tasks'] ?? []);
+                foreach ($assignedTasks as $t) {
+                    if (isset($t['id'])) {
+                        $assignedIds[(int) $t['id']] = true;
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            $tasks = [];
+            foreach ((array) $allTasks as $t) {
+                if (! is_array($t)) {
+                    continue;
+                }
+                if (isset($t['id']) && isset($assignedIds[(int) $t['id']])) {
+                    $t['isMine'] = true;
+                } else {
+                    $t['isMine'] = false;
+                }
+                $tasks[] = $t;
+            }
+            $this->tasks = $tasks;
+        } catch (\Throwable) {
+            // keep existing $this->tasks
+        }
+    }
+
+    public function confirmDeleteTask(int $taskId): void
+    {
+        if (! $this->canDeleteTasks()) {
+            $this->moveError = 'You do not have permission to delete tasks.';
+            return;
+        }
+
+        $this->pendingDeleteTaskId = $taskId;
+        $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
+        $this->pendingDeleteTaskName = trim((string) ($task['name'] ?? $task['title'] ?? 'this task')) ?: 'this task';
+        $this->showDeleteConfirmModal = true;
+    }
+
+    public function cancelDeleteTask(): void
+    {
+        $this->showDeleteConfirmModal = false;
+        $this->pendingDeleteTaskId = null;
+        $this->pendingDeleteTaskName = null;
+    }
+
+    public function deleteTask(int $taskId): void
+    {
+        if (! $this->canDeleteTasks()) {
+            $this->moveError = 'You do not have permission to delete tasks.';
+
+            return;
+        }
+
+        $pid = (int) ($this->projectId ?? 0);
+        $requesterId = $this->currentAccountId();
+        if ($pid <= 0 || $taskId <= 0 || $requesterId <= 0) {
+            return;
+        }
+
+        $detailId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+
+        try {
+            app(CsharpApiService::class)->delete("/api/Task/DeleteTask/{$taskId}?requesterId={$requesterId}");
+        } catch (\Throwable) {
+            $this->moveError = 'Failed to delete task. Please try again.';
+
+            return;
+        }
+
+        $this->showDeleteConfirmModal = false;
+        $this->pendingDeleteTaskId = null;
+        $this->pendingDeleteTaskName = null;
+
+        if ($detailId === $taskId) {
+            $this->closeTaskDetail();
+        }
+
+        $this->reloadTasksFromApi();
+        $this->moveError = null;
+        $this->syncProjectStatusFromTasks();
+    }
+
     public function render()
     {
         $query = mb_strtolower(trim($this->search));
@@ -538,6 +691,7 @@ class Tasks extends Component
             'taskPriorityMap'    => $taskPriorityMap,
             'currentUserName'    => $currentUserName,
             'currentUserId'      => $currentUserId,
+            'canDeleteTasks'     => $this->canDeleteTasks(),
         ]);
     }
 }

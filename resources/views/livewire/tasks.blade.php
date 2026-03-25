@@ -502,12 +502,72 @@ document.addEventListener('change', async function (e) {
     recalcDueAndWarnings(form);
 });
 </script>
+
+<script>
+// Keep a fixed-height scroll container, but don't clip dropdowns.
+(function () {
+    const wrap = document.querySelector('[data-tasks-table-scroll]');
+    if (!wrap) return;
+
+    const enableOverflowVisible = () => {
+        wrap.classList.remove('overflow-y-auto');
+        wrap.classList.add('overflow-visible');
+    };
+    const disableOverflowVisible = () => {
+        wrap.classList.remove('overflow-visible');
+        wrap.classList.add('overflow-y-auto');
+    };
+
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+
+        if (t.closest('[data-action-dropdown-trigger]')) {
+            enableOverflowVisible();
+            return;
+        }
+        if (t.closest('[data-action-dropdown-menu]')) return;
+        disableOverflowVisible();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') disableOverflowVisible();
+    });
+})();
+</script>
         <form method="dialog" class="modal-backdrop">
             <button type="button" wire:click="closeTaskDetail">close</button>
         </form>
     </dialog>
 
-    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
+    {{-- Delete confirmation modal --}}
+    <dialog class="{{ $showDeleteConfirmModal ? 'modal modal-open' : 'modal' }}">
+        <div class="modal-box max-w-sm">
+            <h3 class="text-lg font-normal">Confirm Delete</h3>
+            <p class="py-4 text-sm text-gray-700">
+                Are you sure you want to delete {{ $pendingDeleteTaskName ?? 'this task' }}?
+            </p>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost p-4" wire:click="cancelDeleteTask">Cancel</button>
+                <button
+                    type="button"
+                    class="btn bg-red-600 hover:bg-red-700 text-base-100 border-none p-4"
+                    wire:click="deleteTask({{ (int) ($pendingDeleteTaskId ?? 0) }})"
+                >
+                    Delete
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="button" wire:click="cancelDeleteTask">close</button>
+        </form>
+    </dialog>
+
+    <div
+        class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto overflow-y-auto h-[500px] relative"
+        data-tasks-table-scroll
+    >
         <table class="table w-full table-fixed border-collapse">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
@@ -723,15 +783,29 @@ document.addEventListener('change', async function (e) {
                                     </td>
                     <td wire:click.stop>
                         <div class="dropdown dropdown-end">
-                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2" data-action-dropdown-trigger>
                                 <x-icons.three-dot classes="w-5 h-5" />
                             </button>
                             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                <li>
+                                <li class="border-b border-gray-100">
                                     <button type="button" wire:click.stop="openTaskDetail({{ $p['id'] ?? 0 }})">
                                         Details
                                     </button>
                                 </li>
+                                @if($parentId !== null)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" wire:click.stop="addSubtask({{ (int)($parentId ?? 0) }})">
+                                            Add subtask
+                                        </button>
+                                    </li>
+                                @endif
+                                @if(!empty($canDeleteTasks))
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($p['id'] ?? 0) }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                @endif
                             </ul>
                         </div>
                     </td>
@@ -849,16 +923,34 @@ document.addEventListener('change', async function (e) {
                             </td>
                             <td wire:click.stop>
                                 <div class="dropdown dropdown-end">
-                                    <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                    <button tabindex="0" type="button"
+                                            class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
+                                            data-action-dropdown-trigger>
                                         <x-icons.three-dot classes="w-5 h-5" />
                                     </button>
-                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                        <li>
-                                            <button type="button" wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
-                                                Details
-                                            </button>
-                                        </li>
-                                    </ul>
+                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border" data-action-dropdown-menu>
+                                <li class="border-b border-gray-100">
+                                    <button type="button" wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
+                                        Details
+                                    </button>
+                                </li>
+
+                                @if($childId !== null)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" wire:click.stop="addSubtask({{ (int)($childId ?? 0) }})">
+                                            Add grandchild task
+                                        </button>
+                                    </li>
+                                @endif
+
+                                @if($canDeleteTasks)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($c['id'] ?? 0) }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                @endif
+                            </ul>
                                 </div>
                             </td>
                         </tr>
@@ -959,15 +1051,24 @@ document.addEventListener('change', async function (e) {
                                     </td>
                                     <td wire:click.stop>
                                         <div class="dropdown dropdown-end">
-                                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                            <button tabindex="0" type="button"
+                                                    class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
+                                                    data-action-dropdown-trigger>
                                                 <x-icons.three-dot classes="w-5 h-5" />
                                             </button>
-                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                                <li>
+                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border" data-action-dropdown-menu>
+                                                <li class="border-b border-gray-100">
                                                     <button type="button" wire:click.stop="openTaskDetail({{ $g['id'] ?? 0 }})">
                                                         Details
                                                     </button>
                                                 </li>
+                                                @if($canDeleteTasks)
+                                                    <li class="border-b border-gray-100">
+                                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($g['id'] ?? 0) }})">
+                                                            Delete
+                                                        </button>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </div>
                                     </td>

@@ -8,6 +8,7 @@
     <div class="w-full mx-auto sm:px-6 lg:px-8">
         @livewire('tasks', [
             'projectId'        => $projectId ?? null,
+            'project'          => is_array($project ?? null) ? $project : null,
             'tasks'            => $tasks ?? [],
             'accounts'         => $accounts ?? [],
             'showAddTaskModal' => ($errors->any() && old('name') !== null) || (session('task_warnings') && count(session('task_warnings')) > 0),
