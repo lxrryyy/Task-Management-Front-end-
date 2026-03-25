@@ -45,46 +45,39 @@
         </div>
         <div class="flex items-center gap-2">
             <x-search-input wire:model.live.debounce.300ms="search" />
-            <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
-                <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-50 w-80 p-4 shadow-lg mt-1 border border-gray-200">
-                    <div class="grid grid-cols-1 gap-3 text-sm">
-                        <div class="flex flex-col gap-1">
-                            <span class="text-gray-600">Status</span>
-                            <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
-                                <option value="">All statuses</option>
-                                @foreach(($boardStatuses ?? []) as $statusOption)
-                                    <option value="{{ $statusOption }}">{{ $statusOption }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <span class="text-gray-600">Priority</span>
-                            <select wire:model.live="filterPriority" class="select select-bordered w-full bg-white text-gray-900">
-                                <option value="">All priorities</option>
-                                @foreach(($taskPriorityNames ?? []) as $priorityOption)
-                                    <option value="{{ $priorityOption }}">{{ $priorityOption }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="flex flex-col gap-1">
-                                <span class="text-gray-600">Date From</span>
-                                <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <span class="text-gray-600">Date To</span>
-                                <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                            </div>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="button" class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4" wire:click="clearTaskFilters">
-                                Clear
-                            </button>
-                        </div>
+            <x-filter-dropdown
+                button-class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
+                clear-action="clearTaskFilters"
+            >
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-600">Status</span>
+                    <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                        <option value="">All statuses</option>
+                        @foreach(($boardStatuses ?? []) as $statusOption)
+                            <option value="{{ $statusOption }}">{{ $statusOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-600">Priority</span>
+                    <select wire:model.live="filterPriority" class="select select-bordered w-full bg-white text-gray-900">
+                        <option value="">All priorities</option>
+                        @foreach(($taskPriorityNames ?? []) as $priorityOption)
+                            <option value="{{ $priorityOption }}">{{ $priorityOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-gray-600">Date From</span>
+                        <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-gray-600">Date To</span>
+                        <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
                     </div>
                 </div>
-            </div>
+            </x-filter-dropdown>
             <button wire:click="openAddTaskModal" class="btn clr-bg-primary text-base-100 p-4">+ Add Task</button>
         </div>
     </div>

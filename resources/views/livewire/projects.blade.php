@@ -17,57 +17,50 @@
                     </div>
                     <div class="flex items-center gap-4">
                         <x-search-input wire:model.live.debounce.300ms="search" />
-                        <div class="dropdown dropdown-end">
-                            <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
-                            <div tabindex="-1" class="dropdown-content bg-base-100 rounded-box z-50 w-80 p-4 shadow-lg mt-1 border border-gray-200">
-                                <div class="grid grid-cols-1 gap-3 text-sm">
-                                    <div class="flex flex-col gap-1">
-                                        <span class="text-gray-600">Status</span>
-                                        <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
-                                            <option value="">All statuses</option>
-                                            @foreach(($projectStatuses ?? []) as $ps)
-                                                <option value="{{ $ps }}">{{ $ps }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <span class="text-gray-600">Project Manager</span>
-                                        <select wire:model.live="filterProjectManager" class="select select-bordered w-full bg-white text-gray-900">
-                                            <option value="">All managers</option>
-                                            @foreach(($projectManagerOptions ?? []) as $pm)
-                                                <option value="{{ $pm }}">{{ $pm }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <span class="text-gray-600">Progress</span>
-                                        <select wire:model.live="filterProgress" class="select select-bordered w-full bg-white text-gray-900">
-                                            <option value="">All progress</option>
-                                            <option value="0-25">0% - 25%</option>
-                                            <option value="26-50">26% - 50%</option>
-                                            <option value="51-75">51% - 75%</option>
-                                            <option value="76-99">76% - 99%</option>
-                                            <option value="100">100%</option>
-                                        </select>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div class="flex flex-col gap-1">
-                                            <span class="text-gray-600">Date From</span>
-                                            <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                                        </div>
-                                        <div class="flex flex-col gap-1">
-                                            <span class="text-gray-600">Date To</span>
-                                            <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                                        </div>
-                                    </div>
-                                    <div class="flex justify-end">
-                                        <button type="button" class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4" wire:click="clearFilters">
-                                            Clear
-                                        </button>
-                                    </div>
+                        <x-filter-dropdown
+                            button-class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white"
+                            clear-action="clearFilters"
+                        >
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Status</span>
+                                <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All statuses</option>
+                                    @foreach(($projectStatuses ?? []) as $ps)
+                                        <option value="{{ $ps }}">{{ $ps }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Project Manager</span>
+                                <select wire:model.live="filterProjectManager" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All managers</option>
+                                    @foreach(($projectManagerOptions ?? []) as $pm)
+                                        <option value="{{ $pm }}">{{ $pm }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Progress</span>
+                                <select wire:model.live="filterProgress" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All progress</option>
+                                    <option value="0-25">0% - 25%</option>
+                                    <option value="26-50">26% - 50%</option>
+                                    <option value="51-75">51% - 75%</option>
+                                    <option value="76-99">76% - 99%</option>
+                                    <option value="100">100%</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-gray-600">Date From</span>
+                                    <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-gray-600">Date To</span>
+                                    <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
                                 </div>
                             </div>
-                        </div>
+                        </x-filter-dropdown>
 
                     <div>
                         <button type="button" wire:click="openModal" class="btn w-36 border-2 clr-bg-primary rounded-lg text-base-100">+ Add Project</button>
