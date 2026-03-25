@@ -16,9 +16,7 @@
                         </button>
                     </div>
                     <div class="flex items-center gap-4">
-                        <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                            <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
-                        </label>
+                        <x-search-input wire:model.live.debounce.300ms="search" />
                         <div class="dropdown dropdown-end">
                             <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
                             <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg mt-1">

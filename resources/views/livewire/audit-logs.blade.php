@@ -12,9 +12,7 @@
             <button @click="open = !open" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
             </button>
-            <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input x-model.debounce.300ms="filters.search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
-            </label>
+            <x-search-input x-model.debounce.300ms="filters.search" />
         </div>
         <div class="flex flex-row gap-4">
             <button type="button" @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
