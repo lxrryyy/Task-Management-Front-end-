@@ -382,7 +382,7 @@
                                 $isMine = (int)($cmt['accountId'] ?? 0) === (int)$currentUserId;
                                 $isEditing = (int)($editingCommentId ?? 0) === (int)($cmt['id'] ?? 0);
                             @endphp
-                            <div class="rounded-lg border border-gray-200 p-3 bg-gray-50/40">
+                            <div id="task-cmt-{{ (int) ($cmt['id'] ?? 0) }}" class="rounded-lg border border-gray-200 p-3 bg-gray-50/40 transition-shadow">
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-medium text-gray-900">{{ $cmt['accountName'] ?? 'User' }}</p>

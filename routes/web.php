@@ -51,6 +51,7 @@ Route::middleware(['api.auth'])->group(function () {
     Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->whereNumber('id')->name('notifications.read');
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::get('/notifications/resolve-task-project', [NotificationController::class, 'resolveTaskProject'])->name('notifications.resolveTaskProject');
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('notifications.delete');
 });
 

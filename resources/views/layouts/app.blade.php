@@ -158,8 +158,12 @@
                             </template>
 
                             <template x-for="n in items" :key="n.id">
-                                <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50"
-                                     :class="!n.isRead ? 'bg-gray-100' : ''">
+                                <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                                     :class="!n.isRead ? 'bg-gray-100' : ''"
+                                     role="button"
+                                     tabindex="0"
+                                     @click="openNotification(n)"
+                                     @keydown.enter.prevent="openNotification(n)">
                                     <div class="flex items-start gap-3">
                                         <div class="flex-1 min-w-0">
                                             <p class="text-sm text-gray-900 whitespace-pre-wrap break-words" x-text="n.message || ''"></p>
@@ -168,13 +172,13 @@
                                         <div class="flex items-center gap-2 shrink-0">
                                             <button type="button"
                                                     class="text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                                                    @click="markRead(n)"
+                                                    @click.stop="markRead(n)"
                                                     :disabled="n.isRead">
                                                 Read
                                             </button>
                                             <button type="button"
                                                     class="text-xs text-red-600 hover:text-red-700"
-                                                    @click="remove(n)">
+                                                    @click.stop="remove(n)">
                                                 Delete
                                             </button>
                                         </div>

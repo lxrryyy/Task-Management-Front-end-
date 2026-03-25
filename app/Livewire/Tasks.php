@@ -48,6 +48,8 @@ class Tasks extends Component
         array $accounts = [],
         bool $showAddTaskModal = false,
         ?int $taskParentId = null,
+        ?int $openTaskId = null,
+        ?int $openCommentId = null,
     ): void {
         $this->projectId = $projectId;
         $this->tasks = $tasks;
@@ -69,6 +71,11 @@ class Tasks extends Component
 
         // Sync project status to reflect current task statuses on load.
         $this->syncProjectStatusFromTasks();
+
+        if ($openTaskId !== null && $openTaskId > 0) {
+            $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
+            $this->openTaskDetail($openTaskId, $commentId);
+        }
     }
 
     public function switchView(string $mode): void
@@ -76,7 +83,7 @@ class Tasks extends Component
         $this->viewMode = $mode;
     }
 
-    public function openTaskDetail(int $taskId): void
+    public function openTaskDetail(int $taskId, ?int $scrollToCommentId = null): void
     {
         $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
         $this->detailTask = $task ?: null;
