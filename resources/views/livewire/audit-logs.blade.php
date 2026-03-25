@@ -240,15 +240,15 @@
     <script>
         function auditLogsClient(logs, pageSize) {
             const actionStyle = (action) => ({
-                // DELETE - FEE2E2 (TEXT - 7F1D1D)
-                'DELETE':  'background:#FEE2E2;color:#7F1D1D;',
+
                 'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
-                // PATCH - C11574 (TEXT - FFFFFF)
-                'PATCH':   'background:#C11574;color:#FFFFFF;',
-                // POST - EEF4FF (TEXT - 3538CD)
-                'POST':    'background:#EEF4FF;color:#3538CD;',
-                // RESTORE - F2F4F7 (TEXT - 344054)
+                
+                'UPDATED': 'background:#FDF2FA;color:#C11574;',
+                
+                'OPENED':  'background:#F2F4F7;color:#344054;',
                 'RESTORE': 'background:#F2F4F7;color:#344054;',
+                
+                'CREATED': 'background:#EEF4FF;color:#3538CD;',
             })[action] || 'background:#F2F4F7;color:#344054;';
 
             const fmtDateTime = (at) => {
