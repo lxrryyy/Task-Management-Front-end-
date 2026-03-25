@@ -748,11 +748,11 @@ document.addEventListener('change', async function (e) {
                         @endphp
                         <!-- Subtask row -->
                         <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
-                            <td wire:click.stop>
+                            <td wire:click.stop class="pl-8">
                                 @if($childId !== null)
                                     <button
                                         type="button"
-                                        class="btn btn-ghost btn-xs"
+                                        class="btn btn-ghost btn-xs ml-4"
                                         wire:click.stop="toggle({{ $childId }})"
                                     >
                                         {{ $childExpanded ? 'v' : '>' }}
@@ -868,7 +868,7 @@ document.addEventListener('change', async function (e) {
                                 @php $g = $fmt($gc); @endphp
                                 <!-- Grandchild task rows -->
                                 <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
-                                    <td wire:click.stop></td>
+                                    <td wire:click.stop class="pl-12"></td>
                                     <td wire:click.stop class="pl-16 pr-4">
                                         <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
