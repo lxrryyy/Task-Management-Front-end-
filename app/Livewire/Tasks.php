@@ -20,6 +20,10 @@ class Tasks extends Component
     public string $search = '';
     public string $viewMode = 'list';
     public ?string $moveError = null;
+    public string $filterStatus = '';
+    public string $filterPriority = '';
+    public string $filterDateFrom = '';
+    public string $filterDateTo = '';
 
     /** status name => statusId */
     public array $statusMap = [];
@@ -90,6 +94,14 @@ class Tasks extends Component
     public function switchView(string $mode): void
     {
         $this->viewMode = $mode;
+    }
+
+    public function clearTaskFilters(): void
+    {
+        $this->filterStatus = '';
+        $this->filterPriority = '';
+        $this->filterDateFrom = '';
+        $this->filterDateTo = '';
     }
 
     public function openTaskDetail(int $taskId, ?int $scrollToCommentId = null): void
@@ -574,41 +586,72 @@ class Tasks extends Component
     public function render()
     {
         $query = mb_strtolower(trim($this->search));
+        $statusNeedle = mb_strtolower(trim($this->filterStatus));
+        $priorityNeedle = mb_strtolower(trim($this->filterPriority));
+        $fromDate = trim($this->filterDateFrom);
+        $toDate = trim($this->filterDateTo);
 
-        if ($query === '') {
-            $filtered = $this->tasks;
-        } else {
-            $matchingIds = [];
-            foreach ($this->tasks as $task) {
-                $id = $task['id'] ?? null;
-                if ($id === null) continue;
-                $haystack = implode(' ', [
-                    mb_strtolower($task['name'] ?? $task['title'] ?? ''),
-                    mb_strtolower($task['assigneeName'] ?? $task['assignedToName'] ?? ''),
-                    mb_strtolower($task['statusName'] ?? $task['status'] ?? ''),
-                    mb_strtolower($task['priority'] ?? ''),
-                ]);
-                if (str_contains($haystack, $query)) $matchingIds[$id] = true;
+        $matchingIds = [];
+        foreach ($this->tasks as $task) {
+            $id = $task['id'] ?? null;
+            if ($id === null) continue;
+
+            $statusRaw = (string) ($task['statusName'] ?? $task['status'] ?? '');
+            $status = mb_strtolower(trim($statusRaw));
+            if ($statusNeedle !== '' && $status !== $statusNeedle) continue;
+
+            $priorityRaw = (string) ($task['priorityName'] ?? $task['priority'] ?? '');
+            if ($priorityRaw === '' && isset($task['priorityId'])) {
+                $priorityRaw = (string) (($this->taskPriorities['map'] ?? [])[(int) ($task['priorityId'] ?? 0)] ?? '');
             }
+            $priority = mb_strtolower(trim($priorityRaw));
+            if ($priorityNeedle !== '' && $priority !== $priorityNeedle) continue;
 
-            $parentMap = [];
-            foreach ($this->tasks as $task) {
-                $id = $task['id'] ?? null;
-                $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
-                if ($id !== null) $parentMap[$id] = $pid;
-            }
-
-            $includedIds = $matchingIds;
-            foreach (array_keys($matchingIds) as $id) {
-                $cur = $id;
-                while (isset($parentMap[$cur]) && $parentMap[$cur] !== null) {
-                    $cur = $parentMap[$cur];
-                    $includedIds[$cur] = true;
+            $dateRaw = (string) ($task['dueDate'] ?? $task['dueAt'] ?? '');
+            if (($fromDate !== '' || $toDate !== '')) {
+                if ($dateRaw === '') continue;
+                $dateTs = strtotime($dateRaw);
+                if ($dateTs === false) continue;
+                if ($fromDate !== '') {
+                    $fromTs = strtotime($fromDate . ' 00:00:00');
+                    if ($fromTs !== false && $dateTs < $fromTs) continue;
+                }
+                if ($toDate !== '') {
+                    $toTs = strtotime($toDate . ' 23:59:59');
+                    if ($toTs !== false && $dateTs > $toTs) continue;
                 }
             }
 
-            $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
+            if ($query !== '') {
+                $haystack = implode(' ', [
+                    mb_strtolower((string) ($task['name'] ?? $task['title'] ?? '')),
+                    mb_strtolower((string) ($task['assigneeName'] ?? $task['assignedToName'] ?? '')),
+                    mb_strtolower((string) ($task['statusName'] ?? $task['status'] ?? '')),
+                    mb_strtolower((string) ($task['priorityName'] ?? $task['priority'] ?? '')),
+                ]);
+                if (! str_contains($haystack, $query)) continue;
+            }
+
+            $matchingIds[$id] = true;
         }
+
+        $parentMap = [];
+        foreach ($this->tasks as $task) {
+            $id = $task['id'] ?? null;
+            $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
+            if ($id !== null) $parentMap[$id] = $pid;
+        }
+
+        $includedIds = $matchingIds;
+        foreach (array_keys($matchingIds) as $id) {
+            $cur = $id;
+            while (isset($parentMap[$cur]) && $parentMap[$cur] !== null) {
+                $cur = $parentMap[$cur];
+                $includedIds[$cur] = true;
+            }
+        }
+
+        $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
 
         $statuses = !empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
 
