@@ -1,4 +1,10 @@
-<div x-data="{ ...auditLogsClient(@js($allLogs ?? []), 25), exportOpen: false, exportFrom: '', exportTo: '' }">
+<div x-data="(() => {
+    const state = auditLogsClient(@js($allLogs ?? []), 25);
+    state.exportOpen = false;
+    state.exportFrom = '';
+    state.exportTo = '';
+    return state;
+})()">
     <div class="flex w-full items-center clr-primary">
         <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
