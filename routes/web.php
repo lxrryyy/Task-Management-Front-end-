@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\AuditLogExportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
@@ -29,6 +30,11 @@ Route::get('/projects', [ProjectController::class, 'index'])
 Route::get('/audit-logs', function () {
     return view('audit-logs');
 })->middleware(['api.auth'])->name('Audit Logs');
+
+Route::middleware(['api.auth'])->group(function () {
+    Route::get('/audit-logs/export/pdf', [AuditLogExportController::class, 'exportPdf'])->name('auditLogs.export.pdf');
+    Route::get('/audit-logs/export/excel', [AuditLogExportController::class, 'exportExcel'])->name('auditLogs.export.excel');
+});
 
 Route::get('/user-management', function () {
     return view('user-management');
