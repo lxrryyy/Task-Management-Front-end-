@@ -9,11 +9,74 @@ export function registerNotifications() {
 
     window.__notifToastState = window.__notifToastState || { lastKey: '', lastAt: 0 };
 
+    const mergePayload = (raw) => {
+      const base = { ...(raw && typeof raw === 'object' ? raw : {}) };
+      const blobs = [
+        base.payload,
+        base.Payload,
+        base.data,
+        base.Data,
+        base.meta,
+        base.Meta,
+        base.details,
+        base.Details,
+      ];
+      for (const b of blobs) {
+        let p = b;
+        if (typeof p === 'string') {
+          try {
+            p = JSON.parse(p);
+          } catch {
+            continue;
+          }
+        }
+        if (p && typeof p === 'object' && !Array.isArray(p)) {
+          Object.assign(base, p);
+        }
+      }
+      return base;
+    };
+
+    const pickInt = (obj, keys) => {
+      if (!obj || typeof obj !== 'object') return 0;
+      for (const k of keys) {
+        if (!(k in obj)) continue;
+        const n = parseInt(obj[k], 10);
+        if (!Number.isNaN(n) && n > 0) return n;
+      }
+      return 0;
+    };
+
     const norm = (n) => {
-      const id = parseInt(n.id ?? n.Id ?? 0, 10) || 0;
-      const msg = (n.message ?? n.Message ?? '').toString();
-      const isRead = !!(n.isRead ?? n.IsRead ?? false);
-      const createdAtRaw = (n.createdAt ?? n.CreatedAt ?? '').toString();
+      const merged = mergePayload(n);
+      const id = parseInt(merged.id ?? merged.Id ?? 0, 10) || 0;
+      const msg = (merged.message ?? merged.Message ?? merged.title ?? merged.Title ?? '').toString();
+      const isRead = !!(merged.isRead ?? merged.IsRead ?? false);
+      const createdAtRaw = (merged.createdAt ?? merged.CreatedAt ?? '').toString();
+      const notificationType = (
+        merged.notificationType ??
+        merged.NotificationType ??
+        merged.type ??
+        merged.Type ??
+        ''
+      )
+        .toString()
+        .trim();
+      const entity = (merged.entity ?? merged.Entity ?? '').toString().trim();
+
+      let projectId = pickInt(merged, ['projectId', 'ProjectId', 'projectID', 'ProjectID']);
+      let taskId = pickInt(merged, ['taskId', 'TaskId', 'relatedTaskId', 'RelatedTaskId']);
+      if (taskId === 0) {
+        const eid = pickInt(merged, ['entityId', 'EntityId']);
+        const et = `${entity} ${notificationType}`.toLowerCase();
+        if (eid > 0 && /task/.test(et)) taskId = eid;
+      }
+      let commentId = pickInt(merged, ['commentId', 'CommentId', 'taskCommentId', 'TaskCommentId']);
+
+      if (commentId === 0 && /comment/i.test(`${notificationType} ${entity} ${msg}`)) {
+        commentId = pickInt(merged, ['commentId', 'CommentId', 'taskCommentId', 'TaskCommentId']);
+      }
+
       let createdAtLabel = createdAtRaw;
       if (createdAtRaw) {
         const d = new Date(createdAtRaw);
@@ -27,7 +90,18 @@ export function registerNotifications() {
           });
         }
       }
-      return { id, message: msg, isRead, createdAt: createdAtRaw, createdAtLabel };
+      return {
+        id,
+        message: msg,
+        isRead,
+        createdAt: createdAtRaw,
+        createdAtLabel,
+        projectId,
+        taskId,
+        commentId,
+        notificationType,
+        entity,
+      };
     };
 
     const showToast = (message) => {
@@ -162,11 +236,50 @@ export function registerNotifications() {
               'X-CSRF-TOKEN': csrf,
             },
             credentials: 'same-origin',
-            body: JSON.stringify({}),
           });
           this.items = this.items.map((x) => ({ ...x, isRead: true }));
           this.unreadCount = 0;
         } catch (e) {}
+      },
+
+      async openNotification(n) {
+        if (!n || !n.id) return;
+        if (!n.isRead) {
+          try {
+            await this.markRead(n);
+          } catch (e) {}
+        }
+
+        let projectId = n.projectId || 0;
+        const taskId = n.taskId || 0;
+        const commentId = n.commentId || 0;
+
+        if (taskId > 0 && projectId <= 0) {
+          try {
+            const r = await fetch(
+              `/notifications/resolve-task-project?taskId=${encodeURIComponent(String(taskId))}`,
+              { headers: { Accept: 'application/json' }, credentials: 'same-origin' }
+            );
+            if (r.ok) {
+              const d = await r.json();
+              projectId = parseInt(d.projectId, 10) || 0;
+            }
+          } catch (e) {}
+        }
+
+        if (taskId > 0 && projectId > 0) {
+          let url = `/projects/${projectId}/tasks?openTask=${taskId}`;
+          if (commentId > 0) url += `&comment=${commentId}`;
+          window.location.assign(url);
+          return;
+        }
+
+        if (projectId > 0) {
+          window.location.assign(`/projects/${projectId}/tasks`);
+          return;
+        }
+
+        window.location.assign('/projects');
       },
 
       async remove(n) {

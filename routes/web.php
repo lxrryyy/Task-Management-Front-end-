@@ -6,7 +6,6 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\StickyNoteController;
-use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -21,38 +20,22 @@ Route::get('/calendar', function () {
     return view('calendar');
 })->middleware(['api.auth'])->name('calendar');
 
-Route::get('/settings', function () {
-    return view('settings');
-})->middleware(['api.auth'])->name('settings');
-
 Route::get('/projects', [ProjectController::class, 'index'])
     ->middleware(['api.auth'])
     ->name('Projects');
 
 
 Route::get('/audit-logs', function () {
-    $user = \Illuminate\Support\Facades\Session::get('user', []);
-    $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
-    if ($role !== 'admin') {
-        abort(403);
-    }
     return view('audit-logs');
-})->middleware(['api.auth'])->name('Time Logs');
+})->middleware(['api.auth'])->name('Audit Logs');
 
-Route::middleware(['api.auth'])->group(function () {
-    Route::get('/audit-logs/export/pdf', [\App\Http\Controllers\AuditLogExportController::class, 'exportPdf'])
-        ->name('auditLogs.export.pdf');
-    Route::get('/audit-logs/export/excel', [\App\Http\Controllers\AuditLogExportController::class, 'exportExcel'])
-        ->name('auditLogs.export.excel');
-});
+Route::get('/user-management', function () {
+    return view('user-management');
+})->middleware(['api.auth'])->name('User Management');
 
-Route::middleware(['api.auth'])->group(function () {
-    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
-    Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->whereNumber('id')->name('notifications.read');
-    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
-    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('notifications.delete');
-});
+Route::get('/settings', function () {
+    return view('settings');
+})->middleware(['api.auth'])->name('Settings');
 
 Route::get('/tasks', function () {
     return view('tasks');
@@ -90,6 +73,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+// ── Sticky Notes (proxied to C# backend) ─────────────────────────────────────
 Route::middleware(['api.auth'])->group(function () {
     Route::get   ('/notes',        [StickyNoteController::class, 'index'])  ->name('notes.index');
     Route::post  ('/notes',        [StickyNoteController::class, 'store'])  ->name('notes.store');

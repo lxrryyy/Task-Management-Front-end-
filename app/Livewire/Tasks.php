@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Services\CsharpApiService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -11,12 +12,18 @@ use Livewire\Component;
 class Tasks extends Component
 {
     public ?int $projectId = null;
+    /** Project payload from GetProjectById (used for delete permissions: PM / Scrum Master). */
+    public ?array $project = null;
     public array $tasks = [];
     public array $accounts = [];
 
     public string $search = '';
     public string $viewMode = 'list';
     public ?string $moveError = null;
+    public string $filterStatus = '';
+    public string $filterPriority = '';
+    public string $filterDateFrom = '';
+    public string $filterDateTo = '';
 
     /** status name => statusId */
     public array $statusMap = [];
@@ -35,6 +42,16 @@ class Tasks extends Component
 
     public bool $showTaskDetailModal = false;
     public ?array $detailTask = null;
+    public array $taskComments = [];
+    public string $newComment = '';
+    public ?int $editingCommentId = null;
+    public string $editingCommentContent = '';
+    public ?string $commentError = null;
+
+    // Delete confirmation modal state
+    public bool $showDeleteConfirmModal = false;
+    public ?int $pendingDeleteTaskId = null;
+    public ?string $pendingDeleteTaskName = null;
 
     public function mount(
         ?int $projectId = null,
@@ -42,8 +59,12 @@ class Tasks extends Component
         array $accounts = [],
         bool $showAddTaskModal = false,
         ?int $taskParentId = null,
+        ?int $openTaskId = null,
+        ?int $openCommentId = null,
+        ?array $project = null,
     ): void {
         $this->projectId = $projectId;
+        $this->project = $project;
         $this->tasks = $tasks;
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
@@ -63,6 +84,11 @@ class Tasks extends Component
 
         // Sync project status to reflect current task statuses on load.
         $this->syncProjectStatusFromTasks();
+
+        if ($openTaskId !== null && $openTaskId > 0) {
+            $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
+            $this->openTaskDetail($openTaskId, $commentId);
+        }
     }
 
     public function switchView(string $mode): void
@@ -70,17 +96,154 @@ class Tasks extends Component
         $this->viewMode = $mode;
     }
 
-    public function openTaskDetail(int $taskId): void
+    public function clearTaskFilters(): void
+    {
+        $this->filterStatus = '';
+        $this->filterPriority = '';
+        $this->filterDateFrom = '';
+        $this->filterDateTo = '';
+    }
+
+    public function openTaskDetail(int $taskId, ?int $scrollToCommentId = null): void
     {
         $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
         $this->detailTask = $task ?: null;
         $this->showTaskDetailModal = $this->detailTask !== null;
+        $this->newComment = '';
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+        $this->commentError = null;
+        $this->taskComments = [];
+
+        if ($this->showTaskDetailModal) {
+            $this->loadTaskComments($taskId);
+        }
     }
 
     public function closeTaskDetail(): void
     {
         $this->showTaskDetailModal = false;
         $this->detailTask = null;
+        $this->taskComments = [];
+        $this->newComment = '';
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+        $this->commentError = null;
+    }
+
+    private function currentAccountId(): int
+    {
+        $user = Session::get('user', []);
+        return (int) ($user['id'] ?? $user['Id'] ?? 0);
+    }
+
+    private function loadTaskComments(int $taskId): void
+    {
+        $this->commentError = null;
+        try {
+            $raw = app(CsharpApiService::class)->get("/api/TaskComment/GetCommentsByTask/{$taskId}");
+            $list = is_array($raw)
+                ? ($raw['data'] ?? $raw['comments'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
+                : [];
+
+            $comments = [];
+            foreach ((array) $list as $c) {
+                if (!is_array($c)) continue;
+                $comments[] = [
+                    'id' => (int) ($c['id'] ?? $c['Id'] ?? 0),
+                    'taskId' => (int) ($c['taskId'] ?? $c['TaskId'] ?? 0),
+                    'accountId' => (int) ($c['accountId'] ?? $c['AccountId'] ?? 0),
+                    'accountName' => (string) ($c['accountName'] ?? $c['AccountName'] ?? 'User'),
+                    'content' => (string) ($c['content'] ?? $c['Content'] ?? ''),
+                    'createdAt' => (string) ($c['createdAt'] ?? $c['CreatedAt'] ?? ''),
+                    'updatedAt' => (string) ($c['updatedAt'] ?? $c['UpdatedAt'] ?? ''),
+                ];
+            }
+            $this->taskComments = $comments;
+        } catch (\Throwable $e) {
+            $this->taskComments = [];
+            $this->commentError = 'Failed to load comments.';
+        }
+    }
+
+    public function addComment(): void
+    {
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        $accountId = $this->currentAccountId();
+        $content = trim($this->newComment);
+
+        if ($taskId <= 0 || $accountId <= 0) return;
+        if ($content === '') return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->post(
+                "/api/TaskComment/CreateComment?accountId={$accountId}",
+                [
+                    'taskId' => $taskId,
+                    'content' => $content,
+                ]
+            );
+            $this->newComment = '';
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to add comment.';
+        }
+    }
+
+    public function startEditComment(int $commentId): void
+    {
+        $comment = collect($this->taskComments)->first(fn ($c) => (int)($c['id'] ?? 0) === $commentId);
+        if (!$comment) return;
+        $this->editingCommentId = $commentId;
+        $this->editingCommentContent = (string) ($comment['content'] ?? '');
+    }
+
+    public function cancelEditComment(): void
+    {
+        $this->editingCommentId = null;
+        $this->editingCommentContent = '';
+    }
+
+    public function updateComment(int $commentId): void
+    {
+        $accountId = $this->currentAccountId();
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        $content = trim($this->editingCommentContent);
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
+        if ($content === '') return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->patch(
+                "/api/TaskComment/UpdateComment/{$commentId}?accountId={$accountId}",
+                ['content' => $content]
+            );
+            $this->editingCommentId = null;
+            $this->editingCommentContent = '';
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to update comment.';
+        }
+    }
+
+    public function deleteComment(int $commentId): void
+    {
+        $accountId = $this->currentAccountId();
+        $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
+
+        $this->commentError = null;
+        try {
+            app(CsharpApiService::class)->delete("/api/TaskComment/DeleteComment/{$commentId}?accountId={$accountId}");
+            if ($this->editingCommentId === $commentId) {
+                $this->editingCommentId = null;
+                $this->editingCommentContent = '';
+            }
+            $this->loadTaskComments($taskId);
+        } catch (\Throwable $e) {
+            $this->commentError = 'Failed to delete comment.';
+        }
     }
 
     #[On('task-status-changed')]
@@ -276,44 +439,219 @@ class Tasks extends Component
         $this->showAddTaskModal = true;
     }
 
+    private function canDeleteTasks(): bool
+    {
+        $user = Session::get('user', []);
+        $uid = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        if ($uid <= 0) {
+            return false;
+        }
+
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        if ($role === 'admin' || $role === 'superadmin') {
+            return true;
+        }
+
+        $proj = $this->project;
+        if (! is_array($proj) || $proj === []) {
+            return false;
+        }
+
+        $pmId = (int) (
+            $proj['projectManagerId'] ?? $proj['ProjectManagerId']
+            ?? $proj['createdById'] ?? $proj['CreatedById']
+            ?? $proj['createdBy'] ?? $proj['CreatedBy'] ?? 0
+        );
+
+        if ($pmId > 0 && $pmId === $uid) {
+            return true;
+        }
+
+        $smId = (int) ($proj['scrumMasterId'] ?? $proj['ScrumMasterId'] ?? 0);
+        if ($smId > 0 && $smId === $uid) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function reloadTasksFromApi(): void
+    {
+        $pid = (int) ($this->projectId ?? 0);
+        $requesterId = $this->currentAccountId();
+        if ($pid <= 0 || $requesterId <= 0) {
+            return;
+        }
+
+        try {
+            $api = app(CsharpApiService::class);
+            $projectResponse = $api->get(
+                "/api/Task/GetTasksByProject/{$pid}",
+                ['requesterId' => $requesterId]
+            );
+            $allTasks = is_array($projectResponse)
+                ? $projectResponse
+                : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+
+            $assignedIds = [];
+            try {
+                $assignedResponse = $api->get("/api/Task/GetTasksByAssignee/{$requesterId}");
+                $assignedTasks = is_array($assignedResponse)
+                    ? $assignedResponse
+                    : ($assignedResponse['data'] ?? $assignedResponse['tasks'] ?? []);
+                foreach ($assignedTasks as $t) {
+                    if (isset($t['id'])) {
+                        $assignedIds[(int) $t['id']] = true;
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            $tasks = [];
+            foreach ((array) $allTasks as $t) {
+                if (! is_array($t)) {
+                    continue;
+                }
+                if (isset($t['id']) && isset($assignedIds[(int) $t['id']])) {
+                    $t['isMine'] = true;
+                } else {
+                    $t['isMine'] = false;
+                }
+                $tasks[] = $t;
+            }
+            $this->tasks = $tasks;
+        } catch (\Throwable) {
+            // keep existing $this->tasks
+        }
+    }
+
+    public function confirmDeleteTask(int $taskId): void
+    {
+        if (! $this->canDeleteTasks()) {
+            $this->moveError = 'You do not have permission to delete tasks.';
+            return;
+        }
+
+        $this->pendingDeleteTaskId = $taskId;
+        $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
+        $this->pendingDeleteTaskName = trim((string) ($task['name'] ?? $task['title'] ?? 'this task')) ?: 'this task';
+        $this->showDeleteConfirmModal = true;
+    }
+
+    public function cancelDeleteTask(): void
+    {
+        $this->showDeleteConfirmModal = false;
+        $this->pendingDeleteTaskId = null;
+        $this->pendingDeleteTaskName = null;
+    }
+
+    public function deleteTask(int $taskId): void
+    {
+        if (! $this->canDeleteTasks()) {
+            $this->moveError = 'You do not have permission to delete tasks.';
+
+            return;
+        }
+
+        $pid = (int) ($this->projectId ?? 0);
+        $requesterId = $this->currentAccountId();
+        if ($pid <= 0 || $taskId <= 0 || $requesterId <= 0) {
+            return;
+        }
+
+        $detailId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
+
+        try {
+            app(CsharpApiService::class)->delete("/api/Task/DeleteTask/{$taskId}?requesterId={$requesterId}");
+        } catch (\Throwable) {
+            $this->moveError = 'Failed to delete task. Please try again.';
+
+            return;
+        }
+
+        $this->showDeleteConfirmModal = false;
+        $this->pendingDeleteTaskId = null;
+        $this->pendingDeleteTaskName = null;
+
+        if ($detailId === $taskId) {
+            $this->closeTaskDetail();
+        }
+
+        $this->reloadTasksFromApi();
+        $this->moveError = null;
+        $this->syncProjectStatusFromTasks();
+    }
+
     public function render()
     {
         $query = mb_strtolower(trim($this->search));
+        $statusNeedle = mb_strtolower(trim($this->filterStatus));
+        $priorityNeedle = mb_strtolower(trim($this->filterPriority));
+        $fromDate = trim($this->filterDateFrom);
+        $toDate = trim($this->filterDateTo);
 
-        if ($query === '') {
-            $filtered = $this->tasks;
-        } else {
-            $matchingIds = [];
-            foreach ($this->tasks as $task) {
-                $id = $task['id'] ?? null;
-                if ($id === null) continue;
-                $haystack = implode(' ', [
-                    mb_strtolower($task['name'] ?? $task['title'] ?? ''),
-                    mb_strtolower($task['assigneeName'] ?? $task['assignedToName'] ?? ''),
-                    mb_strtolower($task['statusName'] ?? $task['status'] ?? ''),
-                    mb_strtolower($task['priority'] ?? ''),
-                ]);
-                if (str_contains($haystack, $query)) $matchingIds[$id] = true;
+        $matchingIds = [];
+        foreach ($this->tasks as $task) {
+            $id = $task['id'] ?? null;
+            if ($id === null) continue;
+
+            $statusRaw = (string) ($task['statusName'] ?? $task['status'] ?? '');
+            $status = mb_strtolower(trim($statusRaw));
+            if ($statusNeedle !== '' && $status !== $statusNeedle) continue;
+
+            $priorityRaw = (string) ($task['priorityName'] ?? $task['priority'] ?? '');
+            if ($priorityRaw === '' && isset($task['priorityId'])) {
+                $priorityRaw = (string) (($this->taskPriorities['map'] ?? [])[(int) ($task['priorityId'] ?? 0)] ?? '');
             }
+            $priority = mb_strtolower(trim($priorityRaw));
+            if ($priorityNeedle !== '' && $priority !== $priorityNeedle) continue;
 
-            $parentMap = [];
-            foreach ($this->tasks as $task) {
-                $id = $task['id'] ?? null;
-                $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
-                if ($id !== null) $parentMap[$id] = $pid;
-            }
-
-            $includedIds = $matchingIds;
-            foreach (array_keys($matchingIds) as $id) {
-                $cur = $id;
-                while (isset($parentMap[$cur]) && $parentMap[$cur] !== null) {
-                    $cur = $parentMap[$cur];
-                    $includedIds[$cur] = true;
+            $dateRaw = (string) ($task['dueDate'] ?? $task['dueAt'] ?? '');
+            if (($fromDate !== '' || $toDate !== '')) {
+                if ($dateRaw === '') continue;
+                $dateTs = strtotime($dateRaw);
+                if ($dateTs === false) continue;
+                if ($fromDate !== '') {
+                    $fromTs = strtotime($fromDate . ' 00:00:00');
+                    if ($fromTs !== false && $dateTs < $fromTs) continue;
+                }
+                if ($toDate !== '') {
+                    $toTs = strtotime($toDate . ' 23:59:59');
+                    if ($toTs !== false && $dateTs > $toTs) continue;
                 }
             }
 
-            $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
+            if ($query !== '') {
+                $haystack = implode(' ', [
+                    mb_strtolower((string) ($task['name'] ?? $task['title'] ?? '')),
+                    mb_strtolower((string) ($task['assigneeName'] ?? $task['assignedToName'] ?? '')),
+                    mb_strtolower((string) ($task['statusName'] ?? $task['status'] ?? '')),
+                    mb_strtolower((string) ($task['priorityName'] ?? $task['priority'] ?? '')),
+                ]);
+                if (! str_contains($haystack, $query)) continue;
+            }
+
+            $matchingIds[$id] = true;
         }
+
+        $parentMap = [];
+        foreach ($this->tasks as $task) {
+            $id = $task['id'] ?? null;
+            $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
+            if ($id !== null) $parentMap[$id] = $pid;
+        }
+
+        $includedIds = $matchingIds;
+        foreach (array_keys($matchingIds) as $id) {
+            $cur = $id;
+            while (isset($parentMap[$cur]) && $parentMap[$cur] !== null) {
+                $cur = $parentMap[$cur];
+                $includedIds[$cur] = true;
+            }
+        }
+
+        $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
 
         $statuses = !empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
 
@@ -396,6 +734,7 @@ class Tasks extends Component
             'taskPriorityMap'    => $taskPriorityMap,
             'currentUserName'    => $currentUserName,
             'currentUserId'      => $currentUserId,
+            'canDeleteTasks'     => $this->canDeleteTasks(),
         ]);
     }
 }

@@ -1,4 +1,10 @@
-<div x-data="{ ...auditLogsClient(@js($allLogs ?? []), 25), exportOpen: false, exportFrom: '', exportTo: '' }">
+<div x-data="(() => {
+    const state = auditLogsClient(@js($allLogs ?? []), 25);
+    state.exportOpen = false;
+    state.exportFrom = '';
+    state.exportTo = '';
+    return state;
+})()">
     <div class="flex w-full items-center clr-primary">
         <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
@@ -12,9 +18,7 @@
             <button @click="open = !open" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
             </button>
-            <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input x-model.debounce.300ms="filters.search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
-            </label>
+            <x-search-input x-model.debounce.300ms="filters.search" />
         </div>
         <div class="flex flex-row gap-4">
             <button type="button" @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
@@ -236,15 +240,15 @@
     <script>
         function auditLogsClient(logs, pageSize) {
             const actionStyle = (action) => ({
-                // DELETE - FEE2E2 (TEXT - 7F1D1D)
-                'DELETE':  'background:#FEE2E2;color:#7F1D1D;',
+
                 'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
-                // PATCH - C11574 (TEXT - FFFFFF)
-                'PATCH':   'background:#C11574;color:#FFFFFF;',
-                // POST - EEF4FF (TEXT - 3538CD)
-                'POST':    'background:#EEF4FF;color:#3538CD;',
-                // RESTORE - F2F4F7 (TEXT - 344054)
+                
+                'UPDATED': 'background:#FDF2FA;color:#C11574;',
+                
+                'OPENED':  'background:#F2F4F7;color:#344054;',
                 'RESTORE': 'background:#F2F4F7;color:#344054;',
+                
+                'CREATED': 'background:#EEF4FF;color:#3538CD;',
             })[action] || 'background:#F2F4F7;color:#344054;';
 
             const fmtDateTime = (at) => {

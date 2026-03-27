@@ -9,6 +9,11 @@ use Livewire\Component;
 class Projects extends Component
 {
     public string $search = '';
+    public string $filterStatus = '';
+    public string $filterProjectManager = '';
+    public string $filterProgress = '';
+    public string $filterDateFrom = '';
+    public string $filterDateTo = '';
 
     /** Show the "Add Project" modal (create only). */
     public bool $showAddModal = false;
@@ -135,6 +140,15 @@ class Projects extends Component
     public function archiveSelected(): mixed
     {
         return $this->redirect(route('projects.archive'));
+    }
+
+    public function clearFilters(): void
+    {
+        $this->filterStatus = '';
+        $this->filterProjectManager = '';
+        $this->filterProgress = '';
+        $this->filterDateFrom = '';
+        $this->filterDateTo = '';
     }
 
     public function confirmDelete(int $projectId): void
@@ -438,21 +452,85 @@ class Projects extends Component
     public function render()
     {
         $query = mb_strtolower(trim((string) $this->search));
+        $statusNeedle = mb_strtolower(trim((string) $this->filterStatus));
+        $managerNeedle = trim((string) $this->filterProjectManager);
+        $progressNeedle = trim((string) $this->filterProgress);
+        $fromDate = trim((string) $this->filterDateFrom);
+        $toDate = trim((string) $this->filterDateTo);
 
-        if ($query === '') {
-            $filtered = $this->projects;
-        } else {
-            $filtered = array_values(array_filter($this->projects, function ($p) use ($query) {
-                $name    = mb_strtolower($p['name'] ?? $p['projectName'] ?? $p['title'] ?? '');
-                $leader  = mb_strtolower($p['createdByName'] ?? '');
-                $status  = mb_strtolower($p['statusName'] ?? $p['status'] ?? '');
-                $members = mb_strtolower(implode(' ', (array) ($p['memberNames'] ?? [])));
-                return str_contains($name, $query)
+        $filtered = array_values(array_filter($this->projects, function ($p) use (
+            $query,
+            $statusNeedle,
+            $managerNeedle,
+            $progressNeedle,
+            $fromDate,
+            $toDate
+        ) {
+            $name = mb_strtolower((string) ($p['name'] ?? $p['projectName'] ?? $p['title'] ?? ''));
+            $leaderDisplay = (string) ($p['createdByName'] ?? '—');
+            $leader = mb_strtolower($leaderDisplay);
+            $statusRaw = (string) ($p['_derivedStatus'] ?? $p['statusName'] ?? $p['status'] ?? '');
+            $status = mb_strtolower($statusRaw);
+            $members = mb_strtolower(implode(' ', (array) ($p['memberNames'] ?? [])));
+
+            if ($query !== '') {
+                $matchesQuery = str_contains($name, $query)
                     || str_contains($leader, $query)
                     || str_contains($status, $query)
                     || str_contains($members, $query);
-            }));
+                if (! $matchesQuery) return false;
+            }
+
+            if ($statusNeedle !== '' && $status !== $statusNeedle) {
+                return false;
+            }
+
+            if ($managerNeedle !== '' && trim($leaderDisplay) !== $managerNeedle) {
+                return false;
+            }
+
+            $progressValue = (int) ($p['completionPercentage'] ?? $p['progress'] ?? 0);
+            if ($progressValue < 0) $progressValue = 0;
+            if ($progressValue > 100) $progressValue = 100;
+
+            if ($progressNeedle !== '') {
+                $okProgress = match ($progressNeedle) {
+                    '0-25' => $progressValue >= 0 && $progressValue <= 25,
+                    '26-50' => $progressValue >= 26 && $progressValue <= 50,
+                    '51-75' => $progressValue >= 51 && $progressValue <= 75,
+                    '76-99' => $progressValue >= 76 && $progressValue <= 99,
+                    '100' => $progressValue === 100,
+                    default => true,
+                };
+                if (! $okProgress) return false;
+            }
+
+            $createdAt = (string) ($p['createdAt'] ?? '');
+            if (($fromDate !== '' || $toDate !== '') && $createdAt !== '') {
+                $createdTs = strtotime($createdAt);
+                if ($createdTs === false) return false;
+                if ($fromDate !== '') {
+                    $fromTs = strtotime($fromDate . ' 00:00:00');
+                    if ($fromTs !== false && $createdTs < $fromTs) return false;
+                }
+                if ($toDate !== '') {
+                    $toTs = strtotime($toDate . ' 23:59:59');
+                    if ($toTs !== false && $createdTs > $toTs) return false;
+                }
+            } elseif (($fromDate !== '' || $toDate !== '') && $createdAt === '') {
+                return false;
+            }
+
+            return true;
+        }));
+
+        $projectManagerOptions = [];
+        foreach ($this->projects as $p) {
+            $pm = trim((string) ($p['createdByName'] ?? ''));
+            if ($pm !== '') $projectManagerOptions[$pm] = true;
         }
+        $projectManagerOptions = array_keys($projectManagerOptions);
+        sort($projectManagerOptions);
 
         return view('livewire.projects', [
             'filteredProjects'      => $filtered,
@@ -461,6 +539,7 @@ class Projects extends Component
             'projectStatusMapById'  => $this->projectStatusMapById,
             'projectStatusMap'      => $this->projectStatusMap,
             'formStatusId'          => $this->formStatusId,
+            'projectManagerOptions' => $projectManagerOptions,
         ]);
     }
 }
