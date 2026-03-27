@@ -44,7 +44,9 @@
                     </div>
                     <div class="flex flex-col">
                         <h1 class="font-semibold text-xl">{{ $fullName ?: trim($firstName . ' ' . $lastName) ?: 'Account' }}</h1>
-                        <span id="bio">{{ $bio }}</span>
+                        @if(trim((string) $bio) !== '')
+                            <span id="bio" class="text-sm text-gray-600">{{ $bio }}</span>
+                        @endif
                     </div>
                 </div>
                 <div class="">
