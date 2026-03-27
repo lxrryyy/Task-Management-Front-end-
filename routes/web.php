@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\StickyNoteController;
@@ -89,3 +90,13 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name
 require __DIR__.'/auth.php';
 
 Route::post('/login', [LoginController::class, 'login'])->name('login');
+
+// Notifications (proxied to C# backend)
+Route::middleware(['api.auth'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::get('/notifications/resolve-task-project', [NotificationController::class, 'resolveTaskProject'])->name('notifications.resolveTaskProject');
+});
