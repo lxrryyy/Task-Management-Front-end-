@@ -90,7 +90,9 @@ class Settings extends Component
         $this->role = (string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '');
         $this->email = (string) ($user['email'] ?? $user['Email'] ?? '');
         $this->fullName = (string) ($user['name'] ?? $user['Name'] ?? $user['fullName'] ?? '');
-        $this->profilePicture = $user['profilePicture'] ?? $user['ProfilePicture'] ?? null;
+        $this->profilePicture = $this->normalizeProfilePicture(
+            $user['profilePicture'] ?? $user['ProfilePicture'] ?? null
+        );
         $this->bio = '';
 
         // Split full name into first/last for display + initials fallback
@@ -102,32 +104,23 @@ class Settings extends Component
         $this->saveError = null;
         $this->saveSuccess = false;
 
-        // Try to enrich profile from the accounts endpoint (we already use this in other components)
+        // Enrich from GetAccountById endpoint.
         if ($this->accountId > 0) {
             try {
-                $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
-                $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
+                $acc = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$this->accountId}");
+                if (is_array($acc) && $acc !== []) {
+                    $this->fullName = (string) ($acc['name'] ?? $acc['Name'] ?? $this->fullName);
+                    $this->email = (string) ($acc['email'] ?? $acc['Email'] ?? $this->email);
+                    $this->role = (string) ($acc['role'] ?? $acc['Role'] ?? $this->role);
+                    $this->bio = (string) ($acc['specialization'] ?? $acc['Specialization'] ?? $acc['bio'] ?? $acc['Bio'] ?? $this->bio);
+                    $this->profilePicture = $this->normalizeProfilePicture(
+                        $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? $this->profilePicture
+                    );
 
-                foreach ((array) $list as $acc) {
-                    if (!is_array($acc)) continue;
-                    $id = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
-                    if ($id !== $this->accountId) continue;
-
-                    $this->profilePicture = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? $this->profilePicture;
-                    $this->bio = (string) ($acc['description'] ?? $acc['Description'] ?? $acc['specialization'] ?? $acc['Specialization'] ?? $acc['bio'] ?? $acc['Bio'] ?? $this->bio);
-
-                    // If API returns structured names, prefer them
-                    if (!empty($acc['firstName']) || !empty($acc['lastName'])) {
-                        $this->firstName = (string) ($acc['firstName'] ?? $acc['FirstName'] ?? $this->firstName);
-                        $this->lastName = (string) ($acc['lastName'] ?? $acc['LastName'] ?? $this->lastName);
-                    } elseif (!empty($acc['name']) || !empty($acc['fullName'])) {
-                        $this->fullName = (string) ($acc['name'] ?? $acc['Name'] ?? $acc['fullName'] ?? $acc['FullName'] ?? $this->fullName);
-                        $parts2 = preg_split('/\s+/', trim($this->fullName));
-                        $parts2 = array_values(array_filter($parts2, fn ($p) => is_string($p) && trim($p) !== ''));
-                        $this->firstName = (string) ($parts2[0] ?? $this->firstName);
-                        $this->lastName = (string) (!empty($parts2) ? implode(' ', array_slice($parts2, 1)) : $this->lastName);
-                    }
-                    break;
+                    $parts2 = preg_split('/\s+/', trim($this->fullName));
+                    $parts2 = array_values(array_filter($parts2, fn ($p) => is_string($p) && trim($p) !== ''));
+                    $this->firstName = (string) ($parts2[0] ?? $this->firstName);
+                    $this->lastName = (string) (!empty($parts2) ? implode(' ', array_slice($parts2, 1)) : $this->lastName);
                 }
             } catch (\Throwable) {
                 // Keep whatever we got from Session
@@ -137,6 +130,17 @@ class Settings extends Component
         // Important: compute avatar bg only when we (re)load profile (mount/save/remove),
         // so it doesn't change while the user types or selects a new photo.
         $this->avatarBg = $this->computeAvatarBg();
+    }
+
+    private function normalizeProfilePicture(mixed $value): ?string
+    {
+        $pic = is_string($value) ? trim($value) : '';
+        if ($pic === '') return null;
+        if (str_starts_with($pic, 'http://') || str_starts_with($pic, 'https://') || str_starts_with($pic, 'data:image/')) {
+            return $pic;
+        }
+        // API may return raw base64 only.
+        return 'data:image/jpeg;base64,' . $pic;
     }
 
     public function updatedPhoto(): void
@@ -240,6 +244,14 @@ class Settings extends Component
         $this->showPhotoConfirmModal = false;
 
         try {
+            $composedFullName = trim(implode(' ', array_filter([
+                trim((string) $this->firstName),
+                trim((string) $this->lastName),
+            ], fn ($v) => $v !== '')));
+            if ($composedFullName !== '') {
+                $this->fullName = $composedFullName;
+            }
+
             // If user selected a new photo, compute it once for both:
             // 1) sending to the backend
             // 2) instant UI update for the header (in case refresh response is delayed)
@@ -248,50 +260,30 @@ class Settings extends Component
                 $pendingPicForUi = $this->photoFileToDataUrl($this->photo);
             }
 
-            // Base payload follows your Swagger example for PATCH /api/Account/UpdateAccount/{id}
+            $editor = Session::get('user', []);
+            $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
+
+            $roleRaw = trim((string) $this->role);
+            $roleNormalized = mb_strtolower($roleRaw) === 'admin' ? 'Admin' : 'User';
+
             $payload = [
+                'name' => $this->fullName,
+                'passwordHash' => trim((string) $this->currentPassword) !== '' ? $this->currentPassword : null,
+                'role' => $roleNormalized,
                 'isActive' => true,
+                'profilePicture' => $this->photo
+                    ? ($pendingPicForUi ?: null)
+                    : ($this->profilePicture ?: null),
+                'specialization' => trim((string) $this->bio) !== '' ? $this->bio : null,
+                'currentPassword' => trim((string) $this->currentPassword) !== '' ? $this->currentPassword : null,
+                'newPassword' => trim((string) $this->newPassword) !== '' ? $this->newPassword : null,
+                'confirmPassword' => trim((string) $this->confirmPassword) !== '' ? $this->confirmPassword : null,
             ];
 
-            // Only send values that exist in the inputs
-            if (trim((string) $this->role) !== '') {
-                $payload['role'] = $this->role;
-            }
-
-            if ($this->bio !== '') {
-                $payload['specializationPassword'] = $this->bio;
-            }
-
-            if (trim((string) $this->currentPassword) !== '') {
-                $payload['passwordHash'] = $this->currentPassword;
-            }
-
-            if (trim((string) $this->newPassword) !== '') {
-                $payload['newPassword'] = $this->newPassword;
-            }
-
-            if (trim((string) $this->confirmPassword) !== '') {
-                $payload['confirmPassword'] = $this->confirmPassword;
-            }
-
-            if (trim((string) $this->firstName) !== '') {
-                $payload['firstName'] = $this->firstName;
-            }
-
-            if (trim((string) $this->lastName) !== '') {
-                $payload['lastName'] = $this->lastName;
-            }
-
-            if (trim((string) $this->email) !== '') {
-                $payload['email'] = $this->email;
-            }
-
-            // Only send profilePicture if user actually selected a new photo
-            if ($this->photo) {
-                $payload['profilePicture'] = $pendingPicForUi;
-            }
-
-            app(CsharpApiService::class)->patch("/api/Account/UpdateAccount/{$this->accountId}", $payload);
+            app(CsharpApiService::class)->patch(
+                "/api/Account/UpdateAccount/{$this->accountId}?editorId={$editorId}",
+                $payload
+            );
 
             // Refresh from API / session so the UI reflects server state
             $this->photo = null;
