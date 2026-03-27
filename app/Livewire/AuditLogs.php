@@ -216,7 +216,10 @@ class AuditLogs extends Component
         );
         $status = trim($status);
 
-        $message = (string) ($log['message'] ?? $log['Message'] ?? $log['description'] ?? $log['Description'] ?? $log['details'] ?? $log['Details'] ?? '');
+        $message = (string) (
+            $log['note'] ?? $log['Note']
+            ?? ''
+        );
         $message = trim($message);
 
         $at = (string) ($log['createdAt'] ?? $log['CreatedAt'] ?? $log['timestamp'] ?? $log['Timestamp'] ?? $log['date'] ?? $log['Date'] ?? '');
@@ -234,6 +237,7 @@ class AuditLogs extends Component
             'projectName' => $projectName,
             'status' => $status,
             'entity' => $entity,
+            'note' => $message,
             'message' => $message,
             'at' => $at,
             'raw' => $log,

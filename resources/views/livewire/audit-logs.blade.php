@@ -276,7 +276,10 @@
                     projectName: (raw.projectName || '').toString().trim(),
                     action,
                     actionStyle: actionStyle(action),
-                    description: (raw.message || raw.entity || '').toString().trim(),
+                    description: (
+                        raw.note
+                        || ''
+                    ).toString().trim(),
                     status: (raw.status || '').toString().trim(),
                     at,
                     ...dt,
