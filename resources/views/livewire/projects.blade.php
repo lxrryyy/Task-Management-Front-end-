@@ -16,18 +16,51 @@
                         </button>
                     </div>
                     <div class="flex items-center gap-4">
-                        <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                            <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
-                        </label>
-                        <div class="dropdown dropdown-end">
-                            <button tabindex="0" class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white "><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
-                            <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg mt-1">
-                                <li><a href="#">Alphabetical (A → Z)</a></li>
-                                <li><a href="#">Alphabetical (Z → A)</a></li>
-                                <li><a href="#">Date (Newest first)</a></li>
-                                <li><a href="#">Date (Oldest first)</a></li>
-                            </ul>
-                        </div>
+                        <x-search-input wire:model.live.debounce.300ms="search" />
+                        <x-filter-dropdown
+                            button-class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white"
+                            clear-action="clearFilters"
+                        >
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Status</span>
+                                <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All statuses</option>
+                                    @foreach(($projectStatuses ?? []) as $ps)
+                                        <option value="{{ $ps }}">{{ $ps }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Project Manager</span>
+                                <select wire:model.live="filterProjectManager" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All managers</option>
+                                    @foreach(($projectManagerOptions ?? []) as $pm)
+                                        <option value="{{ $pm }}">{{ $pm }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-gray-600">Progress</span>
+                                <select wire:model.live="filterProgress" class="select select-bordered w-full bg-white text-gray-900">
+                                    <option value="">All progress</option>
+                                    <option value="0-25">0% - 25%</option>
+                                    <option value="26-50">26% - 50%</option>
+                                    <option value="51-75">51% - 75%</option>
+                                    <option value="76-99">76% - 99%</option>
+                                    <option value="100">100%</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-gray-600">Date From</span>
+                                    <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-gray-600">Date To</span>
+                                    <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                                </div>
+                            </div>
+                        </x-filter-dropdown>
 
                     <div>
                         <button type="button" wire:click="openModal" class="btn w-36 border-2 clr-bg-primary rounded-lg text-base-100">+ Add Project</button>

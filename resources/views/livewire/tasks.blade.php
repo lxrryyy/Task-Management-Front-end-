@@ -44,18 +44,40 @@
             </button>
         </div>
         <div class="flex items-center gap-2">
-            <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input wire:model.live.debounce.300ms="search" class="w-40 bg-transparent focus:outline-none rounded-lg" type="search" placeholder="Search" />
-            </label>
-            <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"><x-icons.sort class="w-4 h-4 inline-block" /> Filter</button>
-                <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg mt-1">
-                    <li><a href="#">Alphabetical (A - Z)</a></li>
-                    <li><a href="#">Alphabetical (Z - A)</a></li>
-                    <li><a href="#">Date (Newest first)</a></li>
-                    <li><a href="#">Date (Oldest first)</a></li>
-                </ul>
-            </div>
+            <x-search-input wire:model.live.debounce.300ms="search" />
+            <x-filter-dropdown
+                button-class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
+                clear-action="clearTaskFilters"
+            >
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-600">Status</span>
+                    <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                        <option value="">All statuses</option>
+                        @foreach(($boardStatuses ?? []) as $statusOption)
+                            <option value="{{ $statusOption }}">{{ $statusOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-gray-600">Priority</span>
+                    <select wire:model.live="filterPriority" class="select select-bordered w-full bg-white text-gray-900">
+                        <option value="">All priorities</option>
+                        @foreach(($taskPriorityNames ?? []) as $priorityOption)
+                            <option value="{{ $priorityOption }}">{{ $priorityOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-gray-600">Date From</span>
+                        <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-gray-600">Date To</span>
+                        <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
+                    </div>
+                </div>
+            </x-filter-dropdown>
             <button wire:click="openAddTaskModal" class="btn clr-bg-primary text-base-100 p-4">+ Add Task</button>
         </div>
     </div>
@@ -364,13 +386,65 @@
 
             <div class="mb-6">
                 <p class="text-sm font-normal text-gray-700 mb-2">Comment</p>
-                <div class="border border-gray-300 rounded-lg bg-white p-4 min-h-[80px] flex items-center">
-                    <span class="text-gray-400 text-sm cursor-pointer hover:text-gray-600">Write a comment..</span>
-                </div>
-            </div>
+                <div class="border border-gray-300 rounded-lg bg-white p-4 min-h-[80px]">
+                    @if($commentError)
+                        <div class="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ $commentError }}</div>
+                    @endif
 
-            <div class="flex justify-end">
-                <button type="button" class="btn clr-bg-primary text-base-100 px-6">Send</button>
+                    <div class="flex items-start gap-2 mb-4">
+                        <textarea
+                            wire:model.defer="newComment"
+                            class="textarea textarea-bordered w-full min-h-[64px]"
+                            placeholder="Write a comment..."
+                        ></textarea>
+                        <button type="button" wire:click="addComment" class="btn clr-bg-primary text-base-100 px-4">Send</button>
+                    </div>
+
+                    <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        @forelse($taskComments as $cmt)
+                            @php
+                                $isMine = (int)($cmt['accountId'] ?? 0) === (int)$currentUserId;
+                                $isEditing = (int)($editingCommentId ?? 0) === (int)($cmt['id'] ?? 0);
+                            @endphp
+                            <div id="task-cmt-{{ (int) ($cmt['id'] ?? 0) }}" class="rounded-lg border border-gray-200 p-3 bg-gray-50/40 transition-shadow">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">{{ $cmt['accountName'] ?? 'User' }}</p>
+                                        <p class="text-xs text-gray-500">
+                                            @if(!empty($cmt['createdAt']))
+                                                {{ \Carbon\Carbon::parse($cmt['createdAt'])->format('M d, Y h:i A') }}
+                                            @else
+                                                —
+                                            @endif
+                                        </p>
+                                    </div>
+                                    @if($isMine)
+                                        <div class="flex items-center gap-2">
+                                            @if(!$isEditing)
+                                                <button type="button" wire:click="startEditComment({{ (int)($cmt['id'] ?? 0) }})" class="text-xs text-blue-600 hover:underline">Edit</button>
+                                            @endif
+                                            <button type="button" wire:click="deleteComment({{ (int)($cmt['id'] ?? 0) }})" class="text-xs text-red-600 hover:underline">Delete</button>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                @if($isEditing)
+                                    <div class="mt-2 flex items-start gap-2">
+                                        <textarea wire:model.defer="editingCommentContent" class="textarea textarea-bordered w-full min-h-[56px]"></textarea>
+                                        <div class="flex flex-col gap-1">
+                                            <button type="button" wire:click="updateComment({{ (int)($cmt['id'] ?? 0) }})" class="btn btn-xs clr-bg-primary text-base-100">Save</button>
+                                            <button type="button" wire:click="cancelEditComment" class="btn btn-xs">Cancel</button>
+                                        </div>
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">{{ $cmt['content'] ?? '' }}</p>
+                                @endif
+                            </div>
+                        @empty
+                            <p class="text-sm text-gray-400">No comments yet.</p>
+                        @endforelse
+                    </div>
+                </div>
             </div>
             @endif
         </div>
@@ -452,12 +526,72 @@ document.addEventListener('change', async function (e) {
     recalcDueAndWarnings(form);
 });
 </script>
+
+<script>
+// Keep a fixed-height scroll container, but don't clip dropdowns.
+(function () {
+    const wrap = document.querySelector('[data-tasks-table-scroll]');
+    if (!wrap) return;
+
+    const enableOverflowVisible = () => {
+        wrap.classList.remove('overflow-y-auto');
+        wrap.classList.add('overflow-visible');
+    };
+    const disableOverflowVisible = () => {
+        wrap.classList.remove('overflow-visible');
+        wrap.classList.add('overflow-y-auto');
+    };
+
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+
+        if (t.closest('[data-action-dropdown-trigger]')) {
+            enableOverflowVisible();
+            return;
+        }
+        if (t.closest('[data-action-dropdown-menu]')) return;
+        disableOverflowVisible();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') disableOverflowVisible();
+    });
+})();
+</script>
         <form method="dialog" class="modal-backdrop">
             <button type="button" wire:click="closeTaskDetail">close</button>
         </form>
     </dialog>
 
-    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto max-h-[500px] relative">
+    {{-- Delete confirmation modal --}}
+    <dialog class="{{ $showDeleteConfirmModal ? 'modal modal-open' : 'modal' }}">
+        <div class="modal-box max-w-sm">
+            <h3 class="text-lg font-normal">Confirm Delete</h3>
+            <p class="py-4 text-sm text-gray-700">
+                Are you sure you want to delete {{ $pendingDeleteTaskName ?? 'this task' }}?
+            </p>
+
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost p-4" wire:click="cancelDeleteTask">Cancel</button>
+                <button
+                    type="button"
+                    class="btn bg-red-600 hover:bg-red-700 text-base-100 border-none p-4"
+                    wire:click="deleteTask({{ (int) ($pendingDeleteTaskId ?? 0) }})"
+                >
+                    Delete
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="button" wire:click="cancelDeleteTask">close</button>
+        </form>
+    </dialog>
+
+    <div
+        class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto overflow-y-auto h-[500px] relative"
+        data-tasks-table-scroll
+    >
         <table class="table w-full table-fixed border-collapse">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
@@ -673,15 +807,29 @@ document.addEventListener('change', async function (e) {
                                     </td>
                     <td wire:click.stop>
                         <div class="dropdown dropdown-end">
-                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2" data-action-dropdown-trigger>
                                 <x-icons.three-dot classes="w-5 h-5" />
                             </button>
                             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                <li>
+                                <li class="border-b border-gray-100">
                                     <button type="button" wire:click.stop="openTaskDetail({{ $p['id'] ?? 0 }})">
                                         Details
                                     </button>
                                 </li>
+                                @if($parentId !== null)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" wire:click.stop="addSubtask({{ (int)($parentId ?? 0) }})">
+                                            Add subtask
+                                        </button>
+                                    </li>
+                                @endif
+                                @if(!empty($canDeleteTasks))
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($p['id'] ?? 0) }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                @endif
                             </ul>
                         </div>
                     </td>
@@ -698,11 +846,11 @@ document.addEventListener('change', async function (e) {
                         @endphp
                         <!-- Subtask row -->
                         <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
-                            <td wire:click.stop>
+                            <td wire:click.stop class="pl-8">
                                 @if($childId !== null)
                                     <button
                                         type="button"
-                                        class="btn btn-ghost btn-xs"
+                                        class="btn btn-ghost btn-xs ml-4"
                                         wire:click.stop="toggle({{ $childId }})"
                                     >
                                         {{ $childExpanded ? 'v' : '>' }}
@@ -799,16 +947,34 @@ document.addEventListener('change', async function (e) {
                             </td>
                             <td wire:click.stop>
                                 <div class="dropdown dropdown-end">
-                                    <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                    <button tabindex="0" type="button"
+                                            class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
+                                            data-action-dropdown-trigger>
                                         <x-icons.three-dot classes="w-5 h-5" />
                                     </button>
-                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                        <li>
-                                            <button type="button" wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
-                                                Details
-                                            </button>
-                                        </li>
-                                    </ul>
+                                    <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border" data-action-dropdown-menu>
+                                <li class="border-b border-gray-100">
+                                    <button type="button" wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
+                                        Details
+                                    </button>
+                                </li>
+
+                                @if($childId !== null)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" wire:click.stop="addSubtask({{ (int)($childId ?? 0) }})">
+                                            Add grandchild task
+                                        </button>
+                                    </li>
+                                @endif
+
+                                @if($canDeleteTasks)
+                                    <li class="border-b border-gray-100">
+                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($c['id'] ?? 0) }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                @endif
+                            </ul>
                                 </div>
                             </td>
                         </tr>
@@ -818,7 +984,7 @@ document.addEventListener('change', async function (e) {
                                 @php $g = $fmt($gc); @endphp
                                 <!-- Grandchild task rows -->
                                 <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
-                                    <td wire:click.stop></td>
+                                    <td wire:click.stop class="pl-12"></td>
                                     <td wire:click.stop class="pl-16 pr-4">
                                         <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
                                     </td>
@@ -909,15 +1075,24 @@ document.addEventListener('change', async function (e) {
                                     </td>
                                     <td wire:click.stop>
                                         <div class="dropdown dropdown-end">
-                                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                            <button tabindex="0" type="button"
+                                                    class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
+                                                    data-action-dropdown-trigger>
                                                 <x-icons.three-dot classes="w-5 h-5" />
                                             </button>
-                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                                <li>
+                                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border" data-action-dropdown-menu>
+                                                <li class="border-b border-gray-100">
                                                     <button type="button" wire:click.stop="openTaskDetail({{ $g['id'] ?? 0 }})">
                                                         Details
                                                     </button>
                                                 </li>
+                                                @if($canDeleteTasks)
+                                                    <li class="border-b border-gray-100">
+                                                        <button type="button" class="text-red-600 hover:text-red-700" wire:click.stop="confirmDeleteTask({{ (int)($g['id'] ?? 0) }})">
+                                                            Delete
+                                                        </button>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </div>
                                     </td>

@@ -77,13 +77,61 @@ class NotificationController extends Controller
         }
 
         try {
-            $data = $this->api->put('/api/Notification/read-all', ['accountId' => $accountId]);
+            // API expects accountId as a query parameter (not JSON body).
+            $data = $this->api->put('/api/Notification/read-all?accountId='.$accountId, []);
             return response()->json(is_array($data) ? $data : ['message' => 'Notifications marked as read.']);
         } catch (RequestException) {
             return response()->json(['message' => 'Failed to mark all read.'], 200);
         } catch (\Throwable) {
             return response()->json(['message' => 'Failed to mark all read.'], 200);
         }
+    }
+
+    /**
+     * GET /notifications/resolve-task-project?taskId=
+     * Attempts to discover projectId for a task when the notification payload omits it.
+     */
+    public function resolveTaskProject(Request $request): JsonResponse
+    {
+        $taskId = (int) $request->query('taskId', 0);
+        if ($taskId <= 0) {
+            return response()->json(['projectId' => null], 422);
+        }
+
+        $requesterId = $this->accountId();
+        if ($requesterId <= 0) {
+            return response()->json(['projectId' => null], 422);
+        }
+
+        $candidates = [
+            "/api/Task/GetTask/{$taskId}",
+            "/api/Task/GetTaskById/{$taskId}",
+            "/api/Task/GetTaskDetail/{$taskId}",
+        ];
+
+        foreach ($candidates as $endpoint) {
+            try {
+                $raw = $this->api->get($endpoint, ['requesterId' => $requesterId]);
+                if (! is_array($raw)) {
+                    continue;
+                }
+                $projectId = (int) ($raw['projectId'] ?? $raw['ProjectId'] ?? $raw['projectID'] ?? 0);
+                if ($projectId > 0) {
+                    return response()->json(['projectId' => $projectId]);
+                }
+                $inner = $raw['task'] ?? $raw['data'] ?? $raw['Task'] ?? null;
+                if (is_array($inner)) {
+                    $projectId = (int) ($inner['projectId'] ?? $inner['ProjectId'] ?? 0);
+                    if ($projectId > 0) {
+                        return response()->json(['projectId' => $projectId]);
+                    }
+                }
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return response()->json(['projectId' => null], 404);
     }
 
     /** DELETE /notifications/{id} */

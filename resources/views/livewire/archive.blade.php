@@ -10,9 +10,10 @@
         <hr class="border-2 clr-bg-primary">
 
         <div class="flex items-center justify-end p-2 flex-shrink-0">
-            <label class="input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1">
-                <input wire:model.live.debounce.300ms="search" class="w-96 bg-transparent focus:outline-none rounded-xl" type="search" placeholder="Search" />
-            </label>
+            <x-search-input
+                wire:model.live.debounce.300ms="search"
+                input-class="w-96 bg-transparent focus:outline-none rounded-xl"
+            />
         </div>
 
         <div class="overflow-x-auto">
