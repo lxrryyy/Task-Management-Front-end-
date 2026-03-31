@@ -234,14 +234,6 @@ export function registerNotifications() {
           this.items = Array.isArray(data) ? data.map(norm) : [];
           this.unreadCount = this.items.filter((x) => !x.isRead).length;
           this.selectedIds = [];
-
-          // Requirement: notifications are automatically marked as read once viewed/opened.
-          const unreadItems = this.items.filter((x) => !x.isRead);
-          if (unreadItems.length > 0) {
-            await Promise.allSettled(unreadItems.map((x) => this.markRead(x)));
-            // Ensure badge count reflects backend state right away.
-            await this.refreshUnread();
-          }
         } catch (e) {
           this.items = [];
         } finally {

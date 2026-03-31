@@ -1164,15 +1164,29 @@ document.addEventListener('change', async function (e) {
             <div class="flex flex-col gap-2 p-3">
                 @foreach($boardGrouped[$status] ?? [] as $task)
                 @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
-                <div x-data="{ dragging: false }"
-                     class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                <div x-data="{ dragging: false, dragStarted: false }"
+                     class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                      draggable="true"
                      :style="dragging ? 'opacity:0.4' : ''"
-                     @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
-                     @dragend="dragging = false">
-                    <a href="#" class="block p-4 flex flex-col gap-3 cursor-pointer min-h-full no-underline text-inherit hover:bg-gray-50/50"
-                       wire:click.prevent="openTaskDetail({{ $boardTaskId }})">
-                        <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
+                     @dragstart="if ($event.target?.closest('.kanban-no-drag')) { $event.preventDefault(); return; } dragStarted = true; dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
+                     @dragend="dragStarted = false; dragging = false">
+                    <div class="block p-4 flex flex-col gap-3 min-h-full no-underline text-inherit hover:bg-gray-50/50">
+                        <div class="flex items-start justify-between gap-2">
+                            <span class="font-medium text-sm leading-snug">{{ $task['name'] ?? $task['title'] ?? '' }}</span>
+                            <button type="button"
+                                draggable="false"
+                                @mousedown.stop
+                                wire:click.stop="openTaskDetail({{ $boardTaskId }})"
+                                wire:loading.attr="disabled"
+                                wire:target="openTaskDetail"
+                                class="kanban-no-drag btn btn-ghost btn-sm px-2 py-1 min-h-0 h-7 w-7 hover:bg-base-200 hover:text-base-content rounded-lg relative">
+                                <span wire:loading.remove wire:target="openTaskDetail">
+                                    <x-icons.three-dot classes="w-4 h-4" />
+                                </span>
+                                <span wire:loading wire:target="openTaskDetail"
+                                    class="loading loading-spinner loading-xs text-base-content"></span>
+                            </button>
+                        </div>
                         <div class="flex flex-wrap gap-1.5 items-center">
                             @if(!empty($task['priority']))
                                 <span class="px-2 py-0.5 text-xs" style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $priorityStyle[$task['priority']] ?? 'background:#f3f4f6;color:#6b7280;' }}">• {{ $task['priority'] }}</span>
@@ -1196,7 +1210,7 @@ document.addEventListener('change', async function (e) {
                                 <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
                             @endif
                         </div>
-                    </a>
+                    </div>
                 </div>
                 @endforeach
                 @if(empty($boardGrouped[$status]))
