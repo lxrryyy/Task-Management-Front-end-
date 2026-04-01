@@ -209,27 +209,7 @@ class Settings extends Component
         $this->saveSuccessMessage = null;
 
         try {
-            // Use UpdateAccount to clear the photo. The dedicated DELETE RemoveProfilePicture
-            // endpoint has returned HTTP 500 on some backends; PATCH matches "Save Changes" semantics.
-            $editor = Session::get('user', []);
-            $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
-            $roleRaw = trim((string) $this->role);
-            $roleNormalized = mb_strtolower($roleRaw) === 'admin' ? 'Admin' : 'User';
-
-            app(CsharpApiService::class)->patch(
-                "/api/Account/UpdateAccount/{$this->accountId}?editorId={$editorId}",
-                [
-                    'name' => $this->fullName,
-                    'passwordHash' => null,
-                    'role' => $roleNormalized,
-                    'isActive' => true,
-                    'profilePicture' => null,
-                    'specialization' => trim((string) $this->bio) !== '' ? $this->bio : null,
-                    'currentPassword' => null,
-                    'newPassword' => null,
-                    'confirmPassword' => null,
-                ]
-            );
+            app(CsharpApiService::class)->delete("/api/Account/RemoveProfilePicture/{$this->accountId}");
 
             $this->profilePicture = null;
             $this->photoPreview = null;
@@ -277,7 +257,7 @@ class Settings extends Component
                 $msg = is_string($raw) && trim($raw) !== '' && strlen($raw) < 400 ? trim(strip_tags($raw)) : null;
             }
 
-            Log::warning('Remove profile picture (UpdateAccount) failed', [
+            Log::warning('RemoveProfilePicture API failed', [
                 'status' => $status,
                 'accountId' => $this->accountId,
                 'message' => $msg,
