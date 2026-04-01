@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Session;
 
 class UserManagement extends Component
 {
@@ -43,20 +44,64 @@ class UserManagement extends Component
     public bool $editIsActive = true;
     public ?string $editUserError = null;
     public ?string $editUserSuccess = null;
+    public bool $showAddUserModal = false;
+    public bool $showPassword = false;
 
     public function mount(): void
     {
         $this->reloadUsersFromApi();
     }
 
+    public function openAddUserModal(): void
+    {
+        $this->createAccountError = null;
+        $this->createAccountErrors = [];    
+
+        $this->showAddUserModal = true;
+    }
+
+    public function closeAddUserModal(): void
+    {
+        $this->showAddUserModal = false;
+        $this->newFirstName = '';
+        $this->newLastName = '';
+        $this->newEmail = '';
+        $this->newTemporaryPassword = '';
+        $this->newSpecialization = '';
+        $this->newRole = 'User';
+        $this->createAccountError = null;
+        $this->createAccountErrors = [];
+    }
+
     public function generateTemporaryPassword(): void
     {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $numbers = '0123456789';
+        $special = '!@#$%^&*';
+        $all = $letters . $numbers . $special;
+
+        // Guarantee at least one of each required type
         $password = '';
-        for ($i = 0; $i < 12; $i++) {
-            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+        $password .= $special[random_int(0, strlen($special) - 1)];
+
+        // Fill remaining 10 characters from all chars
+        for ($i = 0; $i < 10; $i++) {
+            $password .= $all[random_int(0, strlen($all) - 1)];
         }
+
+        // Shuffle so the number and special char aren't always first
+        $password = str_split($password);
+        shuffle($password);
+        $password = implode('', $password);
+
         $this->newTemporaryPassword = $password;
+        $this->dispatch('password-generated', password: $password);
+    }
+
+    public function toggleShowPassword(): void
+    {
+        $this->showPassword = !$this->showPassword;
     }
 
     public function createAccount(): void
@@ -68,12 +113,9 @@ class UserManagement extends Component
         $first = trim($this->newFirstName);
         $last = trim($this->newLastName);
         $email = trim($this->newEmail);
-        $tempPassword = (string) $this->newTemporaryPassword;
-        $specRaw = trim($this->newSpecialization);
-        $spec = $specRaw !== '' ? $specRaw : null;
-
-        $fullName = trim(($first !== '' ? $first : '') . ' ' . ($last !== '' ? $last : ''));
-        $fullName = trim($fullName);
+        $tempPassword = trim($this->newTemporaryPassword);
+        $spec = trim($this->newSpecialization) !== '' ? trim($this->newSpecialization) : null;
+        $fullName = trim($first . ' ' . $last);
 
         if ($fullName === '' || $email === '' || $tempPassword === '') {
             $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
@@ -82,63 +124,43 @@ class UserManagement extends Component
 
         $this->creatingAccount = true;
         try {
-            $user = \Illuminate\Support\Facades\Session::get('user', []);
+            $user = session('user', []);
             $adminId = (int) ($user['id'] ?? $user['Id'] ?? $user['accountId'] ?? $user['AccountId'] ?? 0);
-            // Swagger shows this endpoint requires `adminId` as a query parameter.
+
             if ($adminId <= 0) {
                 $this->creatingAccount = false;
-                $this->createAccountError = 'Admin ID is required to create an account. Please log out and log in again as an admin.';
+                $this->createAccountError = 'Admin ID is required. Please log out and log in again as an admin.';
                 return;
             }
-            $adminQuery = '?adminid=' . $adminId;
 
             $payload = [
-                // Match Swagger request body exactly.
                 'name' => $fullName,
                 'email' => $email,
                 'password' => $tempPassword,
                 'passwordHash' => $tempPassword,
                 'specialization' => $spec,
-                'role' => trim((string) $this->newRole) !== '' ? $this->newRole : 'User',
+                'role' => 'User',
                 'isActive' => true,
             ];
 
-            app(\App\Services\CsharpApiService::class)->post('/api/Account/CreateAccount' . $adminQuery, $payload);
+            app(\App\Services\CsharpApiService::class)->post('/api/Account/CreateAccount?adminid=' . $adminId, $payload);
 
             $this->createAccountSuccess = 'User created successfully.';
             $this->creatingAccount = false;
-
-            // Reset form fields
-            $this->newFirstName = '';
-            $this->newLastName = '';
-            $this->newEmail = '';
-            $this->newTemporaryPassword = '';
-            $this->newSpecialization = '';
-            $this->newRole = 'User';
-
-            // Refresh list
             $this->reloadUsersFromApi();
-
-            // Close the dialog on success so the rest of the page is clickable.
-            $this->dispatch('closeAddUserModal');
+            $this->closeAddUserModal();
         } catch (RequestException $e) {
             $this->creatingAccount = false;
-
             $api = app(\App\Services\CsharpApiService::class);
             $fieldErrors = $api->extractFieldErrors($e->response);
-
-            // Flatten to a simple array of readable messages.
             $flat = [];
             foreach ($fieldErrors as $msgs) {
                 foreach ((array) $msgs as $m) {
                     if (is_string($m) && trim($m) !== '') $flat[] = $m;
                 }
             }
-
             $this->createAccountErrors = array_values(array_unique($flat));
-            $this->createAccountError = !empty($this->createAccountErrors)
-                ? null
-                : 'Failed to create user. Please try again.';
+            $this->createAccountError = !empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
         } catch (\Throwable $e) {
             $this->creatingAccount = false;
             $this->createAccountError = $e->getMessage() ?: 'Failed to create user. Please try again.';
@@ -346,7 +368,7 @@ class UserManagement extends Component
         }
 
         try {
-            $user = \Illuminate\Support\Facades\Session::get('user', []);
+            $user = session('user', []);
             $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
             $payload = [

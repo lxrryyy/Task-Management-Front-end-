@@ -15,7 +15,6 @@
 
     @if(!empty($createAccountErrors))
     <div class="alert alert-error text-sm m-4">
-        <div class="font-semibold px-1">API validation error</div>
         <ul class="list-disc list-inside mt-2 px-1">
             @foreach($createAccountErrors as $msg)
             <li>{{ $msg }}</li>
@@ -31,44 +30,47 @@
     @endif
 
     {{-- Add User Modal --}}
-    <dialog id="add_user" class="modal" wire:ignore.self>
-        <div class="modal-box overflow-y-auto" style="height: 500px; width: min(90vw, 1100px); max-width: 1100px;">
+    <dialog class="{{ $showAddUserModal ? 'modal modal-open' : 'modal' }}">
+        <div class="modal-box overflow-y-auto" style="max-height: 90vh; width: min(90vw, 1100px); max-width: 1100px;">
             <h3 class="text-lg font-bold">Add user</h3>
             <hr>
             <div class="flex flex-col gap-4">
                 <div class="flex flex-row gap-4">
                     <div class="flex flex-1 flex-col">
-                        <label for="First Name">First Name</label>
-                        <input type="text" wire:model.defer="newFirstName" class="input input-bordered rounded-lg w-full" />
+                        <label>First Name</label>
+                        <input type="text" wire:model="newFirstName" class="input input-bordered rounded-lg w-full" />
                     </div>
                     <div class="flex flex-1 flex-col">
-                        <label for="Last Name">Last Name</label>
-                        <input type="text" wire:model.defer="newLastName" class="input input-bordered rounded-lg w-full" />
+                        <label>Last Name</label>
+                        <input type="text" wire:model="newLastName" class="input input-bordered rounded-lg w-full" />
                     </div>
                 </div>
                 <div class="flex flex-1 flex-col">
-                    <label for="Email">Email</label>
-                    <input type="text" wire:model.defer="newEmail" class="input input-bordered rounded-lg w-full" />
+                    <label>Email</label>
+                    <input type="text" wire:model="newEmail" class="input input-bordered rounded-lg w-full" />
                 </div>
-                <div class="flex flex-row justify-center items-center gap-4" x-data="{ password: '', show: false }">
+                <div class="flex flex-row justify-center items-center gap-4">
                     <div class="flex flex-1 flex-col">
                         <label>Temporary Password</label>
                         <div class="relative">
                             <input
-                                :type="show ? 'text' : 'password'"
-                                x-model="password"
+                                type="{{ $showPassword ? 'text' : 'password' }}"
+                                id="generated-password"
                                 wire:model="newTemporaryPassword"
                                 class="input input-bordered rounded-lg w-full pr-10" />
                             <button type="button"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                                @click="show = !show">
-                                <svg x-show="!show" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                wire:click="toggleShowPassword">
+                                @if(!$showPassword)
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                <svg x-show="show" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                @else
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
                                 </svg>
+                                @endif
                             </button>
                         </div>
                         <label class="text-xs">A welcome email with login credentials will be sent automatically</label>
@@ -77,32 +79,28 @@
                         <button
                             type="button"
                             class="btn border border-gray-400 rounded-lg px-6 hover-clr-bg-primary hover:text-base-100"
-                            @click="password = generatePassword(); $wire.set('newTemporaryPassword', password)">
+                            wire:click="generateTemporaryPassword">
                             Generate Password
                         </button>
                     </div>
                 </div>
                 <hr>
                 <div class="flex flex-col">
-                    <label for="Bio">Bio/Specalization (Optional)</label>
-                    <input type="text" wire:model.defer="newSpecialization" class="input input-bordered rounded-lg w-full" />
+                    <label>Bio/Specialization (Optional)</label>
+                    <input type="text" wire:model="newSpecialization" class="input input-bordered rounded-lg w-full" />
                 </div>
                 <hr>
                 <div class="flex justify-end">
                     <button
                         type="button"
                         class="btn clr-bg-primary text-base-100 p-4"
-                        wire:click="createAccount"
-                        wire:loading.attr="disabled">
-                        <span wire:loading.remove> Add User </span>
-                        <span wire:loading>Creating...</span>
+                        wire:click="createAccount">
+                        Add User
                     </button>
                 </div>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
+        <div class="modal-backdrop" wire:click="closeAddUserModal"></div>
     </dialog>
 
     {{-- Edit User Modal --}}
@@ -189,7 +187,7 @@
             </x-filter-dropdown>
         </div>
         <div class="flex">
-            <button class="btn clr-bg-primary text-base-100 p-4" onclick="add_user.showModal()">+ Add User</button>
+            <button class="btn clr-bg-primary text-base-100 p-4" wire:click="openAddUserModal">+ Add User</button>
         </div>
 
     </div>
@@ -309,11 +307,16 @@
         document.addEventListener('livewire:init', bindCloseAddUserModal);
         document.addEventListener('livewire:load', bindCloseAddUserModal);
 
-        function generatePassword() {
-            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-            let pwd = '';
-            for (let i = 0; i < 12; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
-            return pwd;
-        }
+        document.addEventListener('livewire:init', () => {
+            Livewire.on('password-generated', ({
+                password
+            }) => {
+                const input = document.getElementById('generated-password');
+                if (input) {
+                    input.value = password;
+                    input.dispatchEvent(new Event('input'));
+                }
+            });
+        });
     </script>
 </div>
