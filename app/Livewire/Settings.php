@@ -7,6 +7,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
 
 class Settings extends Component
@@ -23,7 +24,10 @@ class Settings extends Component
     public string $bio = '';
 
     /** @var string|null URL string returned by API (we also support data:image/... URLs) */
+    #[Locked]
     public ?string $profilePicture = null;
+
+    #[Locked]
     public ?string $photoPreview = null;
     public $photo = null; // Livewire uploaded file
 
@@ -73,7 +77,7 @@ class Settings extends Component
         // Fallback: use first letters of the first two words
         if ($fallbackFullName !== '') {
             $parts = preg_split('/\s+/', $fallbackFullName);
-            $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+            $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
             $first = mb_substr($parts[0] ?? '', 0, 1);
             $second = mb_substr($parts[1] ?? '', 0, 1);
             $out = trim(($first ?? '') . ($second ?? ''));
@@ -110,7 +114,7 @@ class Settings extends Component
 
         // Split full name into first/last for display + initials fallback
         $parts = preg_split('/\s+/', trim($this->fullName));
-        $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+        $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
         $this->firstName = (string) ($parts[0] ?? '');
         $this->lastName = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
 
@@ -130,7 +134,7 @@ class Settings extends Component
                     );
 
                     $parts2 = preg_split('/\s+/', trim($this->fullName));
-                    $parts2 = array_values(array_filter($parts2, fn ($p) => is_string($p) && trim($p) !== ''));
+                    $parts2 = array_values(array_filter($parts2, fn($p) => is_string($p) && trim($p) !== ''));
                     $this->firstName = (string) ($parts2[0] ?? $this->firstName);
                     $this->lastName = (string) (!empty($parts2) ? implode(' ', array_slice($parts2, 1)) : $this->lastName);
                 }
@@ -196,7 +200,7 @@ class Settings extends Component
         $base64 = base64_encode($bytes);
         // For many APIs this is what they mean by "URL string": a data URL is still a URL.
         $mime = method_exists($file, 'getMimeType') ? (string) $file->getMimeType() : 'image';
-        if (!str_contains($mime, '/')) $mime = 'image/'.$mime;
+        if (!str_contains($mime, '/')) $mime = 'image/' . $mime;
 
         return "data:{$mime};base64,{$base64}";
     }
@@ -217,62 +221,48 @@ class Settings extends Component
             $this->pendingPhotoName = null;
             $this->showPhotoConfirmModal = false;
 
-            // Refresh profile so initials + avatar background are consistent
-            $this->loadProfile();
-
+            $this->avatarBg = $this->computeAvatarBg();
             $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
 
-            // Keep header (and other pages) in sync without requiring manual refresh
+            // Update session
             $user = Session::get('user', []);
-            $user['profilePicture'] = $this->profilePicture;
-            $user['ProfilePicture'] = $this->profilePicture;
-            $user['name'] = $this->fullName;
-            $user['Name'] = $this->fullName;
-            $user['id'] = $this->accountId;
-            $user['Id'] = $this->accountId;
+            $user['profilePicture'] = null;
+            $user['ProfilePicture'] = null;
             Session::put('user', $user);
 
-            $this->dispatch('avatar-updated', profilePicture: $this->profilePicture, initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName), avatarBg: $this->avatarBg, initialsTextClass: $initialsTextClass);
+            // Show success message
+            $this->saveSuccessNonce++;
+            $this->saveSuccessMessage = 'Profile picture removed successfully.';
+
+            $this->dispatch(
+                'avatar-updated',
+                profilePicture: null,
+                initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName),
+                avatarBg: $this->avatarBg,
+                initialsTextClass: $initialsTextClass
+            );
         } catch (RequestException $e) {
             $status = $e->response?->status();
             $body = null;
             try {
                 $body = $e->response?->json();
             } catch (\Throwable) {
-                $body = null;
             }
 
             $msg = null;
             if (is_array($body)) {
-                $msg = $body['message']
-                    ?? $body['Message']
-                    ?? $body['detail']
-                    ?? $body['Detail']
-                    ?? $body['error']
-                    ?? $body['Error']
-                    ?? null;
+                $msg = $body['message'] ?? $body['Message'] ?? $body['detail'] ?? $body['error'] ?? null;
             }
             if (!$msg) {
                 $raw = $e->response?->body();
                 $msg = is_string($raw) && trim($raw) !== '' && strlen($raw) < 400 ? trim(strip_tags($raw)) : null;
             }
 
-            Log::warning('RemoveProfilePicture API failed', [
-                'status' => $status,
-                'accountId' => $this->accountId,
-                'message' => $msg,
-            ]);
-
-            $statusBit = $status ? " (HTTP {$status})" : '';
             $this->saveErrorNonce++;
             $this->saveError = $msg
-                ? 'Could not remove photo' . $statusBit . ': ' . $msg
-                : 'Could not remove photo' . $statusBit . '. Check that you are signed in and the API is reachable.';
+                ? 'Could not remove photo: ' . $msg
+                : 'Could not remove photo. Please try again.';
         } catch (\Throwable $e) {
-            Log::error('RemoveProfilePicture failed', [
-                'accountId' => $this->accountId,
-                'error' => $e->getMessage(),
-            ]);
             $this->saveErrorNonce++;
             $this->saveError = 'Failed to remove profile picture. Please try again.';
         }
@@ -317,7 +307,7 @@ class Settings extends Component
             $composedFullName = trim(implode(' ', array_filter([
                 trim((string) $this->firstName),
                 trim((string) $this->lastName),
-            ], fn ($v) => $v !== '')));
+            ], fn($v) => $v !== '')));
             if ($composedFullName !== '') {
                 $this->fullName = $composedFullName;
             }
