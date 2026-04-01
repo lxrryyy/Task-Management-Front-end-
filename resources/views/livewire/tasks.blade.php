@@ -145,24 +145,33 @@
                             </svg>
                         </div>
                         <ul tabindex="0"
-                            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+                            class="dropdown-content bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto"
+                            style="display:block;">
                             @foreach ($assignableAccounts as $account)
                                 @php
-                                    $aid = $account['id'] ?? ($account['Id'] ?? null);
-                                    $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
-                                    $aemail = $account['email'] ?? ($account['Email'] ?? '');
+                                    $aid      = $account['id'] ?? $account['Id'] ?? null;
+                                    $aname    = $account['name'] ?? $account['Name'] ?? 'Unknown';
+                                    $aemail   = $account['email'] ?? $account['Email'] ?? '';
+                                    $apic     = $account['profilePicture'] ?? $account['ProfilePicture'] ?? null;
+                                    if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
+                                        $apic = 'data:image/jpeg;base64,' . $apic;
+                                    }
+                                    $parts     = preg_split('/\s+/', trim($aname));
+                                    $ainitials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
                                 @endphp
                                 @if ($aid !== null)
                                     <li class="px-2 py-1">
-                                        <x-person-option name="{{ $aname }}" :email="$aemail"
+                                        <x-person-option
+                                            name="{{ $aname }}"
+                                            :email="$aemail"
+                                            :picture="$apic"
+                                            initials="{{ $ainitials }}"
                                             @click="toggle({{ (int) $aid }})">
                                             <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
-                                                    <rect x="0" y="0" width="20" height="20" rx="4"
-                                                        fill="#111827" />
+                                                    <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827" />
                                                     <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF"
-                                                        stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round" />
+                                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                                 </svg>
                                             </template>
                                         </x-person-option>
