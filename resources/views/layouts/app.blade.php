@@ -161,22 +161,51 @@
                                     <div class="p-4 text-sm text-gray-500">No notifications.</div>
                                 </template>
 
-                                <template x-for="n in items" :key="n.id">
+                                <template x-if="!loading && selectedIds.length > 0">
+                                    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                                        <label class="inline-flex items-center gap-2 text-xs text-gray-600">
+                                            <input type="checkbox"
+                                                class="h-4 w-4 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                                :checked="allSelected" @change="toggleSelectAll()" />
+                                            <span>Select all</span>
+                                        </label>
+                                        <span class="text-[11px] text-gray-500"
+                                            x-text="`${selectedCount} selected`"></span>
+                                        <button type="button"
+                                            class="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                                            @click="markSelectedRead()" :disabled="selectedIds.length === 0">
+                                            Mark selected as read
+                                        </button>
+                                        <button type="button"
+                                            class="text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
+                                            @click="deleteSelected()" :disabled="selectedIds.length === 0">
+                                            Delete selected
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <template x-for="n in items" :key="n._key || n.id">
                                     <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                                        :class="!n.isRead ? 'bg-gray-100' : ''" role="button" tabindex="0"
+                                        :class="!n.isRead ? 'bg-sky-50' : ''" role="button" tabindex="0"
                                         @click="openNotification(n)" @keydown.enter.prevent="openNotification(n)">
                                         <div class="flex items-start gap-3">
+                                            <div class="pt-0.5">
+                                                <input type="checkbox"
+                                                    class="h-4 w-4 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                                    :checked="isSelected(n.id)" @click.stop
+                                                    @change.stop="toggleSelect(n.id)" />
+                                            </div>
                                             <div class="flex-1 min-w-0">
                                                 <p class="text-sm text-gray-900 whitespace-pre-wrap break-words"
+                                                    :class="!n.isRead ? 'font-semibold' : 'font-normal'"
                                                     x-text="n.message || ''"></p>
                                                 <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
                                             </div>
                                             <div class="flex items-center gap-2 shrink-0">
-                                                <button type="button"
-                                                    class="text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                                                    @click.stop="markRead(n)" :disabled="n.isRead">
-                                                    Read
-                                                </button>
+                                                <span x-show="!n.isRead"
+                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
+                                                    Unread
+                                                </span>
                                                 <button type="button" class="text-xs text-red-600 hover:text-red-700"
                                                     @click.stop="remove(n)">
                                                     Delete
@@ -214,22 +243,24 @@
                         $bg = $bgColors[(int) (abs(crc32($seed)) % count($bgColors))];
                         $initialsTextClass = $bg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
                     @endphp
-                    <div id="header-avatar"
-                        class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
-                        style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
-                        data-avatar-bg="{{ $bg }}"
-                        data-avatar-initials-text-class="{{ $initialsTextClass }}">
-                        {{-- Always render initials; hide it only when the image loads --}}
-                        <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
-                            style="{{ $avatarHasImage ? 'display:none;' : '' }}">
-                            {{ $initials }}
-                        </span>
-                        <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
-                            class="h-full w-full object-cover"
-                            onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
-                            onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
-                            style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
-                    </div>
+                    <a href="/settings" aria-label="Open settings">
+                        <div id="header-avatar"
+                            class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
+                            style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
+                            data-avatar-bg="{{ $bg }}"
+                            data-avatar-initials-text-class="{{ $initialsTextClass }}">
+                            {{-- Always render initials; hide it only when the image loads --}}
+                            <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
+                                style="{{ $avatarHasImage ? 'display:none;' : '' }}">
+                                {{ $initials }}
+                            </span>
+                            <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
+                                class="h-full w-full object-cover"
+                                onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
+                                onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
+                                style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                        </div>
+                    </a>
                 </div>
             </div>
 

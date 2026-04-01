@@ -14,14 +14,14 @@ class CsharpApiService
     public function __construct()
     {
         $this->baseUrl = config('services.csharp_api.url');
-        $this->apiKey  = config('services.csharp_api.key');
+        $this->apiKey = config('services.csharp_api.key');
     }
 
     private function client()
     {
         $headers = [
-            'X-Api-Key'    => $this->apiKey,
-            'Accept'       => 'application/json',
+            'X-Api-Key' => $this->apiKey,
+            'Accept' => 'application/json',
             'Content-Type' => 'application/json',
         ];
 
@@ -44,7 +44,7 @@ class CsharpApiService
     }
 
     /**
-     * Raw GET (for file downloads / non-JSON responses).
+     * Raw GET for binary/file responses (PDF, Excel, etc.).
      */
     public function rawGet(string $endpoint, array $query = []): HttpResponse
     {
@@ -127,37 +127,37 @@ class CsharpApiService
             return [];
         }
 
-        $body      = $response->json() ?? [];
-        $fieldMap  = [];
+        $body = $response->json() ?? [];
+        $fieldMap = [];
 
         // Map JSON paths / .NET field names → Laravel form field names
         $pathToField = [
-            'startDate'   => 'startDate',
-            'StartDate'   => 'startDate',
+            'startDate' => 'startDate',
+            'StartDate' => 'startDate',
             '$.startDate' => 'startDate',
-            'endDate'     => 'endDate',
-            'EndDate'     => 'endDate',
-            '$.endDate'   => 'endDate',
-            'name'        => 'name',
-            'Name'        => 'name',
-            '$.name'      => 'name',
-            'title'       => 'name',
-            'Title'       => 'name',
-            '$.title'     => 'name',
+            'endDate' => 'endDate',
+            'EndDate' => 'endDate',
+            '$.endDate' => 'endDate',
+            'name' => 'name',
+            'Name' => 'name',
+            '$.name' => 'name',
+            'title' => 'name',
+            'Title' => 'name',
+            '$.title' => 'name',
             'description' => 'description',
             'Description' => 'description',
             'assigneeIds' => 'assigneeIds',
             'AssigneeIds' => 'assigneeIds',
-            'memberIds'   => 'memberIds',
-            'MemberIds'   => 'memberIds',
-            'priority'    => 'priorityId',
-            'Priority'    => 'priorityId',
-            'priorityId'  => 'priorityId',
-            'PriorityId'  => 'priorityId',
+            'memberIds' => 'memberIds',
+            'MemberIds' => 'memberIds',
+            'priority' => 'priorityId',
+            'Priority' => 'priorityId',
+            'priorityId' => 'priorityId',
+            'PriorityId' => 'priorityId',
             'storyPoints' => 'storyPoints',
             'StoryPoints' => 'storyPoints',
-            'projectId'   => 'api_error',
-            'ProjectId'   => 'api_error',
+            'projectId' => 'api_error',
+            'ProjectId' => 'api_error',
         ];
 
         // Human-readable translations for common .NET technical messages
@@ -167,19 +167,23 @@ class CsharpApiService
                 return '';
             }
             if (stripos($raw, 'Invalid PriorityId') !== false || stripos($raw, 'invalid priority') !== false) {
-                return $field === 'priorityId' ? 'Please select a valid priority.' : 'Invalid priority. Please select a valid priority.';
+                return $field === 'priorityId'
+                    ? 'Please select a valid priority.'
+                    : 'Invalid priority. Please select a valid priority.';
             }
-            if (stripos($raw, 'could not be converted to System.DateTime') !== false
-                || stripos($raw, 'was not recognized as a valid DateTime') !== false) {
+            if (
+                stripos($raw, 'could not be converted to System.DateTime') !== false ||
+                stripos($raw, 'was not recognized as a valid DateTime') !== false
+            ) {
                 $labels = ['startDate' => 'Start date', 'endDate' => 'End date'];
                 return ($labels[$field] ?? ucfirst($field)) . ' must be a valid date (e.g. 2026-03-05).';
             }
             if (stripos($raw, 'is required') !== false) {
                 $labels = [
-                    'name'        => 'Project name',
-                    'startDate'   => 'Start date',
-                    'endDate'     => 'End date',
-                    'memberIds'   => 'Members',
+                    'name' => 'Project name',
+                    'startDate' => 'Start date',
+                    'endDate' => 'End date',
+                    'memberIds' => 'Members',
                     'assigneeIds' => 'Assignees',
                     'description' => 'Description',
                 ];
@@ -195,7 +199,7 @@ class CsharpApiService
             foreach ($body['errors'] as $rawField => $msgs) {
                 // Resolve field name; strip leading $. for path-style keys
                 $normalised = ltrim($rawField, '$.');
-                $formField  = $pathToField[$rawField] ?? $pathToField[$normalised] ?? 'api_error';
+                $formField = $pathToField[$rawField] ?? ($pathToField[$normalised] ?? 'api_error');
 
                 foreach ((array) $msgs as $msg) {
                     if (is_string($msg) && $msg !== '') {
@@ -210,8 +214,11 @@ class CsharpApiService
 
         // Top-level message / detail (add to api_error unless already have field-specific errors for context)
         foreach (['message', 'Message', 'detail', 'Detail', 'error', 'Error'] as $key) {
-            if (!empty($body[$key]) && is_string($body[$key])
-                && stripos($body[$key], 'one or more validation') === false) {
+            if (
+                !empty($body[$key]) &&
+                is_string($body[$key]) &&
+                stripos($body[$key], 'one or more validation') === false
+            ) {
                 $translated = $translate('api_error', $body[$key]);
                 if ($translated !== '') {
                     $fieldMap['api_error'][] = $translated;
@@ -227,9 +234,10 @@ class CsharpApiService
 
         if (empty($fieldMap)) {
             $raw = $response->body();
-            $fallback = (is_string($raw) && trim($raw) !== '' && strlen($raw) < 300)
-                ? trim(strip_tags($raw))
-                : 'An error occurred (HTTP ' . $response->status() . '). Please try again.';
+            $fallback =
+                is_string($raw) && trim($raw) !== '' && strlen($raw) < 300
+                    ? trim(strip_tags($raw))
+                    : 'An error occurred (HTTP ' . $response->status() . '). Please try again.';
             if ($fallback !== '') {
                 $fieldMap['api_error'][] = $fallback;
             }
@@ -237,12 +245,16 @@ class CsharpApiService
 
         // Deduplicate and drop empty messages
         $fieldMap = array_map(function ($msgs) {
-            $filtered = array_values(array_unique(array_filter((array) $msgs, function ($m) {
-                return is_string($m) && trim($m) !== '';
-            })));
+            $filtered = array_values(
+                array_unique(
+                    array_filter((array) $msgs, function ($m) {
+                        return is_string($m) && trim($m) !== '';
+                    }),
+                ),
+            );
             return array_values(array_unique(array_map('trim', $filtered)));
         }, $fieldMap);
-        return array_filter($fieldMap, fn ($msgs) => !empty($msgs));
+        return array_filter($fieldMap, fn($msgs) => !empty($msgs));
     }
 
     /** Flat array of all error strings (used for logging). */
@@ -276,5 +288,4 @@ class CsharpApiService
             return [];
         }
     }
-
 }

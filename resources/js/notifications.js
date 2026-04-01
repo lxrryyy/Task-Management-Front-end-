@@ -48,8 +48,33 @@ export function registerNotifications() {
     };
 
     const norm = (n) => {
+      const topLevelId =
+        parseInt(
+          n?.id ??
+            n?.Id ??
+            n?.notificationId ??
+            n?.NotificationId ??
+            n?.notificationID ??
+            n?.NotificationID ??
+            0,
+          10
+        ) || 0;
+
       const merged = mergePayload(n);
-      const id = parseInt(merged.id ?? merged.Id ?? 0, 10) || 0;
+      // IMPORTANT: prefer top-level notification id.
+      // Payload blobs can contain their own `id` (e.g., entity/task id), which must not override notification id.
+      const id =
+        topLevelId ||
+        parseInt(
+          merged.notificationId ??
+            merged.NotificationId ??
+            merged.notificationID ??
+            merged.NotificationID ??
+            merged.id ??
+            merged.Id ??
+            0,
+          10
+        ) || 0;
       const msg = (merged.message ?? merged.Message ?? merged.title ?? merged.Title ?? '').toString();
       const isRead = !!(merged.isRead ?? merged.IsRead ?? false);
       const createdAtRaw = (merged.createdAt ?? merged.CreatedAt ?? '').toString();
@@ -92,6 +117,7 @@ export function registerNotifications() {
       }
       return {
         id,
+        _key: `${id}:${createdAtRaw}:${msg}`,
         message: msg,
         isRead,
         createdAt: createdAtRaw,
@@ -156,6 +182,7 @@ export function registerNotifications() {
       loading: false,
       items: [],
       unreadCount: 0,
+      selectedIds: [],
       _baselineSet: false,
       _pollHandle: null,
 
@@ -178,6 +205,7 @@ export function registerNotifications() {
       toggle() {
         this.open = !this.open;
         if (this.open) this.load();
+        else this.selectedIds = [];
       },
 
       async refreshUnread() {
@@ -205,6 +233,15 @@ export function registerNotifications() {
           const data = await r.json();
           this.items = Array.isArray(data) ? data.map(norm) : [];
           this.unreadCount = this.items.filter((x) => !x.isRead).length;
+          this.selectedIds = [];
+
+          // Requirement: notifications are automatically marked as read once viewed/opened.
+          const unreadItems = this.items.filter((x) => !x.isRead);
+          if (unreadItems.length > 0) {
+            await Promise.allSettled(unreadItems.map((x) => this.markRead(x)));
+            // Ensure badge count reflects backend state right away.
+            await this.refreshUnread();
+          }
         } catch (e) {
           this.items = [];
         } finally {
@@ -221,6 +258,73 @@ export function registerNotifications() {
             credentials: 'same-origin',
           });
           n.isRead = true;
+          this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);
+        } catch (e) {}
+      },
+
+      isSelected(id) {
+        const nid = parseInt(id, 10) || 0;
+        return this.selectedIds.includes(nid);
+      },
+
+      toggleSelect(id) {
+        const nid = parseInt(id, 10) || 0;
+        if (nid <= 0) return;
+        if (this.isSelected(nid)) {
+          this.selectedIds = this.selectedIds.filter((x) => x !== nid);
+        } else {
+          this.selectedIds = [...this.selectedIds, nid];
+        }
+      },
+
+      toggleSelectAll() {
+        const allIds = Array.from(
+          new Set(this.items.map((x) => parseInt(x.id, 10) || 0).filter((x) => x > 0))
+        );
+        if (allIds.length === 0) return;
+        if (this.selectedIds.length === allIds.length) {
+          this.selectedIds = [];
+        } else {
+          this.selectedIds = allIds;
+        }
+      },
+
+      get allSelected() {
+        const allIds = Array.from(
+          new Set(this.items.map((x) => parseInt(x.id, 10) || 0).filter((x) => x > 0))
+        );
+        return (
+          allIds.length > 0 &&
+          allIds.every((id) => this.selectedIds.includes(id))
+        );
+      },
+
+      get selectedCount() {
+        return this.selectedIds.length;
+      },
+
+      async markSelectedRead() {
+        const ids = [...this.selectedIds];
+        if (ids.length === 0) return;
+        const selectedItems = this.items.filter((x) => ids.includes(x.id));
+        await Promise.allSettled(selectedItems.map((x) => this.markRead(x)));
+      },
+
+      async deleteSelected() {
+        const ids = [...this.selectedIds];
+        if (ids.length === 0) return;
+        try {
+          await Promise.allSettled(
+            ids.map((id) =>
+              fetch(`/notifications/${id}`, {
+                method: 'DELETE',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                credentials: 'same-origin',
+              })
+            )
+          );
+          this.items = this.items.filter((x) => !ids.includes(x.id));
+          this.selectedIds = [];
           this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);
         } catch (e) {}
       },
@@ -291,6 +395,7 @@ export function registerNotifications() {
             credentials: 'same-origin',
           });
           this.items = this.items.filter((x) => x.id !== n.id);
+          this.selectedIds = this.selectedIds.filter((x) => x !== n.id);
           this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);
         } catch (e) {}
       },
