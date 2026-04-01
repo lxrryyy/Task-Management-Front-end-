@@ -7,6 +7,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
 
 class Settings extends Component
@@ -23,7 +24,10 @@ class Settings extends Component
     public string $bio = '';
 
     /** @var string|null URL string returned by API (we also support data:image/... URLs) */
+    #[Locked]
     public ?string $profilePicture = null;
+
+    #[Locked]
     public ?string $photoPreview = null;
     public $photo = null; // Livewire uploaded file
 
@@ -43,7 +47,20 @@ class Settings extends Component
 
     public bool $saving = false;
     public ?string $saveError = null;
-    public bool $saveSuccess = false;
+    /** @var string|null Green banner text after save; null = hidden */
+    public ?string $saveSuccessMessage = null;
+
+    /** Bumped on each successful save so the banner remounts and the dismiss timer restarts */
+    public int $saveSuccessNonce = 0;
+
+    /** Bumped when an error is shown so the error banner remounts and the 4s dismiss timer restarts */
+    public int $saveErrorNonce = 0;
+
+    /** Baselines set in loadProfile — used to detect profile vs password-only saves */
+    private string $baselineFirstName = '';
+    private string $baselineLastName = '';
+    private string $baselineBio = '';
+    private ?string $baselineProfilePicture = null;
 
     private function computeInitials(string $firstName, string $lastName, string $fallbackFullName): string
     {
@@ -60,7 +77,7 @@ class Settings extends Component
         // Fallback: use first letters of the first two words
         if ($fallbackFullName !== '') {
             $parts = preg_split('/\s+/', $fallbackFullName);
-            $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+            $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
             $first = mb_substr($parts[0] ?? '', 0, 1);
             $second = mb_substr($parts[1] ?? '', 0, 1);
             $out = trim(($first ?? '') . ($second ?? ''));
@@ -97,12 +114,11 @@ class Settings extends Component
 
         // Split full name into first/last for display + initials fallback
         $parts = preg_split('/\s+/', trim($this->fullName));
-        $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+        $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
         $this->firstName = (string) ($parts[0] ?? '');
         $this->lastName = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
 
         $this->saveError = null;
-        $this->saveSuccess = false;
 
         // Enrich from GetAccountById endpoint.
         if ($this->accountId > 0) {
@@ -118,7 +134,7 @@ class Settings extends Component
                     );
 
                     $parts2 = preg_split('/\s+/', trim($this->fullName));
-                    $parts2 = array_values(array_filter($parts2, fn ($p) => is_string($p) && trim($p) !== ''));
+                    $parts2 = array_values(array_filter($parts2, fn($p) => is_string($p) && trim($p) !== ''));
                     $this->firstName = (string) ($parts2[0] ?? $this->firstName);
                     $this->lastName = (string) (!empty($parts2) ? implode(' ', array_slice($parts2, 1)) : $this->lastName);
                 }
@@ -130,6 +146,11 @@ class Settings extends Component
         // Important: compute avatar bg only when we (re)load profile (mount/save/remove),
         // so it doesn't change while the user types or selects a new photo.
         $this->avatarBg = $this->computeAvatarBg();
+
+        $this->baselineFirstName = $this->firstName;
+        $this->baselineLastName = $this->lastName;
+        $this->baselineBio = $this->bio;
+        $this->baselineProfilePicture = $this->profilePicture;
     }
 
     private function normalizeProfilePicture(mixed $value): ?string
@@ -146,7 +167,7 @@ class Settings extends Component
     public function updatedPhoto(): void
     {
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
 
         $this->photoPreview = null;
         if ($this->photo) {
@@ -179,7 +200,7 @@ class Settings extends Component
         $base64 = base64_encode($bytes);
         // For many APIs this is what they mean by "URL string": a data URL is still a URL.
         $mime = method_exists($file, 'getMimeType') ? (string) $file->getMimeType() : 'image';
-        if (!str_contains($mime, '/')) $mime = 'image/'.$mime;
+        if (!str_contains($mime, '/')) $mime = 'image/' . $mime;
 
         return "data:{$mime};base64,{$base64}";
     }
@@ -189,33 +210,60 @@ class Settings extends Component
         if ($this->accountId <= 0) return;
 
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
 
         try {
             app(CsharpApiService::class)->delete("/api/Account/RemoveProfilePicture/{$this->accountId}");
+
             $this->profilePicture = null;
             $this->photoPreview = null;
             $this->photo = null;
             $this->pendingPhotoName = null;
             $this->showPhotoConfirmModal = false;
 
-            // Refresh profile so initials + avatar background are consistent
-            $this->loadProfile();
-
+            $this->avatarBg = $this->computeAvatarBg();
             $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
 
-            // Keep header (and other pages) in sync without requiring manual refresh
+            // Update session
             $user = Session::get('user', []);
-            $user['profilePicture'] = $this->profilePicture;
-            $user['ProfilePicture'] = $this->profilePicture;
-            $user['name'] = $this->fullName;
-            $user['Name'] = $this->fullName;
-            $user['id'] = $this->accountId;
-            $user['Id'] = $this->accountId;
+            $user['profilePicture'] = null;
+            $user['ProfilePicture'] = null;
             Session::put('user', $user);
 
-            $this->dispatch('avatar-updated', profilePicture: $this->profilePicture, initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName), avatarBg: $this->avatarBg, initialsTextClass: $initialsTextClass);
+            // Show success message
+            $this->saveSuccessNonce++;
+            $this->saveSuccessMessage = 'Profile picture removed successfully.';
+
+            $this->dispatch(
+                'avatar-updated',
+                profilePicture: null,
+                initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName),
+                avatarBg: $this->avatarBg,
+                initialsTextClass: $initialsTextClass
+            );
+        } catch (RequestException $e) {
+            $status = $e->response?->status();
+            $body = null;
+            try {
+                $body = $e->response?->json();
+            } catch (\Throwable) {
+            }
+
+            $msg = null;
+            if (is_array($body)) {
+                $msg = $body['message'] ?? $body['Message'] ?? $body['detail'] ?? $body['error'] ?? null;
+            }
+            if (!$msg) {
+                $raw = $e->response?->body();
+                $msg = is_string($raw) && trim($raw) !== '' && strlen($raw) < 400 ? trim(strip_tags($raw)) : null;
+            }
+
+            $this->saveErrorNonce++;
+            $this->saveError = $msg
+                ? 'Could not remove photo: ' . $msg
+                : 'Could not remove photo. Please try again.';
         } catch (\Throwable $e) {
+            $this->saveErrorNonce++;
             $this->saveError = 'Failed to remove profile picture. Please try again.';
         }
     }
@@ -234,20 +282,32 @@ class Settings extends Component
         $this->showPhotoConfirmModal = false;
     }
 
+    /** Called from Alpine after the success banner timeout */
+    public function clearSaveSuccessBanner(): void
+    {
+        $this->saveSuccessMessage = null;
+    }
+
+    /** Called from Alpine after the error banner timeout */
+    public function clearSaveErrorBanner(): void
+    {
+        $this->saveError = null;
+    }
+
     public function saveChanges(): void
     {
         if ($this->accountId <= 0) return;
 
         $this->saving = true;
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
         $this->showPhotoConfirmModal = false;
 
         try {
             $composedFullName = trim(implode(' ', array_filter([
                 trim((string) $this->firstName),
                 trim((string) $this->lastName),
-            ], fn ($v) => $v !== '')));
+            ], fn($v) => $v !== '')));
             if ($composedFullName !== '') {
                 $this->fullName = $composedFullName;
             }
@@ -259,6 +319,14 @@ class Settings extends Component
             if ($this->photo) {
                 $pendingPicForUi = $this->photoFileToDataUrl($this->photo);
             }
+
+            $hasProfileEdit = $this->photo !== null
+                || trim((string) $this->firstName) !== trim((string) $this->baselineFirstName)
+                || trim((string) $this->lastName) !== trim((string) $this->baselineLastName)
+                || trim((string) $this->bio) !== trim((string) $this->baselineBio)
+                || $this->normalizeProfilePicture($this->profilePicture) !== $this->normalizeProfilePicture($this->baselineProfilePicture);
+
+            $hasPasswordEdit = trim((string) $this->newPassword) !== '';
 
             $editor = Session::get('user', []);
             $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
@@ -290,7 +358,21 @@ class Settings extends Component
             $this->photoPreview = null;
             $this->pendingPhotoName = null;
             $this->loadProfile();
-            $this->saveSuccess = true;
+
+            $this->saveSuccessNonce++;
+            if ($hasPasswordEdit && $hasProfileEdit) {
+                $this->saveSuccessMessage = 'Profile and password updated successfully.';
+            } elseif ($hasPasswordEdit) {
+                $this->saveSuccessMessage = 'Password updated successfully.';
+            } elseif ($hasProfileEdit) {
+                $this->saveSuccessMessage = 'Profile updated successfully.';
+            } else {
+                $this->saveSuccessMessage = 'Saved successfully.';
+            }
+
+            $this->currentPassword = '';
+            $this->newPassword = '';
+            $this->confirmPassword = '';
 
             $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
             $picForHeader = !empty($this->profilePicture) ? $this->profilePicture : $pendingPicForUi;
@@ -347,8 +429,10 @@ class Settings extends Component
                 'response' => $body,
             ]);
 
+            $this->saveErrorNonce++;
             $this->saveError = "Failed to update account (HTTP {$status}). {$msg}";
         } catch (\Throwable $e) {
+            $this->saveErrorNonce++;
             $this->saveError = 'Failed to update account. Please try again.';
         } finally {
             $this->saving = false;
