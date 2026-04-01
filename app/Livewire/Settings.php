@@ -43,7 +43,20 @@ class Settings extends Component
 
     public bool $saving = false;
     public ?string $saveError = null;
-    public bool $saveSuccess = false;
+    /** @var string|null Green banner text after save; null = hidden */
+    public ?string $saveSuccessMessage = null;
+
+    /** Bumped on each successful save so the banner remounts and the dismiss timer restarts */
+    public int $saveSuccessNonce = 0;
+
+    /** Bumped when an error is shown so the error banner remounts and the 4s dismiss timer restarts */
+    public int $saveErrorNonce = 0;
+
+    /** Baselines set in loadProfile — used to detect profile vs password-only saves */
+    private string $baselineFirstName = '';
+    private string $baselineLastName = '';
+    private string $baselineBio = '';
+    private ?string $baselineProfilePicture = null;
 
     private function computeInitials(string $firstName, string $lastName, string $fallbackFullName): string
     {
@@ -102,7 +115,6 @@ class Settings extends Component
         $this->lastName = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
 
         $this->saveError = null;
-        $this->saveSuccess = false;
 
         // Enrich from GetAccountById endpoint.
         if ($this->accountId > 0) {
@@ -130,6 +142,11 @@ class Settings extends Component
         // Important: compute avatar bg only when we (re)load profile (mount/save/remove),
         // so it doesn't change while the user types or selects a new photo.
         $this->avatarBg = $this->computeAvatarBg();
+
+        $this->baselineFirstName = $this->firstName;
+        $this->baselineLastName = $this->lastName;
+        $this->baselineBio = $this->bio;
+        $this->baselineProfilePicture = $this->profilePicture;
     }
 
     private function normalizeProfilePicture(mixed $value): ?string
@@ -146,7 +163,7 @@ class Settings extends Component
     public function updatedPhoto(): void
     {
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
 
         $this->photoPreview = null;
         if ($this->photo) {
@@ -189,10 +206,31 @@ class Settings extends Component
         if ($this->accountId <= 0) return;
 
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
 
         try {
-            app(CsharpApiService::class)->delete("/api/Account/RemoveProfilePicture/{$this->accountId}");
+            // Use UpdateAccount to clear the photo. The dedicated DELETE RemoveProfilePicture
+            // endpoint has returned HTTP 500 on some backends; PATCH matches "Save Changes" semantics.
+            $editor = Session::get('user', []);
+            $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
+            $roleRaw = trim((string) $this->role);
+            $roleNormalized = mb_strtolower($roleRaw) === 'admin' ? 'Admin' : 'User';
+
+            app(CsharpApiService::class)->patch(
+                "/api/Account/UpdateAccount/{$this->accountId}?editorId={$editorId}",
+                [
+                    'name' => $this->fullName,
+                    'passwordHash' => null,
+                    'role' => $roleNormalized,
+                    'isActive' => true,
+                    'profilePicture' => null,
+                    'specialization' => trim((string) $this->bio) !== '' ? $this->bio : null,
+                    'currentPassword' => null,
+                    'newPassword' => null,
+                    'confirmPassword' => null,
+                ]
+            );
+
             $this->profilePicture = null;
             $this->photoPreview = null;
             $this->photo = null;
@@ -215,7 +253,47 @@ class Settings extends Component
             Session::put('user', $user);
 
             $this->dispatch('avatar-updated', profilePicture: $this->profilePicture, initials: $this->computeInitials($this->firstName, $this->lastName, $this->fullName), avatarBg: $this->avatarBg, initialsTextClass: $initialsTextClass);
+        } catch (RequestException $e) {
+            $status = $e->response?->status();
+            $body = null;
+            try {
+                $body = $e->response?->json();
+            } catch (\Throwable) {
+                $body = null;
+            }
+
+            $msg = null;
+            if (is_array($body)) {
+                $msg = $body['message']
+                    ?? $body['Message']
+                    ?? $body['detail']
+                    ?? $body['Detail']
+                    ?? $body['error']
+                    ?? $body['Error']
+                    ?? null;
+            }
+            if (!$msg) {
+                $raw = $e->response?->body();
+                $msg = is_string($raw) && trim($raw) !== '' && strlen($raw) < 400 ? trim(strip_tags($raw)) : null;
+            }
+
+            Log::warning('Remove profile picture (UpdateAccount) failed', [
+                'status' => $status,
+                'accountId' => $this->accountId,
+                'message' => $msg,
+            ]);
+
+            $statusBit = $status ? " (HTTP {$status})" : '';
+            $this->saveErrorNonce++;
+            $this->saveError = $msg
+                ? 'Could not remove photo' . $statusBit . ': ' . $msg
+                : 'Could not remove photo' . $statusBit . '. Check that you are signed in and the API is reachable.';
         } catch (\Throwable $e) {
+            Log::error('RemoveProfilePicture failed', [
+                'accountId' => $this->accountId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->saveErrorNonce++;
             $this->saveError = 'Failed to remove profile picture. Please try again.';
         }
     }
@@ -234,13 +312,25 @@ class Settings extends Component
         $this->showPhotoConfirmModal = false;
     }
 
+    /** Called from Alpine after the success banner timeout */
+    public function clearSaveSuccessBanner(): void
+    {
+        $this->saveSuccessMessage = null;
+    }
+
+    /** Called from Alpine after the error banner timeout */
+    public function clearSaveErrorBanner(): void
+    {
+        $this->saveError = null;
+    }
+
     public function saveChanges(): void
     {
         if ($this->accountId <= 0) return;
 
         $this->saving = true;
         $this->saveError = null;
-        $this->saveSuccess = false;
+        $this->saveSuccessMessage = null;
         $this->showPhotoConfirmModal = false;
 
         try {
@@ -259,6 +349,14 @@ class Settings extends Component
             if ($this->photo) {
                 $pendingPicForUi = $this->photoFileToDataUrl($this->photo);
             }
+
+            $hasProfileEdit = $this->photo !== null
+                || trim((string) $this->firstName) !== trim((string) $this->baselineFirstName)
+                || trim((string) $this->lastName) !== trim((string) $this->baselineLastName)
+                || trim((string) $this->bio) !== trim((string) $this->baselineBio)
+                || $this->normalizeProfilePicture($this->profilePicture) !== $this->normalizeProfilePicture($this->baselineProfilePicture);
+
+            $hasPasswordEdit = trim((string) $this->newPassword) !== '';
 
             $editor = Session::get('user', []);
             $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
@@ -290,7 +388,21 @@ class Settings extends Component
             $this->photoPreview = null;
             $this->pendingPhotoName = null;
             $this->loadProfile();
-            $this->saveSuccess = true;
+
+            $this->saveSuccessNonce++;
+            if ($hasPasswordEdit && $hasProfileEdit) {
+                $this->saveSuccessMessage = 'Profile and password updated successfully.';
+            } elseif ($hasPasswordEdit) {
+                $this->saveSuccessMessage = 'Password updated successfully.';
+            } elseif ($hasProfileEdit) {
+                $this->saveSuccessMessage = 'Profile updated successfully.';
+            } else {
+                $this->saveSuccessMessage = 'Saved successfully.';
+            }
+
+            $this->currentPassword = '';
+            $this->newPassword = '';
+            $this->confirmPassword = '';
 
             $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
             $picForHeader = !empty($this->profilePicture) ? $this->profilePicture : $pendingPicForUi;
@@ -347,8 +459,10 @@ class Settings extends Component
                 'response' => $body,
             ]);
 
+            $this->saveErrorNonce++;
             $this->saveError = "Failed to update account (HTTP {$status}). {$msg}";
         } catch (\Throwable $e) {
+            $this->saveErrorNonce++;
             $this->saveError = 'Failed to update account. Please try again.';
         } finally {
             $this->saving = false;
