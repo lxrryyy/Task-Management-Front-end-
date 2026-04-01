@@ -168,6 +168,10 @@ class Tasks extends Component
 
     public function addComment(): void
     {
+        if (empty($this->newComment)) {
+            $this->newComment = request()->input('newComment', '');
+        }
+
         $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
         $accountId = $this->currentAccountId();
         $content = trim($this->newComment);

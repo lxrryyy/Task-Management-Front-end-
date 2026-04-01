@@ -161,23 +161,23 @@
                                     <div class="p-4 text-sm text-gray-500">No notifications.</div>
                                 </template>
 
-                                <template x-if="!loading && items.length > 0">
+                                <template x-if="!loading && selectedIds.length > 0">
                                     <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
                                         <label class="inline-flex items-center gap-2 text-xs text-gray-600">
-                                            <input
-                                                type="checkbox"
+                                            <input type="checkbox"
                                                 class="h-4 w-4 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                                :checked="allSelected"
-                                                @change="toggleSelectAll()"
-                                            />
+                                                :checked="allSelected" @change="toggleSelectAll()" />
                                             <span>Select all</span>
                                         </label>
-                                        <span class="text-[11px] text-gray-500" x-text="`${selectedCount} selected`"></span>
-                                        <button type="button" class="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                                        <span class="text-[11px] text-gray-500"
+                                            x-text="`${selectedCount} selected`"></span>
+                                        <button type="button"
+                                            class="text-xs text-blue-600 hover:underline disabled:opacity-50"
                                             @click="markSelectedRead()" :disabled="selectedIds.length === 0">
                                             Mark selected as read
                                         </button>
-                                        <button type="button" class="text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
+                                        <button type="button"
+                                            class="text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
                                             @click="deleteSelected()" :disabled="selectedIds.length === 0">
                                             Delete selected
                                         </button>
@@ -190,13 +190,10 @@
                                         @click="openNotification(n)" @keydown.enter.prevent="openNotification(n)">
                                         <div class="flex items-start gap-3">
                                             <div class="pt-0.5">
-                                                <input
-                                                    type="checkbox"
+                                                <input type="checkbox"
                                                     class="h-4 w-4 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                                    :checked="isSelected(n.id)"
-                                                    @click.stop
-                                                    @change.stop="toggleSelect(n.id)"
-                                                />
+                                                    :checked="isSelected(n.id)" @click.stop
+                                                    @change.stop="toggleSelect(n.id)" />
                                             </div>
                                             <div class="flex-1 min-w-0">
                                                 <p class="text-sm text-gray-900 whitespace-pre-wrap break-words"
@@ -205,10 +202,8 @@
                                                 <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
                                             </div>
                                             <div class="flex items-center gap-2 shrink-0">
-                                                <span
-                                                    x-show="!n.isRead"
-                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium"
-                                                >
+                                                <span x-show="!n.isRead"
+                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
                                                     Unread
                                                 </span>
                                                 <button type="button" class="text-xs text-red-600 hover:text-red-700"
