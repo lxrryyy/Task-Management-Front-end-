@@ -34,6 +34,16 @@ class UserManagement extends Component
     public ?string $createAccountSuccess = null;
     public array $createAccountErrors = [];
 
+    public bool $showEditUserModal = false;
+    public int $editUserId = 0;
+    public string $editName = '';
+    public string $editEmail = '';
+    public string $editSpecialization = '';
+    public string $editRole = 'User';
+    public bool $editIsActive = true;
+    public ?string $editUserError = null;
+    public ?string $editUserSuccess = null;
+
     public function mount(): void
     {
         $this->reloadUsersFromApi();
@@ -41,15 +51,12 @@ class UserManagement extends Component
 
     public function generateTemporaryPassword(): void
     {
-        // Simple strong password generator for demo UX.
-        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-        $bytes = random_bytes(18);
-        $chars = [];
-        $len = strlen($alphabet);
-        foreach (unpack('C*', $bytes) as $b) {
-            $chars[] = $alphabet[$b % $len];
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $password = '';
+        for ($i = 0; $i < 12; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
         }
-        $this->newTemporaryPassword = implode('', $chars);
+        $this->newTemporaryPassword = $password;
     }
 
     public function createAccount(): void
@@ -228,6 +235,7 @@ class UserManagement extends Component
             'projectsCount' => max(0, $projectsCount),
             'tasksCount' => max(0, $tasksCount),
             'status' => $status ?: '—',
+            'isActive' => (bool) ($u['isActive'] ?? $u['IsActive'] ?? true),
             'raw' => $u,
         ];
     }
@@ -292,5 +300,72 @@ class UserManagement extends Component
         $this->filterStatus = true;
         $this->filterSpecialization = true;
         $this->search = '';
+    }
+
+    public function toggleUserStatus(int $userId, bool $isActive): void
+    {
+    }
+
+    public function editUser(int $userId): void
+    {
+        $user = collect($this->users)->first(fn ($u) => (int) ($u['id'] ?? 0) === $userId);
+        if (!$user) return;
+
+        $this->editUserId = $userId;
+        $this->editName = $user['name'] === '—' ? '' : $user['name'];
+        $this->editEmail = $user['email'] === '—' ? '' : $user['email'];
+        $this->editSpecialization = $user['specialization'] === '—' ? '' : $user['specialization'];
+        $this->editRole = $user['raw']['role'] ?? $user['raw']['Role'] ?? 'User';
+        $this->editIsActive = $user['isActive'];
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+        $this->showEditUserModal = true;
+    }
+
+    public function closeEditUserModal(): void
+    {
+        $this->showEditUserModal = false;
+        $this->editUserId = 0;
+        $this->editName = '';
+        $this->editEmail = '';
+        $this->editSpecialization = '';
+        $this->editRole = 'User';
+        $this->editIsActive = true;
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+    }
+
+    public function saveEditUser(): void
+    {
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+
+        if (trim($this->editName) === '') {
+            $this->editUserError = 'Name is required.';
+            return;
+        }
+
+        try {
+            $user = \Illuminate\Support\Facades\Session::get('user', []);
+            $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+
+            $payload = [
+                'name' => trim($this->editName),
+                'role' => $this->editRole,
+                'isActive' => $this->editIsActive,
+                'specialization' => trim($this->editSpecialization) ?: null,
+            ];
+
+            app(\App\Services\CsharpApiService::class)->patch(
+                "/api/Account/UpdateAccount/{$this->editUserId}?editorId={$editorId}",
+                $payload
+            );
+
+            $this->editUserSuccess = 'User updated successfully.';
+            $this->reloadUsersFromApi();
+            $this->closeEditUserModal();
+        } catch (\Throwable $e) {
+            $this->editUserError = 'Failed to update user. Please try again.';
+        }
     }
 }
