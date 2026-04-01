@@ -34,7 +34,7 @@
 </head>
 
 <body class="font-sans antialiased">
-
+    <!-- UPDATED, THIS IS THE ONE THAT HAS NO RICH TEXT YET (WORKING) -->
     <div class="flex h-screen relative">
 
         <div class="group absolute left-0 top-0 h-full text-white flex flex-col transition-all duration-300 ease-in-out w-16 hover:w-64 overflow-hidden z-50"
