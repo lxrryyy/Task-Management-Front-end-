@@ -34,6 +34,8 @@ Route::get('/audit-logs', function () {
 Route::middleware(['api.auth'])->group(function () {
     Route::get('/audit-logs/export/pdf', [AuditLogExportController::class, 'exportPdf'])->name('auditLogs.export.pdf');
     Route::get('/audit-logs/export/excel', [AuditLogExportController::class, 'exportExcel'])->name('auditLogs.export.excel');
+    Route::get('/audit-logs/export/login-logout/pdf', [AuditLogExportController::class, 'exportLoginLogoutPdf'])->name('auditLogs.login.export.pdf');
+    Route::get('/audit-logs/export/login-logout/excel', [AuditLogExportController::class, 'exportLoginLogoutExcel'])->name('auditLogs.login.export.excel');
 });
 
 Route::get('/user-management', function () {

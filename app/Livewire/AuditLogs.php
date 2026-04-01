@@ -9,6 +9,7 @@ use Livewire\Component;
 class AuditLogs extends Component
 {
     public array $logs = [];
+    public array $loginLogs = [];
     public array $accounts = [];
 
     public string $search = '';
@@ -34,6 +35,7 @@ class AuditLogs extends Component
     {
         $this->loadAccounts();
         $this->fetchLogs();
+        $this->fetchLoginLogoutLogs();
     }
 
     public function updated(string $name, mixed $value): void
@@ -180,6 +182,35 @@ class AuditLogs extends Component
         }
     }
 
+    private function fetchLoginLogoutLogs(): void
+    {
+        $this->loginLogs = [];
+
+        $requesterId = $this->requesterId();
+        if ($requesterId <= 0) {
+            return;
+        }
+
+        $api = app(CsharpApiService::class);
+
+        try {
+            $raw = $api->get('/api/AuditLog/GetLoginLogoutLogs', [
+                'requesterId' => $requesterId,
+            ]);
+
+            $list = is_array($raw)
+                ? ($raw['data'] ?? $raw['logs'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
+                : [];
+
+            $this->loginLogs = array_values(array_filter(array_map(
+                fn ($l) => is_array($l) ? $this->normaliseLog($l) : null,
+                (array) $list
+            )));
+        } catch (\Throwable $e) {
+            $this->loginLogs = [];
+        }
+    }
+
     private function normaliseLog(array $log): array
     {
         $id = (int) ($log['id'] ?? $log['Id'] ?? $log['auditLogId'] ?? $log['AuditLogId'] ?? 0);
@@ -282,6 +313,28 @@ class AuditLogs extends Component
             $l['userRole']  = $role;
             return $l;
         }, array_values(array_filter($this->logs, 'is_array')));
+
+        $loginLogs = array_map(function (array $l) use ($accountMap) {
+            $uid = (int) ($l['accountId'] ?? 0);
+            $acc = $uid > 0 ? ($accountMap[$uid] ?? null) : null;
+
+            $name = trim((string) ($l['userName'] ?? ''));
+            if ($name === '' && is_array($acc)) {
+                $name = trim((string) ($acc['name'] ?? ''));
+            }
+
+            $email = trim((string) ($l['userEmail'] ?? ''));
+            if ($email === '' && is_array($acc)) {
+                $email = trim((string) ($acc['email'] ?? ''));
+            }
+
+            $role = trim((string) ($l['userRole'] ?? $l['projectRole'] ?? ''));
+
+            $l['userName']  = $name;
+            $l['userEmail'] = $email;
+            $l['userRole']  = $role;
+            return $l;
+        }, array_values(array_filter($this->loginLogs, 'is_array')));
 
         $q = mb_strtolower(trim($this->search));
         $filtered = $this->logs;
@@ -441,6 +494,7 @@ class AuditLogs extends Component
             'statusOptions' => $statusOptions,
             'accountsForSelect' => $accountsForSelect,
             'allLogs' => $allLogs,
+            'loginLogs' => $loginLogs,
         ]);
     }
 }

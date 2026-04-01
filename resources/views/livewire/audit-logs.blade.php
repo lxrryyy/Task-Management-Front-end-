@@ -1,8 +1,9 @@
 <div x-data="(() => {
-    const state = auditLogsClient(@js($allLogs ?? []), 25);
+    const state = auditLogsClient(@js($allLogs ?? []), @js($loginLogs ?? []), 25);
     state.exportOpen = false;
     state.exportFrom = '';
     state.exportTo = '';
+    state.currentTab = 'activity';
     return state;
 })()">
     <div class="flex w-full items-center clr-primary">
@@ -12,6 +13,27 @@
         <span class="group-hover:block text-xl">Audit Logs</span>
     </div>
     <hr class="border-2 border-gray-300" />
+
+    <div class="mt-4 flex gap-2">
+        <button
+            type="button"
+            @click="switchTab('activity')"
+            :class="currentTab === 'activity'
+                ? 'btn clr-bg-primary text-base-100 rounded-lg px-4'
+                : 'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'"
+        >
+            Activity
+        </button>
+        <button
+            type="button"
+            @click="switchTab('logs')"
+            :class="currentTab === 'logs'
+                ? 'btn clr-bg-primary text-base-100 rounded-lg px-4'
+                : 'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'"
+        >
+            Logs
+        </button>
+    </div>
 
     <div class="flex flex-row justify-between mt-4">
         <div class="flex flex-row gap-4">
@@ -41,7 +63,10 @@
                 <h3 class="text-lg font-medium text-gray-900">Export Audit Logs</h3>
                 <button type="button" class="btn btn-ghost btn-sm" @click="exportOpen = false">✕</button>
             </div>
-            <p class="mt-1 text-sm text-gray-500">Choose a date range and format to export.</p>
+            <p class="mt-1 text-sm text-gray-500">
+                <span x-show="currentTab === 'activity'">Choose a date range and format to export activity logs.</span>
+                <span x-show="currentTab === 'logs'">Choose a date range and format to export login/logout logs.</span>
+            </p>
 
             <div class="mt-4 grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1">
@@ -56,13 +81,17 @@
 
             <div class="mt-6 grid grid-cols-1 gap-3">
                 <a
-                    :href="`{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    :href="currentTab === 'activity'
+                        ? `{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`
+                        : `{{ route('auditLogs.login.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
                     class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
                 >
                     Export to PDF
                 </a>
                 <a
-                    :href="`{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    :href="currentTab === 'activity'
+                        ? `{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`
+                        : `{{ route('auditLogs.login.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
                     class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
                 >
                     Export to Excel
@@ -154,7 +183,7 @@
     <div class="mt-4 border border-gray-200 rounded-lg bg-white overflow-hidden">
         <div wire:loading class="p-4 text-sm text-gray-500">Loading audit logs…</div>
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[520px]" wire:loading.remove>
+        <div class="overflow-x-auto overflow-y-scroll max-h-[520px]" style="scrollbar-gutter: stable;" wire:loading.remove>
         <table class="table w-full">
             <thead class="bg-gray-50 sticky top-0 z-10">
             <tr class="text-gray-500 text-xs uppercase tracking-wide">
@@ -238,7 +267,7 @@
     </div>
 
     <script>
-        function auditLogsClient(logs, pageSize) {
+        function auditLogsClient(activityLogs, loginLogs, pageSize) {
             const actionStyle = (action) => ({
 
                 'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
@@ -262,7 +291,7 @@
                 };
             };
 
-            const rows = Array.isArray(logs) ? logs.map((raw, idx) => {
+            const buildRows = (logs) => Array.isArray(logs) ? logs.map((raw, idx) => {
                 const uid = parseInt(raw.accountId ?? 0) || 0;
                 const action = (raw.action || '').toString().trim().toUpperCase();
                 const at = (raw.at || raw.createdAt || '').toString().trim();
@@ -286,11 +315,16 @@
                 };
             }) : [];
 
+            const activityRows = buildRows(activityLogs || []);
+            const loginRows = buildRows(loginLogs || []);
+
             return {
                 open: false,
                 pageSize: pageSize || 25,
                 page: 1,
-                rows,
+                rows: activityRows,
+                activityRows,
+                loginRows,
                 filters: {
                     search: '',
                     userText: '',
@@ -303,6 +337,11 @@
                     status: '',
                     from: '',
                     to: '',
+                },
+                switchTab(tab) {
+                    this.currentTab = tab;
+                    this.page = 1;
+                    this.rows = tab === 'logs' ? this.loginRows : this.activityRows;
                 },
                 get actionOptions() {
                     const s = new Set(this.rows.map(r => r.action).filter(Boolean));

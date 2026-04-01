@@ -64,5 +64,35 @@ class AuditLogExportController extends Controller
                 'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="audit-logs.pdf"',
             ]);
     }
+
+    public function exportLoginLogoutExcel(Request $request, CsharpApiService $api): Response
+    {
+        $this->ensureAdmin();
+        $requesterId = $this->requesterId();
+        abort_if($requesterId <= 0, 401);
+
+        $resp = $api->rawGet('/api/AuditLog/ExportLoginLogoutExcel', $this->exportQuery($request, $requesterId));
+
+        return response($resp->body(), $resp->status())
+            ->withHeaders([
+                'Content-Type' => $resp->header('Content-Type') ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="login-logout-logs.xlsx"',
+            ]);
+    }
+
+    public function exportLoginLogoutPdf(Request $request, CsharpApiService $api): Response
+    {
+        $this->ensureAdmin();
+        $requesterId = $this->requesterId();
+        abort_if($requesterId <= 0, 401);
+
+        $resp = $api->rawGet('/api/AuditLog/ExportLoginLogoutPdf', $this->exportQuery($request, $requesterId));
+
+        return response($resp->body(), $resp->status())
+            ->withHeaders([
+                'Content-Type' => $resp->header('Content-Type') ?? 'application/pdf',
+                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="login-logout-logs.pdf"',
+            ]);
+    }
 }
 

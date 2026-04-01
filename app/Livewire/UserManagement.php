@@ -16,6 +16,11 @@ class UserManagement extends Component
 
     public ?string $apiError = null;
 
+    // Search filter toggles
+    public bool $filterUser = true;
+    public bool $filterStatus = true;
+    public bool $filterSpecialization = true;
+
     // Add user modal state
     public string $newFirstName = '';
     public string $newLastName = '';
@@ -250,11 +255,27 @@ class UserManagement extends Component
             $this->filteredUsers = $this->users;
         } else {
             $this->filteredUsers = array_values(array_filter($this->users, function ($u) use ($query) {
-                $haystack = implode(' ', [
-                    mb_strtolower((string) ($u['name'] ?? '')),
-                    mb_strtolower((string) ($u['email'] ?? '')),
-                    mb_strtolower((string) ($u['specialization'] ?? '')),
-                ]);
+                // Build the searchable fields based on active filters.
+                $parts = [];
+                // If no filters are enabled, default to all.
+                $filterUser = $this->filterUser;
+                $filterStatus = $this->filterStatus;
+                $filterSpec = $this->filterSpecialization;
+                if (! $filterUser && ! $filterStatus && ! $filterSpec) {
+                    $filterUser = $filterStatus = $filterSpec = true;
+                }
+
+                if ($filterUser) {
+                    $parts[] = mb_strtolower((string) ($u['name'] ?? ''));
+                }
+                if ($filterSpec) {
+                    $parts[] = mb_strtolower((string) ($u['specialization'] ?? ''));
+                }
+                if ($filterStatus) {
+                    $parts[] = mb_strtolower((string) ($u['status'] ?? ''));
+                }
+
+                $haystack = implode(' ', $parts);
                 return str_contains($haystack, $query);
             }));
         }
@@ -263,5 +284,13 @@ class UserManagement extends Component
             'filteredUsers' => $this->filteredUsers ?? [],
             'apiError' => $this->apiError,
         ]);
+    }
+
+    public function resetFilters(): void
+    {
+        $this->filterUser = true;
+        $this->filterStatus = true;
+        $this->filterSpecialization = true;
+        $this->search = '';
     }
 }
