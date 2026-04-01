@@ -99,9 +99,28 @@
     </div>
     <hr class="border-2 clr-bg-primary">
     <div class="flex flex-row justify-between mt-4">
-        <div class="flex flex-row justify-center items-center">
-            <x-filter-dropdown></x-filter-dropdown>
+        <div class="flex flex-row justify-center items-center gap-2">
             <x-search-input wire:model.live.debounce.300ms="search" />
+            <x-filter-dropdown clear-action="resetFilters">
+                <div class="flex flex-col gap-2 text-sm">
+                    <span class="text-xs text-gray-500">Search fields</span>
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="checkbox checkbox-xs"
+                            wire:model.live="filterUser" />
+                        <span>User</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="checkbox checkbox-xs"
+                            wire:model.live="filterStatus" />
+                        <span>Status</span>
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="checkbox checkbox-xs"
+                            wire:model.live="filterSpecialization" />
+                        <span>Specialization</span>
+                    </label>
+                </div>
+            </x-filter-dropdown>
         </div>
         <div class="flex">
             <button class="btn clr-bg-primary text-base-100 p-4" onclick="add_user.showModal()">+ Add User</button>
