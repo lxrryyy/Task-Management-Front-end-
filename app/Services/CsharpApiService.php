@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Http\Client\Response as HttpResponse;
 
 class CsharpApiService
 {
@@ -23,6 +24,29 @@ class CsharpApiService
             'X-Api-Key' => $this->apiKey,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
+        ];
+
+        if (Session::has('api_token')) {
+            $token = (string) Session::get('api_token');
+            $token = preg_replace('/^Bearer\s+/i', '', $token);
+            $token = trim($token);
+            if ($token !== '') {
+                $headers['Authorization'] = 'Bearer ' . $token;
+            }
+        }
+
+        return Http::withHeaders($headers)->baseUrl($this->baseUrl);
+    }
+
+    /**
+     * HTTP client for DELETE (and similar) with no body.
+     * Omits Content-Type: application/json so strict ASP.NET APIs do not try to bind an empty JSON body.
+     */
+    private function clientBodyless(): PendingRequest
+    {
+        $headers = [
+            'X-Api-Key' => $this->apiKey,
+            'Accept' => 'application/json',
         ];
 
         if (Session::has('api_token')) {
@@ -94,7 +118,8 @@ class CsharpApiService
 
     public function delete(string $endpoint, array $data = []): array
     {
-        $response = $this->client()->delete($endpoint, $data)->throw();
+        $pending = $data === [] ? $this->clientBodyless() : $this->client();
+        $response = $pending->delete($endpoint, $data)->throw();
 
         if ($response->status() === 204) {
             return [];

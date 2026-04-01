@@ -145,24 +145,33 @@
                             </svg>
                         </div>
                         <ul tabindex="0"
-                            class="dropdown-content menu bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
+                            class="dropdown-content bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto"
+                            style="display:block;">
                             @foreach ($assignableAccounts as $account)
                                 @php
-                                    $aid = $account['id'] ?? ($account['Id'] ?? null);
-                                    $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
-                                    $aemail = $account['email'] ?? ($account['Email'] ?? '');
+                                    $aid      = $account['id'] ?? $account['Id'] ?? null;
+                                    $aname    = $account['name'] ?? $account['Name'] ?? 'Unknown';
+                                    $aemail   = $account['email'] ?? $account['Email'] ?? '';
+                                    $apic     = $account['profilePicture'] ?? $account['ProfilePicture'] ?? null;
+                                    if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
+                                        $apic = 'data:image/jpeg;base64,' . $apic;
+                                    }
+                                    $parts     = preg_split('/\s+/', trim($aname));
+                                    $ainitials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
                                 @endphp
                                 @if ($aid !== null)
                                     <li class="px-2 py-1">
-                                        <x-person-option name="{{ $aname }}" :email="$aemail"
+                                        <x-person-option
+                                            name="{{ $aname }}"
+                                            :email="$aemail"
+                                            :picture="$apic"
+                                            initials="{{ $ainitials }}"
                                             @click="toggle({{ (int) $aid }})">
                                             <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
-                                                    <rect x="0" y="0" width="20" height="20" rx="4"
-                                                        fill="#111827" />
+                                                    <rect x="0" y="0" width="20" height="20" rx="4" fill="#111827" />
                                                     <path d="M5 10.5L8.25 13.75L15 7" stroke="#FFFFFF"
-                                                        stroke-width="2" stroke-linecap="round"
-                                                        stroke-linejoin="round" />
+                                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                                 </svg>
                                             </template>
                                         </x-person-option>
@@ -752,9 +761,16 @@
                     <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">
                         <td wire:click.stop>
                             @if ($parentId !== null)
-                                <button type="button" class="btn btn-ghost btn-xs"
-                                    wire:click.stop="toggle({{ $parentId }})">
-                                    {{ $isExpanded ? 'v' : '>' }}
+                                <button type="button"
+                                    class="btn btn-ghost btn-xs p-0 w-6 h-6 flex items-center justify-center"
+                                    wire:click.stop="toggle({{ $parentId }})"
+                                    title="{{ $isExpanded ? 'Collapse' : 'Expand' }}">
+                                    <svg class="w-3.5 h-3.5 text-gray-500"
+                                         style="transition:transform 200ms ease;transform:rotate({{ $isExpanded ? '0' : '-90' }}deg);"
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
                                 </button>
                             @endif
                         </td>
@@ -893,9 +909,16 @@
                                 wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
                                 <td wire:click.stop class="pl-8">
                                     @if ($childId !== null)
-                                        <button type="button" class="btn btn-ghost btn-xs ml-4"
-                                            wire:click.stop="toggle({{ $childId }})">
-                                            {{ $childExpanded ? 'v' : '>' }}
+                                        <button type="button"
+                                            class="btn btn-ghost btn-xs p-0 w-6 h-6 flex items-center justify-center ml-4"
+                                            wire:click.stop="toggle({{ $childId }})"
+                                            title="{{ $childExpanded ? 'Collapse' : 'Expand' }}">
+                                            <svg class="w-3.5 h-3.5 text-gray-400"
+                                                 style="transition:transform 200ms ease;transform:rotate({{ $childExpanded ? '0' : '-90' }}deg);"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                      stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
                                         </button>
                                     @endif
                                 </td>
@@ -1264,73 +1287,13 @@
                             @endif
                         </div>
                     </div>
-    <div
-        class="{{ $viewMode !== 'board' ? 'hidden' : '' }} flex items-stretch gap-4 w-full p-4 overflow-x-auto rounded-lg">
-        @foreach ($boardStatuses as $status)
-            @php $statusJs = addslashes($status); @endphp
-            <div x-data="{ dragOver: false }"
-                class="flex flex-col flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
-                :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''" @dragover.prevent
-                @dragenter.prevent="dragOver = true"
-                @dragleave="if (!$event.relatedTarget || !$el.contains($event.relatedTarget)) dragOver = false"
-                @drop.prevent="dragOver = false; var id = parseInt($event.dataTransfer.getData('text/plain')); if (id) Livewire.dispatch('task-status-changed', { taskId: id, newStatus: '{{ $statusJs }}' })">
-                <div
-                    class="flex items-center justify-between px-3 py-2 rounded-lg border shrink-0 {{ $colStyles[$status] ?? 'bg-gray-100 border-gray-300' }}">
-                    <span class="font-normal text-sm">{{ $status }}</span>
-                    <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
                 </div>
-                <div class="flex flex-col gap-2 p-3">
-                    @foreach ($boardGrouped[$status] ?? [] as $task)
-                        @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
-                        <div x-data="{ dragging: false }"
-                            class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
-                            draggable="true" :style="dragging ? 'opacity:0.4' : ''"
-                            @dragstart="dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
-                            @dragend="dragging = false">
-                            <a href="#"
-                                class="block p-4 flex flex-col gap-3 cursor-pointer min-h-full no-underline text-inherit hover:bg-gray-50/50"
-                                wire:click.prevent="openTaskDetail({{ $boardTaskId }})">
-                                <span
-                                    class="font-medium text-sm leading-snug">{{ $task['name'] ?? ($task['title'] ?? '') }}</span>
-                                <div class="flex flex-wrap gap-1.5 items-center">
-                                    @if (!empty($task['priority']))
-                                        <span class="px-2 py-0.5 text-xs"
-                                            style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $priorityStyle[$task['priority']] ?? 'background:#f3f4f6;color:#6b7280;' }}">•
-                                            {{ $task['priority'] }}</span>
-                                    @endif
-                                    @if (isset($task['storyPoints']) || isset($task['storyPoint']))
-                                        <span
-                                            class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }}
-                                            pts</span>
-                                    @endif
-                                </div>
-                                <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
-                                    @php
-                                        $boardAssignee = $task['assigneeName'] ?? ($task['assignedToName'] ?? null);
-                                        if (!$boardAssignee) {
-                                            $bids = $task['assigneeIds'] ?? ($task['assigneeId'] ?? []);
-                                            if (!is_array($bids)) {
-                                                $bids = [$bids];
-                                            }
-                                            $bnames = array_filter(
-                                                array_map(fn($id) => $accountMap[(int) $id] ?? null, $bids),
-                                            );
-                                            $boardAssignee = implode(', ', $bnames) ?: 'Unassigned';
-                                        }
-                                    @endphp
-                                    <span>{{ $boardAssignee }}</span>
-                                    @if (!empty($task['dueDate']) || !empty($task['dueAt']))
-                                        <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
-                                    @endif
-                                </div>
-                            </a>
-                        </div>
-                    @endforeach
-                    @if (empty($boardGrouped[$status]))
-                        <div class="text-center text-xs text-gray-400 py-6">No tasks</div>
-                    @endif
-                </div>
+                @endforeach
+                @if (empty($boardGrouped[$status]))
+                    <div class="text-center text-xs text-gray-400 py-6">No tasks</div>
+                @endif
             </div>
+        </div>
         @endforeach
     </div>
 

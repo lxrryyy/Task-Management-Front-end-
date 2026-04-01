@@ -92,14 +92,22 @@
             </dialog>
 
             @if ($saveError)
-                <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                <div
+                    wire:key="settings-error-{{ $saveErrorNonce }}"
+                    x-data
+                    x-init="setTimeout(() => $wire.clearSaveErrorBanner(), 4000)"
+                    class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
                     {{ $saveError }}
                 </div>
             @endif
 
-            @if ($saveSuccess)
-                <div class="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
-                    Profile updated successfully.
+            @if ($saveSuccessMessage)
+                <div
+                    wire:key="settings-success-{{ $saveSuccessNonce }}"
+                    x-data
+                    x-init="setTimeout(() => $wire.clearSaveSuccessBanner(), 4000)"
+                    class="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                    {{ $saveSuccessMessage }}
                 </div>
             @endif
 

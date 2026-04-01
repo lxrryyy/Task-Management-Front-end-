@@ -37,6 +37,16 @@ class LoginController extends Controller
             // Use the user object returned directly by the login endpoint
             $user = $response['user'] ?? ['email' => $request->email];
 
+            $userId = $user['id'] ?? $user['Id'] ?? null;
+            if ($userId) {
+                try {
+                    $profile = $this->api->get('/api/Account/GetAccountById/' . $userId);
+                    $user['specialization'] = $profile['specialization'] ?? null;
+                } catch (\Throwable $e) {
+                }
+            }
+
+
             Session::put('user', $user);
 
             return redirect()->route('dashboard');
