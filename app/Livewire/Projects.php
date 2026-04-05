@@ -61,6 +61,7 @@ class Projects extends Component
     public array $projectStatusItems = [];
     public array $projectStatusMapById = [];
     public array $projectStatusMap = [];
+    public bool $loading = true;
 
     public function mount(
         array $projects = [],
@@ -119,6 +120,14 @@ class Projects extends Component
             $this->projectStatusMapById = [1 => 'Not Started', 2 => 'Active', 3 => 'Completed'];
             $this->projectStatusMap     = ['Not Started' => 1, 'Active' => 2, 'Completed' => 3];
         }
+
+        $this->dispatch('projects-loaded');
+    }
+
+    #[\Livewire\Attributes\On('projects-loaded')]
+    public function onProjectsLoaded(): void
+    {
+        $this->loading = false;
     }
 
     public function openModal(): void
