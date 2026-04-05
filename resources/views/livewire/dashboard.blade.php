@@ -28,13 +28,13 @@
         use Carbon\Carbon;
         @endphp
         @if ($user)
-            <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
-            @php
-                $specialization = $user['specialization'] ?? $user['Specialization'] ?? null;
-            @endphp
-            @if (!empty($specialization))
-                <div class="text-sm text-gray-500">{{ $specialization }}</div>
-            @endif
+        <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
+        @php
+        $specialization = $user['specialization'] ?? $user['Specialization'] ?? null;
+        @endphp
+        @if (!empty($specialization))
+        <div class="text-sm text-gray-500">{{ $specialization }}</div>
+        @endif
         @endif
         <span class="text-xs">{{ Carbon::now()->format('l, F j, Y') }}</span>
     </div>
@@ -43,10 +43,17 @@
         {{-- This is the left side --}}
         <div class="flex flex-col w-1/2 min-h-0 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold">Projects</h1>
-
             <a href="/projects" class="flex clr-primary justify-end hover:underline"><span class="text-sm">View All Projects</span></a>
 
             <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white">
+                @if($loading)
+                @foreach(range(1, 6) as $i)
+                <div class="flex items-center justify-between py-3 px-2 border-b border-gray-100">
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-40"></div>
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-12"></div>
+                </div>
+                @endforeach
+                @else
                 @forelse($projects as $project)
                 @php
                 $pid = (int) ($project['id'] ?? $project['Id'] ?? 0);
@@ -110,9 +117,7 @@
                         </table>
                     </div>
                     @else
-                    <div class="pb-3 text-xs text-gray-400">
-                        No tasks yet.
-                    </div>
+                    <div class="pb-3 text-xs text-gray-400">No tasks yet.</div>
                     @endif
                 </details>
                 @empty
@@ -120,6 +125,7 @@
                     No projects found.
                 </div>
                 @endforelse
+                @endif
             </div>
 
             <div class="flex flex-row justify-center gap-4 mt-auto pt-4 shrink-0">
@@ -140,6 +146,17 @@
         {{-- This is the right side --}}
         <div class="flex flex-col w-1/2 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold pl-4">Task by Status</h1>
+
+            @if($loading)
+            <div class="flex flex-col items-center gap-6 mt-4">
+                <div class="w-72 h-72 rounded-full bg-gray-200 animate-pulse"></div>
+                <div class="flex flex-row gap-4">
+                    @foreach(range(1, 4) as $i)
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    @endforeach
+                </div>
+            </div>
+            @else
             <div class="dropdown dropdown-end self-end flex justify-end relative status-dropdown">
                 <button tabindex="0" type="button" class="btn clr-bg-primary text-base-100 btn-sm px-2 flex items-center gap-2">
                     <span class="status-caret">
@@ -182,7 +199,6 @@
 
             <div class="flex flex-col justify-between items-center gap-6 pl-4 mt-4">
                 @php
-                // Match status colors used across the app UI.
                 $statusColors = [
                 'Completed' => '#102B3C',
                 'For Review' => '#F0EFEF',
@@ -195,7 +211,6 @@
                 foreach ($breakdown as $row) {
                 $name = $row['statusName'] ?? $row['status'] ?? '';
                 $count = (int) ($row['count'] ?? 0);
-                $pct = (float) ($row['percentage'] ?? 0);
                 $segments[] = [
                 'label' => $name,
                 'value' => $count,
@@ -232,6 +247,7 @@
                     @endif
                 </div>
             </div>
+            @endif
         </div>
     </div>
 </div>

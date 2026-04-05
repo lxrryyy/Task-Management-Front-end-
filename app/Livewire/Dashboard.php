@@ -17,6 +17,7 @@ class Dashboard extends Component
 
     /** Task status summary from API: totalTasks, breakdown (statusName, count, percentage). */
     public array $taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
+    public bool $loading = true;
 
     public function mount(): void
     {
@@ -26,18 +27,27 @@ class Dashboard extends Component
         $accountId = (int) ($user['id'] ?? ($user['Id'] ?? 0));
         $this->currentUserId = $accountId;
 
-        if ($accountId <= 0) {
+        $this->loading = true;
+        $this->dispatch('load-dashboard');
+    }
+
+    #[\Livewire\Attributes\On('load-dashboard')]
+    public function loadDashboard(): void
+    {
+        if ($this->currentUserId <= 0) {
             $this->projects = [];
+            $this->loading = false;
             return;
         }
 
         /** @var DashboardController $controller */
         $controller = app(DashboardController::class);
-        $data = $controller->getMyProjectsAndTasks($accountId);
+        $data = $controller->getMyProjectsAndTasks($this->currentUserId);
         $this->projects = is_array($data) ? $data : [];
 
         $this->setDefaultSelectedProject();
         $this->loadTaskStatusSummary();
+        $this->loading = false;
     }
 
     /** Set selected project to the first project from the list. */
