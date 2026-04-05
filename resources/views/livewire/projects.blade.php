@@ -155,7 +155,7 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-auto" style="height: 60vh;">
             <table class="table">
                 <!-- head -->
                 <thead>

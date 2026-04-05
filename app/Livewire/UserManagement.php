@@ -46,8 +46,16 @@ class UserManagement extends Component
     public ?string $editUserSuccess = null;
     public bool $showAddUserModal = false;
     public bool $showPassword = false;
+    public bool $loading = true;
 
     public function mount(): void
+    {
+        $this->loading = true;
+        $this->dispatch('load-users');
+    }
+
+    #[\Livewire\Attributes\On('load-users')]
+    public function loadUsers(): void
     {
         $this->reloadUsersFromApi();
     }
@@ -169,12 +177,14 @@ class UserManagement extends Component
 
     private function reloadUsersFromApi(): void
     {
+        $this->loading = true;
         $this->apiError = null;
 
         try {
             $raw = app(\App\Services\CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
+            $this->loading = false;
             return;
         }
 
@@ -198,6 +208,8 @@ class UserManagement extends Component
             $u = is_array($u) ? $u : [];
             return $this->normalizeUser($u);
         }, $list));
+
+        $this->loading = false;
     }
 
     private function normalizeUser(array $u): array

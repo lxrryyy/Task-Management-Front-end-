@@ -207,6 +207,33 @@
                     </tr>
                 </thead>
                 <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200">
+                    @if($loading)
+                    @foreach(range(1, 8) as $i)
+                    <tr>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-48"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
+                        </td>
+                        <td>
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
+                        </td>
+                    </tr>
+                    @endforeach
+                    @else
                     @forelse($filteredUsers as $user)
                     <tr class="hover:bg-gray-50">
                         <td>{{ $user['name'] ?? '—' }}</td>
@@ -225,23 +252,13 @@
                                 </button>
                                 <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
                                     <li class="border-b border-gray-100">
-                                        <button
-                                            type="button"
-                                            wire:click.stop="openUserDetail({{ (int) ($user['id'] ?? 0) }})">
-                                            Details
-                                        </button>
+                                        <button type="button" wire:click.stop="openUserDetail({{ (int) ($user['id'] ?? 0) }})">Details</button>
                                     </li>
                                     <li class="border-b border-gray-100">
-                                        <button
-                                            type="button"
-                                            wire:click.stop="editUser({{ (int) ($user['id'] ?? 0) }})">
-                                            Edit
-                                        </button>
+                                        <button type="button" wire:click.stop="editUser({{ (int) ($user['id'] ?? 0) }})">Edit</button>
                                     </li>
                                     <li>
-                                        <button
-                                            type="button"
-                                            wire:click.stop="toggleUserStatus({{ (int) ($user['id'] ?? 0) }}, {{ $user['isActive'] ? 'true' : 'false' }})">
+                                        <button type="button" wire:click.stop="toggleUserStatus({{ (int) ($user['id'] ?? 0) }}, {{ $user['isActive'] ? 'true' : 'false' }})">
                                             {{ $user['isActive'] ? 'Deactivate' : 'Activate' }}
                                         </button>
                                     </li>
@@ -254,6 +271,7 @@
                         <td colspan="7" class="text-center py-8 text-gray-500">No users found.</td>
                     </tr>
                     @endforelse
+                    @endif
                 </tbody>
             </table>
         </div>
