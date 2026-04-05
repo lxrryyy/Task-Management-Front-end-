@@ -52,6 +52,7 @@ class Tasks extends Component
     public bool $showDeleteConfirmModal = false;
     public ?int $pendingDeleteTaskId = null;
     public ?string $pendingDeleteTaskName = null;
+    public bool $loading = true;
 
     public function mount(
         ?int $projectId = null,
@@ -81,14 +82,20 @@ class Tasks extends Component
         }
 
         $this->taskPriorities = app(TaskController::class)->getPriorities();
-
-        // Sync project status to reflect current task statuses on load.
         $this->syncProjectStatusFromTasks();
 
         if ($openTaskId !== null && $openTaskId > 0) {
             $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
             $this->openTaskDetail($openTaskId, $commentId);
         }
+
+        $this->dispatch('tasks-loaded');
+    }
+
+    #[\Livewire\Attributes\On('tasks-loaded')]
+    public function onTasksLoaded(): void
+    {
+        $this->loading = false;
     }
 
     public function switchView(string $mode): void
