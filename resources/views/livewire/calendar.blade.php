@@ -525,13 +525,12 @@
             if (mode === 'new') {
                 modeBtn.textContent = 'View list';
                 editor.style.display = 'flex';
-                listEl.style.display = 'block';
+                listEl.style.display = 'none';
                 editor.innerHTML =
                     '<div class="row">' +
                         '<input id="content" type="text" placeholder="Write a note..." />' +
                         '<button id="save" class="btn" style="background-color:#102b3c;">Add</button>' +
                     '</div>';
-                listEl.innerHTML = '<div class="muted">Add a note, or switch to list.</div>';
                 pip.document.getElementById('save').onclick = async () => {
                     const content = pip.document.getElementById('content').value.trim();
                     if (!content) return;
