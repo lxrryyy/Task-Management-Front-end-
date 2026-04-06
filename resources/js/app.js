@@ -80,6 +80,13 @@ document.addEventListener("livewire:init", () => {
                 this.htmlValue = this.$refs.editorEl.innerHTML;
                 this.updateWordCount();
                 this.syncState();
+
+                const component = Livewire.find(
+                    this.$el.closest("[wire\\:id]")?.getAttribute("wire:id"),
+                );
+                if (component) {
+                    component.set(this.fieldName, this.htmlValue);
+                }
             },
             syncState() {
                 this.states.bold = document.queryCommandState("bold");
@@ -109,6 +116,13 @@ document.addEventListener("livewire:init", () => {
                 this.$refs.editorEl.innerHTML = "<p><br></p>";
                 this.htmlValue = "";
                 this.wordCount = 0;
+
+                const component = Livewire.find(
+                    this.$el.closest("[wire\\:id]")?.getAttribute("wire:id"),
+                );
+                if (component) {
+                    component.set(this.fieldName, "");
+                }
             },
         }),
     );

@@ -447,7 +447,7 @@
                                             </p>
                                             <p class="text-xs text-gray-500">
                                                 @if (!empty($cmt['createdAt']))
-                                                    {{ \Carbon\Carbon::parse($cmt['createdAt'])->format('M d, Y h:i A') }}
+                                                    {{ \Carbon\Carbon::parse($cmt['createdAt'])->setTimezone('Asia/Manila')->format('M d, Y h:i A') }}
                                                 @else
                                                     —
                                                 @endif
@@ -479,9 +479,9 @@
                                             </div>
                                         </div>
                                     @else
-                                        <p class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">
-                                            {{ $cmt['content'] ?? '' }}
-                                        </p>
+                                        <div class="mt-2 text-sm text-gray-800">
+                                            {!! $cmt['content'] ?? '' !!}
+                                        </div>
                                     @endif
                                 </div>
                             @empty

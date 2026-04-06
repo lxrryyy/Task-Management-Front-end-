@@ -12,46 +12,67 @@ use Livewire\Component;
 class Tasks extends Component
 {
     public ?int $projectId = null;
+
     /** Project payload from GetProjectById (used for delete permissions: PM / Scrum Master). */
     public ?array $project = null;
+
     public array $tasks = [];
+
     public array $accounts = [];
 
     public string $search = '';
+
     public string $viewMode = 'list';
+
     public ?string $moveError = null;
+
     public string $filterStatus = '';
+
     public string $filterPriority = '';
+
     public string $filterDateFrom = '';
+
     public string $filterDateTo = '';
 
     /** status name => statusId */
     public array $statusMap = [];
+
     /** ordered list of status names */
     public array $taskStatuses = [];
+
     /** priority data: ['map'=>..., 'names'=>..., 'items'=>...] */
     public array $taskPriorities = [];
 
     public array $expanded = [];
 
     public bool $showAddTaskModal = false;
+
     public ?int $taskParentId = null;
 
     /** Persist overload warnings across Livewire re-renders */
     public array $taskWarnings = [];
 
     public bool $showTaskDetailModal = false;
+
     public ?array $detailTask = null;
+
     public array $taskComments = [];
+
     public string $newComment = '';
+
     public ?int $editingCommentId = null;
+
     public string $editingCommentContent = '';
+
     public ?string $commentError = null;
 
     // Delete confirmation modal state
     public bool $showDeleteConfirmModal = false;
+
     public ?int $pendingDeleteTaskId = null;
+
     public ?string $pendingDeleteTaskName = null;
+
     public bool $loading = true;
 
     public function mount(
@@ -92,7 +113,7 @@ class Tasks extends Component
         $this->dispatch('tasks-loaded');
     }
 
-    #[\Livewire\Attributes\On('tasks-loaded')]
+    #[On('tasks-loaded')]
     public function onTasksLoaded(): void
     {
         $this->loading = false;
@@ -141,6 +162,7 @@ class Tasks extends Component
     private function currentAccountId(): int
     {
         $user = Session::get('user', []);
+
         return (int) ($user['id'] ?? $user['Id'] ?? 0);
     }
 
@@ -155,7 +177,9 @@ class Tasks extends Component
 
             $comments = [];
             foreach ((array) $list as $c) {
-                if (!is_array($c)) continue;
+                if (! is_array($c)) {
+                    continue;
+                }
                 $comments[] = [
                     'id' => (int) ($c['id'] ?? $c['Id'] ?? 0),
                     'taskId' => (int) ($c['taskId'] ?? $c['TaskId'] ?? 0),
@@ -175,6 +199,11 @@ class Tasks extends Component
 
     public function addComment(): void
     {
+        logger('addComment called', [
+            'newComment' => $this->newComment,
+            'detailTask' => $this->detailTask['id'] ?? null,
+        ]);
+
         if (empty($this->newComment)) {
             $this->newComment = request()->input('newComment', '');
         }
@@ -183,8 +212,12 @@ class Tasks extends Component
         $accountId = $this->currentAccountId();
         $content = trim($this->newComment);
 
-        if ($taskId <= 0 || $accountId <= 0) return;
-        if ($content === '') return;
+        if ($taskId <= 0 || $accountId <= 0) {
+            return;
+        }
+        if ($content === '') {
+            return;
+        }
 
         $this->commentError = null;
         try {
@@ -204,8 +237,10 @@ class Tasks extends Component
 
     public function startEditComment(int $commentId): void
     {
-        $comment = collect($this->taskComments)->first(fn ($c) => (int)($c['id'] ?? 0) === $commentId);
-        if (!$comment) return;
+        $comment = collect($this->taskComments)->first(fn ($c) => (int) ($c['id'] ?? 0) === $commentId);
+        if (! $comment) {
+            return;
+        }
         $this->editingCommentId = $commentId;
         $this->editingCommentContent = (string) ($comment['content'] ?? '');
     }
@@ -221,8 +256,12 @@ class Tasks extends Component
         $accountId = $this->currentAccountId();
         $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
         $content = trim($this->editingCommentContent);
-        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
-        if ($content === '') return;
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) {
+            return;
+        }
+        if ($content === '') {
+            return;
+        }
 
         $this->commentError = null;
         try {
@@ -242,7 +281,9 @@ class Tasks extends Component
     {
         $accountId = $this->currentAccountId();
         $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
-        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) return;
+        if ($accountId <= 0 || $commentId <= 0 || $taskId <= 0) {
+            return;
+        }
 
         $this->commentError = null;
         try {
@@ -262,7 +303,8 @@ class Tasks extends Component
     {
         $statusId = $this->statusMap[$newStatus] ?? null;
         if ($statusId === null) {
-            $this->moveError = "Cannot update: no statusId found for \"{$newStatus}\". Map: " . json_encode($this->statusMap);
+            $this->moveError = "Cannot update: no statusId found for \"{$newStatus}\". Map: ".json_encode($this->statusMap);
+
             return;
         }
 
@@ -280,7 +322,7 @@ class Tasks extends Component
         // Cascade DOWN
         $allIds = [$taskId];
         $queue = [$taskId];
-        while (!empty($queue)) {
+        while (! empty($queue)) {
             $current = array_shift($queue);
             foreach ($childrenMap[$current] ?? [] as $childId) {
                 $allIds[] = $childId;
@@ -310,7 +352,9 @@ class Tasks extends Component
             $ancestorId = $parentMap[$taskId] ?? 0;
             while ($ancestorId > 0) {
                 $directChildren = $childrenMap[$ancestorId] ?? [];
-                if (empty($directChildren)) break;
+                if (empty($directChildren)) {
+                    break;
+                }
 
                 $allChildrenDone = true;
                 foreach ($directChildren as $childId) {
@@ -319,7 +363,9 @@ class Tasks extends Component
                         break;
                     }
                 }
-                if (!$allChildrenDone) break;
+                if (! $allChildrenDone) {
+                    break;
+                }
 
                 foreach ($tasks as $i => $task) {
                     $tid = (int) ($task['id'] ?? $task['Id'] ?? 0);
@@ -346,11 +392,12 @@ class Tasks extends Component
             try {
                 app(TaskController::class)->updateStatus($this->projectId, $id, $statusId);
             } catch (\Throwable $e) {
-                $errors[] = "Task #{$id}: " . $e->getMessage();
+                $errors[] = "Task #{$id}: ".$e->getMessage();
             }
         }
-        if (!empty($errors)) {
-            $this->moveError = 'Some updates failed: ' . implode(' | ', $errors);
+        if (! empty($errors)) {
+            $this->moveError = 'Some updates failed: '.implode(' | ', $errors);
+
             return;
         }
 
@@ -359,57 +406,88 @@ class Tasks extends Component
 
     private function computeProjectStatusFromTasks(): string
     {
-        if (empty($this->tasks)) return 'Not Started';
+        if (empty($this->tasks)) {
+            return 'Not Started';
+        }
 
         // Leaf-only derivation (matches "progress" intuition).
         $childrenMap = [];
         foreach ($this->tasks as $t) {
             $tid = (int) ($t['id'] ?? $t['Id'] ?? 0);
-            if ($tid <= 0) continue;
+            if ($tid <= 0) {
+                continue;
+            }
             $pid = (int) ($t['parentTaskId'] ?? $t['parentId'] ?? $t['parentID'] ?? 0);
-            if ($pid > 0) $childrenMap[$pid][] = $tid;
+            if ($pid > 0) {
+                $childrenMap[$pid][] = $tid;
+            }
         }
 
         $leafTasks = [];
         foreach ($this->tasks as $t) {
             $tid = (int) ($t['id'] ?? $t['Id'] ?? 0);
-            if ($tid <= 0) continue;
-            if (empty($childrenMap[$tid])) $leafTasks[] = $t;
+            if ($tid <= 0) {
+                continue;
+            }
+            if (empty($childrenMap[$tid])) {
+                $leafTasks[] = $t;
+            }
         }
-        if (empty($leafTasks)) $leafTasks = $this->tasks;
+        if (empty($leafTasks)) {
+            $leafTasks = $this->tasks;
+        }
 
         $allCompleted = true;
         $allNotStarted = true;
         foreach ($leafTasks as $t) {
             $raw = (string) ($t['statusName'] ?? $t['status'] ?? 'Not Started');
             $s = mb_strtolower(trim($raw));
-            if ($s === 'notstarted') $s = 'not started';
-            if ($s === '') $s = 'not started';
+            if ($s === 'notstarted') {
+                $s = 'not started';
+            }
+            if ($s === '') {
+                $s = 'not started';
+            }
 
-            if ($s !== 'completed') $allCompleted = false;
-            if ($s !== 'not started') $allNotStarted = false;
+            if ($s !== 'completed') {
+                $allCompleted = false;
+            }
+            if ($s !== 'not started') {
+                $allNotStarted = false;
+            }
         }
 
-        if ($allCompleted) return 'Completed';
-        if ($allNotStarted) return 'Not Started';
+        if ($allCompleted) {
+            return 'Completed';
+        }
+        if ($allNotStarted) {
+            return 'Not Started';
+        }
+
         return 'Active';
     }
 
     private function syncProjectStatusFromTasks(): void
     {
         $projectId = (int) ($this->projectId ?? 0);
-        if ($projectId <= 0) return;
+        if ($projectId <= 0) {
+            return;
+        }
 
         $user = Session::get('user', []);
         $requesterId = (int) ($user['id'] ?? $user['Id'] ?? 0);
-        if ($requesterId <= 0) return;
+        if ($requesterId <= 0) {
+            return;
+        }
 
         $derived = $this->computeProjectStatusFromTasks();
 
         try {
             $project = app(ProjectController::class)->getProjectData($projectId);
             $current = (string) ($project['statusName'] ?? $project['status'] ?? '');
-            if (mb_strtolower(trim($current)) === mb_strtolower($derived)) return;
+            if (mb_strtolower(trim($current)) === mb_strtolower($derived)) {
+                return;
+            }
         } catch (\Throwable) {
             // continue
         }
@@ -426,7 +504,7 @@ class Tasks extends Component
 
     public function toggle(int $taskId): void
     {
-        $this->expanded[$taskId] = !($this->expanded[$taskId] ?? false);
+        $this->expanded[$taskId] = ! ($this->expanded[$taskId] ?? false);
     }
 
     public function openAddTaskModal(): void
@@ -541,6 +619,7 @@ class Tasks extends Component
     {
         if (! $this->canDeleteTasks()) {
             $this->moveError = 'You do not have permission to delete tasks.';
+
             return;
         }
 
@@ -605,31 +684,45 @@ class Tasks extends Component
         $matchingIds = [];
         foreach ($this->tasks as $task) {
             $id = $task['id'] ?? null;
-            if ($id === null) continue;
+            if ($id === null) {
+                continue;
+            }
 
             $statusRaw = (string) ($task['statusName'] ?? $task['status'] ?? '');
             $status = mb_strtolower(trim($statusRaw));
-            if ($statusNeedle !== '' && $status !== $statusNeedle) continue;
+            if ($statusNeedle !== '' && $status !== $statusNeedle) {
+                continue;
+            }
 
             $priorityRaw = (string) ($task['priorityName'] ?? $task['priority'] ?? '');
             if ($priorityRaw === '' && isset($task['priorityId'])) {
                 $priorityRaw = (string) (($this->taskPriorities['map'] ?? [])[(int) ($task['priorityId'] ?? 0)] ?? '');
             }
             $priority = mb_strtolower(trim($priorityRaw));
-            if ($priorityNeedle !== '' && $priority !== $priorityNeedle) continue;
+            if ($priorityNeedle !== '' && $priority !== $priorityNeedle) {
+                continue;
+            }
 
             $dateRaw = (string) ($task['dueDate'] ?? $task['dueAt'] ?? '');
             if (($fromDate !== '' || $toDate !== '')) {
-                if ($dateRaw === '') continue;
+                if ($dateRaw === '') {
+                    continue;
+                }
                 $dateTs = strtotime($dateRaw);
-                if ($dateTs === false) continue;
+                if ($dateTs === false) {
+                    continue;
+                }
                 if ($fromDate !== '') {
-                    $fromTs = strtotime($fromDate . ' 00:00:00');
-                    if ($fromTs !== false && $dateTs < $fromTs) continue;
+                    $fromTs = strtotime($fromDate.' 00:00:00');
+                    if ($fromTs !== false && $dateTs < $fromTs) {
+                        continue;
+                    }
                 }
                 if ($toDate !== '') {
-                    $toTs = strtotime($toDate . ' 23:59:59');
-                    if ($toTs !== false && $dateTs > $toTs) continue;
+                    $toTs = strtotime($toDate.' 23:59:59');
+                    if ($toTs !== false && $dateTs > $toTs) {
+                        continue;
+                    }
                 }
             }
 
@@ -640,7 +733,9 @@ class Tasks extends Component
                     mb_strtolower((string) ($task['statusName'] ?? $task['status'] ?? '')),
                     mb_strtolower((string) ($task['priorityName'] ?? $task['priority'] ?? '')),
                 ]);
-                if (! str_contains($haystack, $query)) continue;
+                if (! str_contains($haystack, $query)) {
+                    continue;
+                }
             }
 
             $matchingIds[$id] = true;
@@ -650,7 +745,9 @@ class Tasks extends Component
         foreach ($this->tasks as $task) {
             $id = $task['id'] ?? null;
             $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
-            if ($id !== null) $parentMap[$id] = $pid;
+            if ($id !== null) {
+                $parentMap[$id] = $pid;
+            }
         }
 
         $includedIds = $matchingIds;
@@ -664,14 +761,18 @@ class Tasks extends Component
 
         $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
 
-        $statuses = !empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
+        $statuses = ! empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
 
         $grouped = array_fill_keys($statuses, []);
         foreach ($filtered as $task) {
             $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
-            if ($pid !== null) continue;
+            if ($pid !== null) {
+                continue;
+            }
             $s = $task['statusName'] ?? $task['status'] ?? 'Not Started';
-            if (!array_key_exists($s, $grouped)) $grouped[$s] = [];
+            if (! array_key_exists($s, $grouped)) {
+                $grouped[$s] = [];
+            }
             $grouped[$s][] = $task;
         }
 
@@ -682,7 +783,7 @@ class Tasks extends Component
             $name = $account['name']
                 ?? $account['fullName']
                 ?? $account['username']
-                ?? trim(($account['firstName'] ?? '') . ' ' . ($account['lastName'] ?? ''))
+                ?? trim(($account['firstName'] ?? '').' '.($account['lastName'] ?? ''))
                 ?: null;
             if ($id === null) {
                 continue;
@@ -698,11 +799,11 @@ class Tasks extends Component
             $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
             $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
             $first = (string) ($parts[0] ?? '');
-            $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+            $last = (string) (! empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
             $a0 = mb_substr(trim($first), 0, 1);
             $b0 = mb_substr(trim($last), 0, 1);
             if ($a0 !== '' && $b0 !== '') {
-                $initials = mb_strtoupper($a0 . $b0);
+                $initials = mb_strtoupper($a0.$b0);
             } elseif ($a0 !== '') {
                 $initials = mb_strtoupper($a0);
             } else {
@@ -727,26 +828,27 @@ class Tasks extends Component
         foreach ($this->taskPriorities['items'] ?? [] as $pr) {
             $pid = is_array($pr) ? ($pr['id'] ?? $pr['Id'] ?? null) : null;
             $pname = is_array($pr) ? ($pr['name'] ?? $pr['Name'] ?? '') : '';
-            if ($pid !== null) $taskPriorityMap[(int) $pid] = $pname;
+            if ($pid !== null) {
+                $taskPriorityMap[(int) $pid] = $pname;
+            }
         }
 
-        $currentUserName = $user['name'] ?? $user['Name'] ?? $user['fullName'] ?? trim(($user['firstName'] ?? '') . ' ' . ($user['lastName'] ?? '')) ?: null;
+        $currentUserName = $user['name'] ?? $user['Name'] ?? $user['fullName'] ?? trim(($user['firstName'] ?? '').' '.($user['lastName'] ?? '')) ?: null;
         $currentUserId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
         return view('livewire.tasks', [
-            'filteredTasks'      => $filtered,
-            'boardStatuses'      => $statuses,
-            'boardGrouped'       => $grouped,
-            'accountMap'         => $accountMap,
-            'accountProfiles'   => $accountProfiles,
+            'filteredTasks' => $filtered,
+            'boardStatuses' => $statuses,
+            'boardGrouped' => $grouped,
+            'accountMap' => $accountMap,
+            'accountProfiles' => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,
-            'taskPriorities'     => $this->taskPriorities['items'] ?? [],
-            'taskPriorityNames'  => $this->taskPriorities['names'] ?? [],
-            'taskPriorityMap'    => $taskPriorityMap,
-            'currentUserName'    => $currentUserName,
-            'currentUserId'      => $currentUserId,
-            'canDeleteTasks'     => $this->canDeleteTasks(),
+            'taskPriorities' => $this->taskPriorities['items'] ?? [],
+            'taskPriorityNames' => $this->taskPriorities['names'] ?? [],
+            'taskPriorityMap' => $taskPriorityMap,
+            'currentUserName' => $currentUserName,
+            'currentUserId' => $currentUserId,
+            'canDeleteTasks' => $this->canDeleteTasks(),
         ]);
     }
 }
-
