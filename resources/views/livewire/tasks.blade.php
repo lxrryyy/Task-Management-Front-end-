@@ -145,8 +145,7 @@
                             </svg>
                         </div>
                         <ul tabindex="0"
-                            class="dropdown-content bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto"
-                            style="display:block;">
+                            class="dropdown-content bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
                             @foreach ($assignableAccounts as $account)
                                 @php
                                     $aid = $account['id'] ?? ($account['Id'] ?? null);
