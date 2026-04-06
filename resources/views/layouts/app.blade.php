@@ -125,8 +125,7 @@
 
         <div class="flex-1 flex flex-col overflow-hidden bg-gray-100 ml-16">
 
-            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
-                <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
+            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-end">
                 <div class="flex items-center gap-3">
                     <div class="relative" x-data="notifDropdown()" x-init="init()">
                         {{-- Wrapper div owns the relative context so badge bleeds outside the button --}}
