@@ -2,50 +2,75 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
+use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Session;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class UserManagement extends Component
 {
     public string $search = '';
+
     public array $users = [];
+
     public ?array $filteredUsers = null;
 
     public bool $showUserDetailModal = false;
+
     public ?array $selectedUser = null;
 
     public ?string $apiError = null;
 
     // Search filter toggles
     public bool $filterUser = true;
+
     public bool $filterStatus = true;
+
     public bool $filterSpecialization = true;
 
     // Add user modal state
     public string $newFirstName = '';
+
     public string $newLastName = '';
+
     public string $newEmail = '';
+
     public string $newTemporaryPassword = '';
+
     public string $newSpecialization = '';
+
     public string $newRole = 'User';
 
     public bool $creatingAccount = false;
+
     public ?string $createAccountError = null;
+
     public ?string $createAccountSuccess = null;
+
     public array $createAccountErrors = [];
 
     public bool $showEditUserModal = false;
+
     public int $editUserId = 0;
+
     public string $editName = '';
+
     public string $editEmail = '';
+
     public string $editSpecialization = '';
+
     public string $editRole = 'User';
+
     public bool $editIsActive = true;
+
     public ?string $editUserError = null;
+
     public ?string $editUserSuccess = null;
+
     public bool $showAddUserModal = false;
+
     public bool $showPassword = false;
+
     public bool $loading = true;
 
     public function mount(): void
@@ -54,7 +79,7 @@ class UserManagement extends Component
         $this->dispatch('load-users');
     }
 
-    #[\Livewire\Attributes\On('load-users')]
+    #[On('load-users')]
     public function loadUsers(): void
     {
         $this->reloadUsersFromApi();
@@ -63,7 +88,7 @@ class UserManagement extends Component
     public function openAddUserModal(): void
     {
         $this->createAccountError = null;
-        $this->createAccountErrors = [];    
+        $this->createAccountErrors = [];
 
         $this->showAddUserModal = true;
     }
@@ -86,7 +111,7 @@ class UserManagement extends Component
         $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $numbers = '0123456789';
         $special = '!@#$%^&*';
-        $all = $letters . $numbers . $special;
+        $all = $letters.$numbers.$special;
 
         // Guarantee at least one of each required type
         $password = '';
@@ -109,7 +134,7 @@ class UserManagement extends Component
 
     public function toggleShowPassword(): void
     {
-        $this->showPassword = !$this->showPassword;
+        $this->showPassword = ! $this->showPassword;
     }
 
     public function createAccount(): void
@@ -123,10 +148,11 @@ class UserManagement extends Component
         $email = trim($this->newEmail);
         $tempPassword = trim($this->newTemporaryPassword);
         $spec = trim($this->newSpecialization) !== '' ? trim($this->newSpecialization) : null;
-        $fullName = trim($first . ' ' . $last);
+        $fullName = trim($first.' '.$last);
 
         if ($fullName === '' || $email === '' || $tempPassword === '') {
             $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
+
             return;
         }
 
@@ -138,6 +164,7 @@ class UserManagement extends Component
             if ($adminId <= 0) {
                 $this->creatingAccount = false;
                 $this->createAccountError = 'Admin ID is required. Please log out and log in again as an admin.';
+
                 return;
             }
 
@@ -151,7 +178,7 @@ class UserManagement extends Component
                 'isActive' => true,
             ];
 
-            app(\App\Services\CsharpApiService::class)->post('/api/Account/CreateAccount?adminid=' . $adminId, $payload);
+            app(CsharpApiService::class)->post('/api/Account/CreateAccount?adminid='.$adminId, $payload);
 
             $this->createAccountSuccess = 'User created successfully.';
             $this->creatingAccount = false;
@@ -159,16 +186,18 @@ class UserManagement extends Component
             $this->closeAddUserModal();
         } catch (RequestException $e) {
             $this->creatingAccount = false;
-            $api = app(\App\Services\CsharpApiService::class);
+            $api = app(CsharpApiService::class);
             $fieldErrors = $api->extractFieldErrors($e->response);
             $flat = [];
             foreach ($fieldErrors as $msgs) {
                 foreach ((array) $msgs as $m) {
-                    if (is_string($m) && trim($m) !== '') $flat[] = $m;
+                    if (is_string($m) && trim($m) !== '') {
+                        $flat[] = $m;
+                    }
                 }
             }
             $this->createAccountErrors = array_values(array_unique($flat));
-            $this->createAccountError = !empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
+            $this->createAccountError = ! empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
         } catch (\Throwable $e) {
             $this->creatingAccount = false;
             $this->createAccountError = $e->getMessage() ?: 'Failed to create user. Please try again.';
@@ -181,10 +210,11 @@ class UserManagement extends Component
         $this->apiError = null;
 
         try {
-            $raw = app(\App\Services\CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
+            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
             $this->loading = false;
+
             return;
         }
 
@@ -202,10 +232,13 @@ class UserManagement extends Component
             }
         }
 
-        if (!is_array($list)) $list = [];
+        if (! is_array($list)) {
+            $list = [];
+        }
 
         $this->users = array_values(array_map(function ($u) {
             $u = is_array($u) ? $u : [];
+
             return $this->normalizeUser($u);
         }, $list));
 
@@ -217,11 +250,11 @@ class UserManagement extends Component
         $id = (int) ($u['id'] ?? $u['Id'] ?? $u['accountId'] ?? $u['AccountId'] ?? 0);
 
         $first = trim((string) ($u['firstName'] ?? $u['FirstName'] ?? $u['First'] ?? ''));
-        $last  = trim((string) ($u['lastName'] ?? $u['LastName'] ?? $u['Last'] ?? ''));
+        $last = trim((string) ($u['lastName'] ?? $u['LastName'] ?? $u['Last'] ?? ''));
 
         $fullName = trim((string) ($u['fullName'] ?? $u['FullName'] ?? $u['name'] ?? $u['Name'] ?? ''));
         if ($fullName === '' && ($first !== '' || $last !== '')) {
-            $fullName = trim($first . ' ' . $last);
+            $fullName = trim($first.' '.$last);
         }
         if ($fullName === '') {
             $fullName = trim((string) ($u['userName'] ?? $u['username'] ?? $u['UserName'] ?? ''));
@@ -254,7 +287,7 @@ class UserManagement extends Component
             ?? 0;
 
         $projectsCount = is_array($projectsVal) ? count($projectsVal) : (int) $projectsVal;
-        $tasksCount    = is_array($tasksVal) ? count($tasksVal) : (int) $tasksVal;
+        $tasksCount = is_array($tasksVal) ? count($tasksVal) : (int) $tasksVal;
 
         $status = trim((string) (
             $u['status'] ?? $u['Status'] ?? $u['statusName'] ?? $u['StatusName']
@@ -277,7 +310,9 @@ class UserManagement extends Component
     public function openUserDetail(int $userId): void
     {
         $user = collect($this->users)->first(fn ($u) => (int) ($u['id'] ?? 0) === $userId);
-        if (! $user) return;
+        if (! $user) {
+            return;
+        }
 
         $this->selectedUser = $user;
         $this->showUserDetailModal = true;
@@ -318,6 +353,7 @@ class UserManagement extends Component
                 }
 
                 $haystack = implode(' ', $parts);
+
                 return str_contains($haystack, $query);
             }));
         }
@@ -338,12 +374,32 @@ class UserManagement extends Component
 
     public function toggleUserStatus(int $userId, bool $isActive): void
     {
+        try {
+            $user = session('user', []);
+            $adminId = (int) ($user['id'] ?? $user['Id'] ?? $user['accountId'] ?? $user['AccountId'] ?? 0);
+
+            if ($isActive) {
+                app(CsharpApiService::class)->delete(
+                    "/api/Account/DeleteAccount/{$userId}?adminId={$adminId}"
+                );
+            } else {
+                app(CsharpApiService::class)->delete(
+                    "/api/Account/ReactivateAccount/{$userId}?adminId={$adminId}"
+                );
+            }
+
+            $this->reloadUsersFromApi();
+        } catch (\Throwable $e) {
+            $this->apiError = 'Failed to update user status. Please try again.';
+        }
     }
 
     public function editUser(int $userId): void
     {
         $user = collect($this->users)->first(fn ($u) => (int) ($u['id'] ?? 0) === $userId);
-        if (!$user) return;
+        if (! $user) {
+            return;
+        }
 
         $this->editUserId = $userId;
         $this->editName = $user['name'] === '—' ? '' : $user['name'];
@@ -376,6 +432,7 @@ class UserManagement extends Component
 
         if (trim($this->editName) === '') {
             $this->editUserError = 'Name is required.';
+
             return;
         }
 
@@ -390,7 +447,7 @@ class UserManagement extends Component
                 'specialization' => trim($this->editSpecialization) ?: null,
             ];
 
-            app(\App\Services\CsharpApiService::class)->patch(
+            app(CsharpApiService::class)->patch(
                 "/api/Account/UpdateAccount/{$this->editUserId}?editorId={$editorId}",
                 $payload
             );
