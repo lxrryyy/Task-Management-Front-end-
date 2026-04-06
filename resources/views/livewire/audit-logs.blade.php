@@ -7,7 +7,8 @@
     return state;
 })()">
     <div class="flex w-full items-center clr-primary">
-        <a href="/dashboard" class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
+        <a href="/dashboard"
+            class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
             <x-icons.back-btn classes="w-6 h-6" />
         </a>
         <span class="group-hover:block text-xl">Audit Logs</span>
@@ -15,49 +16,44 @@
     <hr class="border-2 border-gray-300" />
 
     <div class="mt-4 flex gap-2">
-        <button
-            type="button"
-            @click="switchTab('activity')"
+        <button type="button" @click="switchTab('activity')"
             :class="currentTab === 'activity'
-                ? 'btn clr-bg-primary text-base-100 rounded-lg px-4'
-                : 'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'"
-        >
+                ?
+                'btn clr-bg-primary text-base-100 rounded-lg px-4' :
+                'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'">
             Activity
         </button>
-        <button
-            type="button"
-            @click="switchTab('logs')"
+        <button type="button" @click="switchTab('logs')"
             :class="currentTab === 'logs'
-                ? 'btn clr-bg-primary text-base-100 rounded-lg px-4'
-                : 'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'"
-        >
+                ?
+                'btn clr-bg-primary text-base-100 rounded-lg px-4' :
+                'btn border border-gray-300 bg-white text-gray-700 rounded-lg px-4'">
             Logs
         </button>
     </div>
 
     <div class="flex flex-row justify-between mt-4">
         <div class="flex flex-row gap-4">
-            <button @click="open = !open" class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
+            <button @click="open = !open"
+                class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
             </button>
             <x-search-input x-model.debounce.300ms="filters.search" />
         </div>
         <div class="flex flex-row gap-4">
-            <button type="button" @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true" class="btn clr-bg-primary text-base-100 rounded-lg p-4">
+            <button type="button"
+                @click="exportFrom = filters.from || ''; exportTo = filters.to || ''; exportOpen = true"
+                class="btn clr-bg-primary text-base-100 rounded-lg p-4">
                 <x-icons.export classes="w-6 h-6" /> Export
             </button>
         </div>
     </div>
 
     {{-- Export modal --}}
-    <div
-        x-cloak
-        x-show="exportOpen"
-        x-transition.opacity
-        class="fixed inset-0 z-[9999] flex items-center justify-center"
-        @keydown.escape.window="exportOpen = false"
-    >
-        <div class="absolute inset-0 bg-gray-700 bg-opacity-50" style="background: rgba(107,114,128,0.55);" @click="exportOpen = false"></div>
+    <div x-cloak x-show="exportOpen" x-transition.opacity
+        class="fixed inset-0 z-[9999] flex items-center justify-center" @keydown.escape.window="exportOpen = false">
+        <div class="absolute inset-0 bg-gray-700 bg-opacity-50" style="background: rgba(107,114,128,0.55);"
+            @click="exportOpen = false"></div>
         <div class="relative w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-200 p-6">
             <div class="flex items-start justify-between">
                 <h3 class="text-lg font-medium text-gray-900">Export Audit Logs</h3>
@@ -71,29 +67,29 @@
             <div class="mt-4 grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1">
                     <label class="text-xs text-gray-600">From</label>
-                    <input x-model="exportFrom" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                    <input x-model="exportFrom" type="date"
+                        class="input input-sm input-bordered w-full bg-white text-gray-900" />
                 </div>
                 <div class="flex flex-col gap-1">
                     <label class="text-xs text-gray-600">To</label>
-                    <input x-model="exportTo" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+                    <input x-model="exportTo" type="date"
+                        class="input input-sm input-bordered w-full bg-white text-gray-900" />
                 </div>
             </div>
 
             <div class="mt-6 grid grid-cols-1 gap-3">
-                <a
-                    :href="currentTab === 'activity'
-                        ? `{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`
-                        : `{{ route('auditLogs.login.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
-                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
-                >
+                <a :href="currentTab === 'activity'
+                    ?
+                    `{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}` :
+                    `{{ route('auditLogs.login.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
                     Export to PDF
                 </a>
-                <a
-                    :href="currentTab === 'activity'
-                        ? `{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`
-                        : `{{ route('auditLogs.login.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
-                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
-                >
+                <a :href="currentTab === 'activity'
+                    ?
+                    `{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}` :
+                    `{{ route('auditLogs.login.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
                     Export to Excel
                 </a>
             </div>
@@ -103,12 +99,8 @@
     <div x-show="open" x-transition class="flex flex-row gap-4 border border-gray-300 rounded-lg p-4 mt-2 bg-white">
         <div class="flex flex-col flex-1">
             <span>User</span>
-            <input
-                x-model.debounce.200ms="filters.userText"
-                type="text"
-                placeholder="Search user..."
-                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
-            />
+            <input x-model.debounce.200ms="filters.userText" type="text" placeholder="Search user..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2" />
             <select x-model="filters.userId" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All User</option>
                 <template x-for="u in userOptions" :key="u.id">
@@ -118,12 +110,8 @@
         </div>
         <div class="flex flex-col flex-1">
             <span>Role</span>
-            <input
-                x-model.debounce.200ms="filters.roleText"
-                type="text"
-                placeholder="Search role..."
-                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
-            />
+            <input x-model.debounce.200ms="filters.roleText" type="text" placeholder="Search role..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2" />
             <select x-model="filters.role" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All roles</option>
                 <template x-for="r in roleOptions" :key="r">
@@ -133,12 +121,8 @@
         </div>
         <div class="flex flex-col flex-1">
             <span>Project Name</span>
-            <input
-                x-model.debounce.200ms="filters.projectText"
-                type="text"
-                placeholder="Search project..."
-                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2"
-            />
+            <input x-model.debounce.200ms="filters.projectText" type="text" placeholder="Search project..."
+                class="input input-sm input-bordered w-full bg-white text-gray-900 mb-2" />
             <select x-model="filters.project" class="select select-bordered w-full bg-white text-gray-900">
                 <option value="">All projects</option>
                 <template x-for="p in projectOptions" :key="p">
@@ -166,79 +150,101 @@
         </div>
         <div class="flex flex-col flex-1">
             <span>Date From</span>
-            <input x-model="filters.from" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+            <input x-model="filters.from" type="date"
+                class="input input-sm input-bordered w-full bg-white text-gray-900" />
         </div>
         <div class="flex flex-col flex-1">
             <span>Date To</span>
-            <input x-model="filters.to" type="date" class="input input-sm input-bordered w-full bg-white text-gray-900" />
+            <input x-model="filters.to" type="date"
+                class="input input-sm input-bordered w-full bg-white text-gray-900" />
         </div>
     </div>
 
-    @if($loadError)
+    @if ($loadError)
         <div class="mt-3 alert alert-error text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
             <span>{{ $loadError }}</span>
         </div>
     @endif
 
     <div class="mt-4 border border-gray-200 rounded-lg bg-white overflow-hidden">
-        <div wire:loading class="p-4 text-sm text-gray-500">Loading audit logs…</div>
+        <div class="overflow-x-auto overflow-y-scroll max-h-[520px]" style="scrollbar-gutter: stable;">
+            <table class="table w-full">
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                    <tr class="text-gray-500 text-xs uppercase tracking-wide">
+                        <th class="!font-normal">
+                            <div class="flex items-center gap-1">
+                                <span>User</span>
+                                <span class="text-gray-400">↓</span>
+                            </div>
+                        </th>
+                        <th class="!font-normal">Role</th>
+                        <th class="!font-normal">Project Name</th>
+                        <th class="!font-normal">Action</th>
+                        <th class="!font-normal">Description</th>
+                        <th class="!font-normal whitespace-nowrap">Date &amp; Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr wire:loading.class.remove="hidden" class="hidden">
+                        <td colspan="6">
+                            @foreach (range(1, 8) as $i)
+                                <div class="flex gap-4 px-4 py-4 border-b border-gray-100">
+                                    <div class="flex flex-col gap-1 w-40">
+                                        <div class="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                                        <div class="h-3 bg-gray-200 rounded animate-pulse w-24"></div>
+                                    </div>
+                                    <div class="h-4 bg-gray-200 rounded animate-pulse w-16 self-center"></div>
+                                    <div class="h-4 bg-gray-200 rounded animate-pulse w-24 self-center"></div>
+                                    <div class="h-6 bg-gray-200 rounded animate-pulse w-20 self-center"></div>
+                                    <div class="h-4 bg-gray-200 rounded animate-pulse w-48 self-center"></div>
+                                    <div class="flex flex-col gap-1 self-center">
+                                        <div class="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                                        <div class="h-3 bg-gray-200 rounded animate-pulse w-16"></div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </td>
+                    </tr>
 
-        <div class="overflow-x-auto overflow-y-scroll max-h-[520px]" style="scrollbar-gutter: stable;" wire:loading.remove>
-        <table class="table w-full">
-            <thead class="bg-gray-50 sticky top-0 z-10">
-            <tr class="text-gray-500 text-xs uppercase tracking-wide">
-                <th class="!font-normal">
-                    <div class="flex items-center gap-1">
-                        <span>User</span>
-                        <span class="text-gray-400">↓</span>
-                    </div>
-                </th>
-                <th class="!font-normal">Role</th>
-                <th class="!font-normal">Project Name</th>
-                <th class="!font-normal">Action</th>
-                <th class="!font-normal">Description</th>
-                <th class="!font-normal whitespace-nowrap">Date &amp; Time</th>
-            </tr>
-            </thead>
-            <tbody>
-            <template x-for="l in pageItems" :key="l._k">
-                <tr class="border-b border-gray-100 hover:bg-gray-50">
-                    <td class="py-4">
-                        <div class="flex flex-col leading-tight">
-                            <span class="font-medium text-gray-900" x-text="l.userName"></span>
-                            <template x-if="l.userEmail">
-                                <span class="text-xs text-gray-500" x-text="l.userEmail"></span>
-                            </template>
-                        </div>
-                    </td>
-                    <td class="py-4 text-gray-700 whitespace-nowrap" x-text="l.userRole || '—'"></td>
-                    <td class="py-4 text-gray-700" x-text="l.projectName || '—'"></td>
-                    <td class="py-4 whitespace-nowrap">
-                        <template x-if="l.action">
-                            <span class="px-2 py-1 rounded text-[10px] font-semibold"
-                                  :style="l.actionStyle"
-                                  x-text="l.action"></span>
-                        </template>
-                        <template x-if="!l.action">
-                            <span>—</span>
-                        </template>
-                    </td>
-                    <td class="py-4 text-gray-700 max-w-[520px] whitespace-pre-wrap break-words" x-text="l.description || '—'"></td>
-                    <td class="py-4 text-gray-700 whitespace-nowrap">
-                        <div class="flex flex-col leading-tight">
-                            <span x-text="l.dateLabel"></span>
-                            <template x-if="l.timeLabel">
-                                <span class="text-xs text-gray-500" x-text="l.timeLabel"></span>
-                            </template>
-                        </div>
-                    </td>
-                </tr>
-            </template>
-            <tr x-show="pageItems.length === 0">
-                <td colspan="6" class="text-center py-10 text-gray-500">No audit logs found.</td>
-            </tr>
-            </tbody>
-        </table>
+                    <template wire:loading.remove x-for="l in pageItems" :key="l._k">
+                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                            <td class="py-4">
+                                <div class="flex flex-col leading-tight">
+                                    <span class="font-medium text-gray-900" x-text="l.userName"></span>
+                                    <template x-if="l.userEmail">
+                                        <span class="text-xs text-gray-500" x-text="l.userEmail"></span>
+                                    </template>
+                                </div>
+                            </td>
+                            <td class="py-4 text-gray-700 whitespace-nowrap" x-text="l.userRole || '—'"></td>
+                            <td class="py-4 text-gray-700" x-text="l.projectName || '—'"></td>
+                            <td class="py-4 whitespace-nowrap">
+                                <template x-if="l.action">
+                                    <span class="px-2 py-1 rounded text-[10px] font-semibold" :style="l.actionStyle"
+                                        x-text="l.action"></span>
+                                </template>
+                                <template x-if="!l.action">
+                                    <span>—</span>
+                                </template>
+                            </td>
+                            <td class="py-4 text-gray-700 max-w-[520px] whitespace-pre-wrap break-words"
+                                x-text="l.description || '—'"></td>
+                            <td class="py-4 text-gray-700 whitespace-nowrap">
+                                <div class="flex flex-col leading-tight">
+                                    <span x-text="l.dateLabel"></span>
+                                    <template x-if="l.timeLabel">
+                                        <span class="text-xs text-gray-500" x-text="l.timeLabel"></span>
+                                    </template>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <tr wire:loading.remove x-show="pageItems.length === 0">
+                        <td colspan="6" class="text-center py-10 text-gray-500">No audit logs found.</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         {{-- Pagination --}}
@@ -247,19 +253,15 @@
                 Showing <span x-text="from"></span>-<span x-text="to"></span> of <span x-text="total"></span>
             </div>
             <div class="flex items-center gap-2">
-                <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
-                        @click="prevPage()"
-                        :disabled="page <= 1">
+                <button type="button" class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
+                    @click="prevPage()" :disabled="page <= 1">
                     Prev
                 </button>
                 <span class="text-xs text-gray-600">
                     Page <span x-text="page"></span> / <span x-text="totalPages"></span>
                 </span>
-                <button type="button"
-                        class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
-                        @click="nextPage()"
-                        :disabled="page >= totalPages">
+                <button type="button" class="btn btn-sm border border-gray-300 bg-white text-gray-700 p-4"
+                    @click="nextPage()" :disabled="page >= totalPages">
                     Next
                 </button>
             </div>
@@ -271,23 +273,36 @@
             const actionStyle = (action) => ({
 
                 'DELETED': 'background:#FEE2E2;color:#7F1D1D;',
-                
+
                 'UPDATED': 'background:#FDF2FA;color:#C11574;',
-                
-                'OPENED':  'background:#F2F4F7;color:#344054;',
+
+                'OPENED': 'background:#F2F4F7;color:#344054;',
                 'RESTORE': 'background:#F2F4F7;color:#344054;',
-                
+
                 'CREATED': 'background:#EEF4FF;color:#3538CD;',
             })[action] || 'background:#F2F4F7;color:#344054;';
 
             const fmtDateTime = (at) => {
                 const s = (at || '').toString().trim();
-                if (!s) return { dateLabel: '—', timeLabel: '' };
+                if (!s) return {
+                    dateLabel: '—',
+                    timeLabel: ''
+                };
                 const d = new Date(s);
-                if (isNaN(d.getTime())) return { dateLabel: s, timeLabel: '' };
+                if (isNaN(d.getTime())) return {
+                    dateLabel: s,
+                    timeLabel: ''
+                };
                 return {
-                    dateLabel: d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: '2-digit' }),
-                    timeLabel: d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }).replace(' ', '').toLowerCase(),
+                    dateLabel: d.toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'long',
+                        day: '2-digit'
+                    }),
+                    timeLabel: d.toLocaleTimeString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }).replace(' ', '').toLowerCase(),
                 };
             };
 
@@ -306,8 +321,8 @@
                     action,
                     actionStyle: actionStyle(action),
                     description: (
-                        raw.note
-                        || ''
+                        raw.note ||
+                        ''
                     ).toString().trim(),
                     status: (raw.status || '').toString().trim(),
                     at,
@@ -366,7 +381,10 @@
                         if (!r.uid) continue;
                         if (seen.has(r.uid)) continue;
                         seen.add(r.uid);
-                        opts.push({ id: r.uid, name: r.userName || `User #${r.uid}` });
+                        opts.push({
+                            id: r.uid,
+                            name: r.userName || `User #${r.uid}`
+                        });
                     }
                     return opts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                 },
@@ -385,7 +403,8 @@
                     const to = (f.to || '').trim();
 
                     if (search) {
-                        const hay = [r.userName, r.userEmail, r.userRole, r.projectName, r.action, r.description].join(' ').toLowerCase();
+                        const hay = [r.userName, r.userEmail, r.userRole, r.projectName, r.action, r.description].join(' ')
+                            .toLowerCase();
                         if (!hay.includes(search)) return false;
                     }
                     if (userText) {
@@ -435,16 +454,28 @@
                     if (this.page < 1) this.page = 1;
                     return out;
                 },
-                get total() { return this.filteredRows.length; },
-                get totalPages() { return Math.max(1, Math.ceil(this.total / this.pageSize)); },
-                get from() { return this.total ? ((this.page - 1) * this.pageSize + 1) : 0; },
-                get to() { return this.total ? Math.min(this.page * this.pageSize, this.total) : 0; },
+                get total() {
+                    return this.filteredRows.length;
+                },
+                get totalPages() {
+                    return Math.max(1, Math.ceil(this.total / this.pageSize));
+                },
+                get from() {
+                    return this.total ? ((this.page - 1) * this.pageSize + 1) : 0;
+                },
+                get to() {
+                    return this.total ? Math.min(this.page * this.pageSize, this.total) : 0;
+                },
                 get pageItems() {
                     const start = (this.page - 1) * this.pageSize;
                     return this.filteredRows.slice(start, start + this.pageSize);
                 },
-                nextPage() { if (this.page < this.totalPages) this.page++; },
-                prevPage() { if (this.page > 1) this.page--; },
+                nextPage() {
+                    if (this.page < this.totalPages) this.page++;
+                },
+                prevPage() {
+                    if (this.page > 1) this.page--;
+                },
             };
         }
     </script>

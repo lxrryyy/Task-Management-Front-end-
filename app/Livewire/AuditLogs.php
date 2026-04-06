@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Services\CsharpApiService;
 use Illuminate\Support\Facades\Session;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class AuditLogs extends Component
@@ -44,11 +45,15 @@ class AuditLogs extends Component
 
     public ?string $loadError = null;
 
+    public bool $loading = true;
+
     public function mount(): void
     {
+        $this->loading = true;
         $this->loadAccounts();
         $this->fetchLogs();
         $this->fetchLoginLogoutLogs();
+        $this->loading = false;
     }
 
     public function updated(string $name, mixed $value): void
