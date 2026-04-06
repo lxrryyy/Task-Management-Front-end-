@@ -19,6 +19,7 @@ class AuditLogExportController extends Controller
     private function requesterId(): int
     {
         $user = Session::get('user', []);
+
         return (int) ($user['id'] ?? $user['Id'] ?? 0);
     }
 
@@ -26,12 +27,17 @@ class AuditLogExportController extends Controller
     {
         $data = $request->validate([
             'from' => 'nullable|date',
-            'to'   => 'nullable|date',
+            'to' => 'nullable|date',
         ]);
 
         $q = ['requesterId' => $requesterId];
-        if (!empty($data['from'])) $q['from'] = $data['from'];
-        if (!empty($data['to']))   $q['to']   = $data['to'];
+        if (! empty($data['from'])) {
+            $q['from'] = $data['from'];
+        }
+        if (! empty($data['to'])) {
+            $q['to'] = $data['to'];
+        }
+
         return $q;
     }
 
@@ -41,7 +47,7 @@ class AuditLogExportController extends Controller
         $requesterId = $this->requesterId();
         abort_if($requesterId <= 0, 401);
 
-        $resp = $api->rawGet('/api/AuditLog/ExportExcel', $this->exportQuery($request, $requesterId));
+        $resp = $api->rawGet('/api/AuditLog/ExportActionLogsExcel', $this->exportQuery($request, $requesterId));
 
         return response($resp->body(), $resp->status())
             ->withHeaders([
@@ -56,7 +62,7 @@ class AuditLogExportController extends Controller
         $requesterId = $this->requesterId();
         abort_if($requesterId <= 0, 401);
 
-        $resp = $api->rawGet('/api/AuditLog/ExportPdf', $this->exportQuery($request, $requesterId));
+        $resp = $api->rawGet('/api/AuditLog/ExportActionLogsPdf', $this->exportQuery($request, $requesterId));
 
         return response($resp->body(), $resp->status())
             ->withHeaders([
@@ -95,4 +101,3 @@ class AuditLogExportController extends Controller
             ]);
     }
 }
-
