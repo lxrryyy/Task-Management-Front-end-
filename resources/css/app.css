@@ -57,6 +57,10 @@ select:focus {
     background-color: #205375;
 }
 
+.clr-txt-secondary{
+    color: #205375;
+}
+
 .clr-accent {
     color: #ed1c24;
 }

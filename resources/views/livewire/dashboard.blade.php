@@ -27,6 +27,7 @@
         @php
         use Carbon\Carbon;
         @endphp
+        {{--
         @if ($user)
         <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
         @php
@@ -36,7 +37,38 @@
         <div class="text-sm text-gray-500">{{ $specialization }}</div>
         @endif
         @endif
-        <span class="text-xs">{{ Carbon::now()->format('l, F j, Y') }}</span>
+        --}}
+        <span class="clr-txt-secondary text-xl font-bold">{{ Carbon::now()->format('l, F j, Y') }}</span>
+        <div class="flex flex-row gap-4 w-full h-32">
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    My Projects
+                </span>
+                <h1 class="text-3xl font-bold">2</h1>
+                <label for="">Assigned</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    My Projects
+                </span>
+                <h1 class="text-3xl font-bold">2</h1>
+                <label for="">Assigned</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    My Projects
+                </span>
+                <h1 class="text-3xl font-bold">2</h1>
+                <label for="">Assigned</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    My Projects
+                </span>
+                <h1 class="text-3xl font-bold">2</h1>
+                <label for="">Assigned</label>
+            </div>
+        </div>
     </div>
 
     <div class="flex flex-row justify-between p-4 gap-2 flex-1 min-h-0" style="height: 33rem;">
