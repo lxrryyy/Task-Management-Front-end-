@@ -93,7 +93,7 @@ Route::middleware(['api.auth'])->group(function () {
 });
 
 // Logout: no auth middleware so API-only users (session api_token) can hit it and get token_forgotten redirect
-Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 require __DIR__.'/auth.php';
 
