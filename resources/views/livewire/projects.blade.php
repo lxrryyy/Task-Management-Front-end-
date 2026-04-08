@@ -213,6 +213,8 @@
                 // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
                 $memberNames = [];
                 $memberProfiles = [];
+                $pmId = (int) ($project['projectManagerId'] ?? $project['ProjectManagerId'] ?? $project['createdById'] ?? $project['CreatedById'] ?? 0);
+                $smId = (int) ($project['scrumMasterId'] ?? $project['ScrumMasterId'] ?? 0);
                 $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
                 if (is_array($assigneeIds) && !empty($assigneeIds)) {
                 $creatorIdInt = (int)($creatorId ?? 0);
@@ -238,8 +240,12 @@
                 elseif ($a0 !== '') $initials = mb_strtoupper($a0);
 
                 $memberProfiles[] = [
-                'profilePicture' => $pp,
-                'initials' => $initials ?: '?',
+                    'profilePicture' => $pp,
+                    'initials' => $initials ?: '?',
+                    'name' => $memberName,
+                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'role' => $aid === $pmId ? 'Project Manager' : ($aid === $smId ? 'Scrum Master' : 'Member'),
                 ];
                 }
                 }
@@ -278,7 +284,14 @@
                 $initials = '';
                 if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
                 elseif ($a0 !== '') $initials = mb_strtoupper($a0);
-                $memberProfiles[] = ['profilePicture' => $pp, 'initials' => $initials ?: '?'];
+                $memberProfiles[] = [
+                    'profilePicture' => $pp,
+                    'initials' => $initials ?: '?',
+                    'name' => $mn,
+                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'role' => 'Member',
+                ];
                 }
                 }
                 }
@@ -294,9 +307,57 @@
                     <td>{{ $leaderDisplay }}</td>
                     <td>
                         @if($memberCount > 0)
-                            <x-avatar-group :profiles="$memberProfiles" :visible="3" overlap-class="-space-x-3" data-prefix="member" />
+                            @php
+                                $visibleProfiles = array_slice($memberProfiles, 0, 3);
+                                $overflowCount = max(0, (int) $memberCount - 3);
+                            @endphp
+                            <div class="flex items-center gap-1 -space-x-3">
+                                @foreach($visibleProfiles as $mp)
+                                    <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                                        <div class="avatar" data-member-avatar>
+                                            <div
+                                                class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center relative overflow-hidden">
+                                                <span
+                                                    data-member-initials
+                                                    class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
+                                                    {{ $mp['initials'] ?? '?' }}
+                                                </span>
+
+                                                @if(!empty($mp['profilePicture']))
+                                                    <img
+                                                        src="{{ $mp['profilePicture'] }}"
+                                                        alt=""
+                                                        class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                        loading="lazy"
+                                                        referrerpolicy="no-referrer"
+                                                        onerror="this.style.display='none'; var wrap=this.closest('[data-member-avatar]'); if(wrap){var sp=wrap.querySelector('[data-member-initials]'); if(sp){sp.classList.remove('hidden');}}" />
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <div x-show="open" x-transition
+                                             class="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-50">
+                                            <x-profile-hover-card
+                                                :name="$mp['name'] ?? ''"
+                                                :email="$mp['email'] ?? ''"
+                                                :specialization="$mp['specialization'] ?? ''"
+                                                :role="$mp['role'] ?? ''"
+                                                :avatar-url="$mp['profilePicture'] ?? null"
+                                            />
+                                        </div>
+                                    </div>
+                                @endforeach
+
+                                @if($overflowCount > 0)
+                                    <div class="avatar avatar-placeholder">
+                                        <div class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center">
+                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
                         @else
-                        <span class="text-sm text-gray-400">No members</span>
+                            <span class="text-sm text-gray-400">No members</span>
                         @endif
                     </td>
                     <td>

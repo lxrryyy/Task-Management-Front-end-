@@ -853,6 +853,9 @@ class Tasks extends Component
                 'profilePicture' => $profilePicture,
                 'initials' => $initials,
                 'name' => $name,
+                'email' => (string) ($account['email'] ?? $account['Email'] ?? ''),
+                'specialization' => (string) ($account['specialization'] ?? $account['Specialization'] ?? ''),
+                'role' => (string) ($account['role'] ?? $account['Role'] ?? ''),
             ];
         }
 

@@ -1059,39 +1059,9 @@
                                                 ? $c['assigneeProfiles'] ?? []
                                                 : [];
                                             $assigneeCount = count($profiles);
-                                            $visibleProfiles = array_slice($profiles, 0, 3);
-                                            $overflowCount = max(0, $assigneeCount - 3);
                                         @endphp
                                         @if ($assigneeCount > 0)
-                                            <div class="avatar-group -space-x-3">
-                                                @foreach ($visibleProfiles as $mp)
-                                                    <div class="avatar">
-                                                        <div data-assignee-avatar
-                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden">
-                                                            <span data-assignee-initials
-                                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
-                                                                {{ $mp['initials'] ?? '?' }}
-                                                            </span>
-                                                            @if (!empty($mp['profilePicture']))
-                                                                <img src="{{ $mp['profilePicture'] }}" alt=""
-                                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
-                                                                    loading="lazy" referrerpolicy="no-referrer"
-                                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}" />
-                                                            @endif
-                                                        </div>
-                                                    </div>
-                                                @endforeach
-
-                                                @if ($overflowCount > 0)
-                                                    <div class="avatar avatar-placeholder">
-                                                        <div
-                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                                            <span
-                                                                class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                                        </div>
-                                                    </div>
-                                                @endif
-                                            </div>
+                                            <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                         @else
                                             <span class="text-sm">{{ $c['assignee'] ?: '—' }}</span>
                                         @endif
@@ -1212,41 +1182,9 @@
                                                         ? $g['assigneeProfiles'] ?? []
                                                         : [];
                                                     $assigneeCount = count($profiles);
-                                                    $visibleProfiles = array_slice($profiles, 0, 3);
-                                                    $overflowCount = max(0, $assigneeCount - 3);
                                                 @endphp
                                                 @if ($assigneeCount > 0)
-                                                    <div class="avatar-group -space-x-6">
-                                                        @foreach ($visibleProfiles as $mp)
-                                                            <div class="avatar">
-                                                                <div data-assignee-avatar
-                                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden">
-                                                                    <span data-assignee-initials
-                                                                        class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
-                                                                        {{ $mp['initials'] ?? '?' }}
-                                                                    </span>
-                                                                    @if (!empty($mp['profilePicture']))
-                                                                        <img src="{{ $mp['profilePicture'] }}"
-                                                                            alt=""
-                                                                            class="absolute inset-0 w-full h-full rounded-full object-cover"
-                                                                            loading="lazy"
-                                                                            referrerpolicy="no-referrer"
-                                                                            onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}" />
-                                                                    @endif
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-
-                                                        @if ($overflowCount > 0)
-                                                            <div class="avatar avatar-placeholder">
-                                                                <div
-                                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                                                    <span
-                                                                        class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                    </div>
+                                                    <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                                 @else
                                                     <span class="text-sm">{{ $g['assignee'] ?: '—' }}</span>
                                                 @endif
@@ -1348,41 +1286,9 @@
                                                                 ? $gg['assigneeProfiles'] ?? []
                                                                 : [];
                                                             $assigneeCount = count($profiles);
-                                                            $visibleProfiles = array_slice($profiles, 0, 3);
-                                                            $overflowCount = max(0, $assigneeCount - 3);
                                                         @endphp
                                                         @if ($assigneeCount > 0)
-                                                            <div class="avatar-group -space-x-6">
-                                                                @foreach ($visibleProfiles as $mp)
-                                                                    <div class="avatar">
-                                                                        <div data-assignee-avatar
-                                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden">
-                                                                            <span data-assignee-initials
-                                                                                class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
-                                                                                {{ $mp['initials'] ?? '?' }}
-                                                                            </span>
-                                                                            @if (!empty($mp['profilePicture']))
-                                                                                <img src="{{ $mp['profilePicture'] }}"
-                                                                                    alt=""
-                                                                                    class="absolute inset-0 w-full h-full rounded-full object-cover"
-                                                                                    loading="lazy"
-                                                                                    referrerpolicy="no-referrer"
-                                                                                    onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}" />
-                                                                            @endif
-                                                                        </div>
-                                                                    </div>
-                                                                @endforeach
-
-                                                                @if ($overflowCount > 0)
-                                                                    <div class="avatar avatar-placeholder">
-                                                                        <div
-                                                                            class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                                                            <span
-                                                                                class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                            </div>
+                                                            <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                                         @else
                                                             <span class="text-sm">{{ $gg['assignee'] ?: '—' }}</span>
                                                         @endif
@@ -1546,7 +1452,7 @@
             @foreach ($boardStatuses as $status)
                 @php $statusJs = addslashes($status); @endphp
                 <div x-data="{ dragOver: false }"
-                    class="flex flex-col flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
+                    class="flex flex-col gap-2 flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
                     :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''" @dragover.prevent
                     @dragenter.prevent="dragOver = true"
                     @dragleave="if (!$event.relatedTarget || !$el.contains($event.relatedTarget)) dragOver = false"
@@ -1556,11 +1462,11 @@
                         <span class="font-normal text-sm">{{ $status }}</span>
                         <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
                     </div>
-                    <div class="flex flex-col gap-2 p-3">
+                    <div class="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 bg-white min-h-[80vh]">
                         @foreach ($boardGrouped[$status] ?? [] as $task)
                             @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                             <div x-data="{ dragging: false, dragStarted: false, moved: false }"
-                                class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                                class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-visible hover:shadow-md transition-shadow cursor-pointer"
                                 draggable="true" :style="dragging ? 'opacity:0.4' : ''" @mousedown="moved = false"
                                 @mousemove="moved = true"
                                 @dragstart="if (!moved || $event.target?.closest('.kanban-no-drag')) { $event.preventDefault(); return; } dragStarted = true; dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
@@ -1578,14 +1484,11 @@
                                         };
                                     @endphp
                                     @if ($cardStatus !== '')
-                                        <span class="inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                                    <div class="flex justify-between">
+                                        <span class="inline-flex items-center gap-2 rounded-xl px-4 py-0.5 text-[11px] font-medium"
                                             style="{{ $cardStatusStyle }}">
-                                            • {{ $cardStatus }}
+                                           <span>•</span> <span>{{ $cardStatus }}</span>
                                         </span>
-                                    @endif
-                                    <div class="flex items-start justify-between gap-2">
-                                        <span
-                                            class="font-medium text-sm leading-snug">{{ $task['name'] ?? ($task['title'] ?? '') }}</span>
                                         <button type="button" draggable="false" @mousedown.stop
                                             @dragstart.stop.prevent x-data="{ loading: false }"
                                             @click.stop="if(!loading){ loading = true; $wire.openTaskDetail({{ $boardTaskId }}).then(() => loading = false).catch(() => loading = false) }"
@@ -1598,16 +1501,16 @@
                                                 class="loading loading-spinner loading-xs text-base-content"></span>
                                         </button>
                                     </div>
+                                    @endif
+                                    <div class="flex items-start justify-between gap-2">
+                                        <span
+                                            class="font-medium text-xl leading-snug">{{ $task['name'] ?? ($task['title'] ?? '') }}</span>
+                                    </div>
                                     <div class="flex flex-wrap gap-1.5 items-center">
                                         @if (!empty($task['priority']))
                                             <span class="px-2 py-0.5 text-xs"
                                                 style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $priorityStyle[$task['priority']] ?? 'background:#f3f4f6;color:#6b7280;' }}">•
                                                 {{ $task['priority'] }}</span>
-                                        @endif
-                                        @if (isset($task['storyPoints']) || isset($task['storyPoint']))
-                                            <span
-                                                class="badge badge-sm badge-ghost">{{ $task['storyPoints'] ?? $task['storyPoint'] }}
-                                                pts</span>
                                         @endif
                                     </div>
                                     <div class="flex flex-col text-xs text-gray-500 mt-2 gap-1">
