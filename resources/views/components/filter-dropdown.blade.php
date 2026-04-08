@@ -1,5 +1,5 @@
 @props([
-    'buttonClass' => 'btn border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white p-4',
+    'buttonClass' => 'btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100',
     'panelClass' => 'dropdown-content bg-base-100 rounded-box z-50 w-80 p-4 shadow-lg mt-1 border border-gray-200',
     'clearAction' => null,
 ])

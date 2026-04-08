@@ -44,7 +44,7 @@
                         var btn = e.target && e.target.closest ? e.target.closest('[data-viewmode-btn]') : null;
                         if (!btn) return;
                         var mode = btn.getAttribute('data-viewmode');
-                        
+
                         try {
                             var url = new URL(window.location.href);
                             url.searchParams.set('view', mode);
@@ -55,9 +55,9 @@
             </script>
         </div>
         <div class="flex items-center gap-2">
-            <x-search-input wire:model.live.debounce.300ms="search" />
+            <x-search-input wire:model.live.debounce.300ms="search" input-class="w-64 bg-transparent focus:outline-none rounded-lg" />
             <x-filter-dropdown
-                button-class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
+                button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
                 clear-action="clearTaskFilters">
                 <div class="flex flex-col gap-1">
                     <span class="text-gray-600">Status</span>
@@ -1567,6 +1567,22 @@
                                 @dragend="dragStarted = false; dragging = false; moved = false">
                                 <div
                                     class="block p-4 flex flex-col gap-3 min-h-full no-underline text-inherit hover:bg-gray-50/50">
+                                    @php
+                                        $cardStatus = $task['statusName'] ?? ($task['status'] ?? '');
+                                        $cardStatusStyle = match ($cardStatus) {
+                                            'Not Started' => 'background:#fee2e2;color:#ef4444;',
+                                            'In Progress' => 'background:#dbeafe;color:#3b82f6;',
+                                            'For Review' => 'background:#e5e7eb;color:#374151;',
+                                            'Completed' => 'background:#dcfce7;color:#22c55e;',
+                                            default => 'background:#f3f4f6;color:#374151;',
+                                        };
+                                    @endphp
+                                    @if ($cardStatus !== '')
+                                        <span class="inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                                            style="{{ $cardStatusStyle }}">
+                                            • {{ $cardStatus }}
+                                        </span>
+                                    @endif
                                     <div class="flex items-start justify-between gap-2">
                                         <span
                                             class="font-medium text-sm leading-snug">{{ $task['name'] ?? ($task['title'] ?? '') }}</span>
@@ -1594,7 +1610,7 @@
                                                 pts</span>
                                         @endif
                                     </div>
-                                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2 gap-2">
+                                    <div class="flex flex-col text-xs text-gray-500 mt-2 gap-1">
                                         @php
                                             // Prefer API-provided profiles if present (same shape as list view),
                                             // otherwise build from ids. Some APIs send assigneeIds as "1,2,3".
@@ -1668,21 +1684,27 @@
 
                                             // IDs are already unique because we key by id.
                                             $assigneeCount = count($profiles);
-                                            $visibleProfiles = array_slice($profiles, 0, 3);
-                                            $overflowCount = max(0, $assigneeCount - 3);
+                                            $subtaskCount = isset($byParent[$boardTaskId]) ? count($byParent[$boardTaskId]) : 0;
                                         @endphp
-
-                                        @if ($assigneeCount > 0)
-                                            <div class="min-w-0">
+                                        <div class="flex flex-row border-b-2 py-2 items-center justify-between">
+                                            <span class="block text-[11px] font-medium text-gray-500 mb-1">Assignees:</span>
+                                            @if ($assigneeCount > 0)
                                                 <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
-                                            </div>
-                                        @else
-                                            <span class="text-sm">—</span>
-                                        @endif
+                                            @else
+                                                <span class="text-[11px] text-gray-400">—</span>
+                                            @endif
+                                        </div>
 
-                                        @if (!empty($task['dueDate']) || !empty($task['dueAt']))
-                                            <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
-                                        @endif
+                                        <div class="flex items-center justify-between mt-1">
+                                            <span class="text-[11px] text-gray-500">
+                                                {{ $subtaskCount }} subtask{{ $subtaskCount === 1 ? '' : 's' }}
+                                            </span>
+                                            @if (!empty($task['dueDate']) || !empty($task['dueAt']))
+                                                <span class="text-[11px] text-gray-500">
+                                                    {{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                             </div>

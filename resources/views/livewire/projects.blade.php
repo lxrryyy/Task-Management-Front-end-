@@ -18,7 +18,7 @@
                 <div class="flex items-center gap-4">
                     <x-search-input wire:model.live.debounce.300ms="search" />
                     <x-filter-dropdown
-                        button-class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white"
+                        button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
                         clear-action="clearFilters">
                         <div class="flex flex-col gap-1">
                             <span class="text-gray-600">Status</span>
