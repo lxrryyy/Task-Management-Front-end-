@@ -125,8 +125,7 @@
 
         <div class="flex-1 flex flex-col overflow-hidden bg-gray-100 ml-16">
 
-            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
-                <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
+            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-end">
                 <div class="flex items-center gap-3">
                     <div class="relative" x-data="notifDropdown()" x-init="init()">
                         {{-- Wrapper div owns the relative context so badge bleeds outside the button --}}
@@ -243,28 +242,61 @@
                         $bg = $bgColors[(int) (abs(crc32($seed)) % count($bgColors))];
                         $initialsTextClass = $bg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
                     @endphp
-                    <a href="/settings" aria-label="Open settings">
-                        <div id="header-avatar"
-                            class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
-                            style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
-                            data-avatar-bg="{{ $bg }}"
-                            data-avatar-initials-text-class="{{ $initialsTextClass }}">
-                            {{-- Always render initials; hide it only when the image loads --}}
-                            <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
-                                style="{{ $avatarHasImage ? 'display:none;' : '' }}">
-                                {{ $initials }}
-                            </span>
-                            <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
-                                class="h-full w-full object-cover"
-                                onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
-                                onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
-                                style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                    @php
+                        $headerName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? 'User'));
+                        $specialization = (string) ($navUser['specialization'] ?? ($navUser['Specialization'] ?? ''));
+                        $headerEmail = (string) ($navUser['email'] ?? ($navUser['Email'] ?? ''));
+                        $headerRoleRaw = (string) ($navUser['role'] ?? ($navUser['Role'] ?? ($navUser['roleName'] ?? ($navUser['RoleName'] ?? ''))));
+                        $headerRole = $headerRoleRaw !== '' ? ucwords(str_replace('_', ' ', mb_strtolower($headerRoleRaw))) : '';
+                    @endphp
+                    <div class="relative flex items-center gap-3" x-data="{ open:false }" @mouseenter="open=true" @mouseleave="open=false">
+                        <a href="/settings" aria-label="Open settings">
+                            <div id="header-avatar"
+                                class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
+                                style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
+                                data-avatar-bg="{{ $bg }}"
+                                data-avatar-initials-text-class="{{ $initialsTextClass }}">
+                                {{-- Always render initials; hide it only when the image loads --}}
+                                <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
+                                    style="{{ $avatarHasImage ? 'display:none;' : '' }}">
+                                    {{ $initials }}
+                                </span>
+                                <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
+                                    class="h-full w-full object-cover"
+                                    onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
+                                    onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
+                                    style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                            </div>
+                        </a>
+                        <div class="flex flex-col leading-tight">
+                            <div class="text-sm font-semibold text-white truncate max-w-[220px]">{{ $headerName }}</div>
+                            @if ($specialization !== '')
+                                <div class="text-xs text-base-100 truncate max-w-[220px]">{{ $specialization }}</div>
+                            @endif
                         </div>
-                    </a>
+                        <div x-show="open" x-transition class="absolute right-0 top-full mt-2 z-[9999]">
+                            <x-profile-hover-card
+                                :name="$headerName"
+                                :email="$headerEmail"
+                                :specialization="$specialization"
+                                :role="$headerRole"
+                                :avatar-url="$avatarSrc"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <main class="flex-1 overflow-auto p-6">
+            <main
+                class="flex-1 overflow-auto p-6"
+                x-data="{ pageReady: false }"
+                x-init="requestAnimationFrame(() => { pageReady = true })"
+                x-show="pageReady"
+                x-cloak
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-1"
+                x-transition:enter-end="opacity-100 translate-y-0"
+            >
                 {{ $slot }}
             </main>
 

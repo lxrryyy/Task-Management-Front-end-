@@ -1,4 +1,4 @@
-<div class="w-full mx-auto sm:px-6 lg:px-8" style="height: 80vh;">
+<div class="w-full mx-auto sm:px-6 lg:px-8" style="height: 100vh;">
     <style>
         details .details-caret {
             transform: rotate(-90deg);
@@ -27,26 +27,81 @@
         @php
         use Carbon\Carbon;
         @endphp
+        {{--
         @if ($user)
-            <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
-            @php
-                $specialization = $user['specialization'] ?? $user['Specialization'] ?? null;
-            @endphp
-            @if (!empty($specialization))
-                <div class="text-sm text-gray-500">{{ $specialization }}</div>
-            @endif
+        <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
+        @php
+        $specialization = $user['specialization'] ?? $user['Specialization'] ?? null;
+        @endphp
+        @if (!empty($specialization))
+        <div class="text-sm text-gray-500">{{ $specialization }}</div>
         @endif
-        <span class="text-xs">{{ Carbon::now()->format('l, F j, Y') }}</span>
+        @endif
+        --}}
+        <span class="clr-txt-secondary text-xl font-bold">{{ Carbon::now()->format('l, F j, Y') }}</span>
+        <div class="flex flex-row gap-4 w-full h-32">
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    My Projects
+                </span>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-projects-{{ (int) ($summaryCards['projects'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['projects'] ?? 0) }}, 650)"
+                    x-init="start()"
+                    x-text="display"></h1>
+                <label for="">Active</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    Tasks
+                </span>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-tasks-{{ (int) ($summaryCards['tasks'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['tasks'] ?? 0) }}, 700)"
+                    x-init="start()"
+                    x-text="display"></h1>
+                <label for="">Assigned to me</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    For Review
+                </span>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-review-{{ (int) ($summaryCards['forReview'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['forReview'] ?? 0) }}, 750)"
+                    x-init="start()"
+                    x-text="display"></h1>
+                <label for="">Awaiting Review</label>
+            </div>
+            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                <span class="text-lg font-medium">
+                    Completed
+                </span>
+                <h1 class="text-3xl font-bold text-green-600"
+                    wire:key="card-completed-{{ (int) ($summaryCards['completed'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['completed'] ?? 0) }}, 800)"
+                    x-init="start()"
+                    x-text="display"></h1>
+                <label for="">Active</label>
+            </div>
+        </div>
     </div>
 
     <div class="flex flex-row justify-between p-4 gap-2 flex-1 min-h-0" style="height: 33rem;">
         {{-- This is the left side --}}
         <div class="flex flex-col w-1/2 min-h-0 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold">Projects</h1>
-
             <a href="/projects" class="flex clr-primary justify-end hover:underline"><span class="text-sm">View All Projects</span></a>
 
             <div class="flex-1 min-h-0 overflow-y-auto rounded-xl bg-white">
+                @if($loading)
+                @foreach(range(1, 6) as $i)
+                <div class="flex items-center justify-between py-3 px-2 border-b border-gray-100">
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-40"></div>
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-12"></div>
+                </div>
+                @endforeach
+                @else
                 @forelse($projects as $project)
                 @php
                 $pid = (int) ($project['id'] ?? $project['Id'] ?? 0);
@@ -110,9 +165,7 @@
                         </table>
                     </div>
                     @else
-                    <div class="pb-3 text-xs text-gray-400">
-                        No tasks yet.
-                    </div>
+                    <div class="pb-3 text-xs text-gray-400">No tasks yet.</div>
                     @endif
                 </details>
                 @empty
@@ -120,6 +173,7 @@
                     No projects found.
                 </div>
                 @endforelse
+                @endif
             </div>
 
             <div class="flex flex-row justify-center gap-4 mt-auto pt-4 shrink-0">
@@ -140,98 +194,298 @@
         {{-- This is the right side --}}
         <div class="flex flex-col w-1/2 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold pl-4">Task by Status</h1>
-            <div class="dropdown dropdown-end self-end flex justify-end relative status-dropdown">
-                <button tabindex="0" type="button" class="btn clr-bg-primary text-base-100 btn-sm px-2 flex items-center gap-2">
-                    <span class="status-caret">
-                        <x-icons.dropdown />
-                    </span>
-                    <span>
-                        @php
-                        $selectedName = 'Project';
-                        foreach ($projects as $p) {
-                        $pid = (int) ($p['id'] ?? $p['Id'] ?? 0);
-                        if ($pid === (int) $selectedProjectId) {
-                        $selectedName = $p['name'] ?? $p['Name'] ?? $p['title'] ?? 'Project';
-                        break;
-                        }
-                        }
-                        @endphp
-                        {{ $selectedName }}
-                    </span>
-                </button>
-                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-lg border absolute right-0 top-full mt-2">
-                    @foreach($projects as $project)
-                    @php
-                    $projId = (int) ($project['id'] ?? $project['Id'] ?? 0);
-                    $projName = $project['name'] ?? $project['Name'] ?? $project['title'] ?? 'Project';
-                    @endphp
-                    <li>
-                        <button type="button"
-                            wire:click="$set('selectedProjectId', {{ $projId }})"
-                            @click="$nextTick(() => $el.closest('.dropdown')?.querySelector('button')?.blur())"
-                            class="{{ (int) $selectedProjectId === $projId ? 'active' : '' }}">
-                            {{ $projName }}
-                        </button>
-                    </li>
+
+            @if($loading)
+            <div class="flex flex-col items-center gap-6 mt-4">
+                <div class="w-72 h-72 rounded-full bg-gray-200 animate-pulse"></div>
+                <div class="flex flex-row gap-4">
+                    @foreach(range(1, 4) as $i)
+                    <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
                     @endforeach
-                    @if(empty($projects))
-                    <li><span class="text-gray-400 text-sm">No projects</span></li>
-                    @endif
-                </ul>
-            </div>
-
-            <div class="flex flex-col justify-between items-center gap-6 pl-4 mt-4">
-                @php
-                // Match status colors used across the app UI.
-                $statusColors = [
-                'Completed' => '#102B3C',
-                'For Review' => '#F0EFEF',
-                'In Progress' => '#205375',
-                'Not Started' => '#ED1C24',
-                ];
-                $breakdown = $taskStatusSummary['breakdown'] ?? [];
-                $totalTasks = (int) ($taskStatusSummary['totalTasks'] ?? 0);
-                $segments = [];
-                foreach ($breakdown as $row) {
-                $name = $row['statusName'] ?? $row['status'] ?? '';
-                $count = (int) ($row['count'] ?? 0);
-                $pct = (float) ($row['percentage'] ?? 0);
-                $segments[] = [
-                'label' => $name,
-                'value' => $count,
-                'color' => $statusColors[$name] ?? '#9ca3af',
-                ];
-                }
-                $total = array_sum(array_column($segments, 'value')) ?: 1;
-                $start = 0.0;
-                $stops = [];
-                foreach ($segments as $seg) {
-                $pct = ((float) $seg['value'] / (float) $total) * 100.0;
-                $end = $start + $pct;
-                $stops[] = $seg['color'] . ' ' . rtrim(rtrim(number_format($start, 4, '.', ''), '0'), '.') . '% '
-                . rtrim(rtrim(number_format($end, 4, '.', ''), '0'), '.') . '%';
-                $start = $end;
-                }
-                $gradient = !empty($stops) ? 'conic-gradient(' . implode(', ', $stops) . ')' : 'none';
-                @endphp
-
-                <div
-                    class="w-72 h-72 rounded-full border border-gray-200"
-                    style="background-color:#ffffff;background-image:{{ $gradient }};background-repeat:no-repeat;background-size:100% 100%;"></div>
-
-                <div class="flex flex-row flex-wrap justify-content gap-4 text-sm">
-                    @foreach($segments as $seg)
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full" style="background:{{ $seg['color'] }};"></span>
-                        <span class="font-medium">{{ $seg['label'] }}</span>
-                        <span class="text-gray-500">({{ $seg['value'] }})</span>
-                    </div>
-                    @endforeach
-                    @if(empty($segments) && $totalTasks === 0)
-                    <span class="text-gray-400 text-sm">No task data</span>
-                    @endif
                 </div>
             </div>
+            @else
+            <div
+                class="flex flex-col items-center gap-6 pl-4 mt-4 w-full"
+                wire:key="task-status-chart-{{ (int) $selectedProjectId }}-{{ (int) ($taskStatusSummary['totalTasks'] ?? 0) }}"
+                x-data="taskStatusChart(@js($taskStatusSummary['breakdown'] ?? []))"
+                x-init="init()"
+            >
+                <div class="w-full flex justify-end items-center gap-2">
+                    <div class="dropdown dropdown-end status-dropdown">
+                        <button tabindex="0" type="button" class="btn clr-bg-primary text-base-100 btn-sm px-2 flex items-center gap-2">
+                            <span class="status-caret">
+                                <x-icons.dropdown />
+                            </span>
+                            <span x-text="chartTypeLabel"></span>
+                        </button>
+                        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border absolute right-0 top-full mt-2">
+                            <li>
+                                <button type="button" @click="setChartType('doughnut')">Donut</button>
+                            </li>
+                            <li>
+                                <button type="button" @click="setChartType('pie')">Pie</button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="dropdown dropdown-end self-end flex justify-end relative status-dropdown">
+                        <button tabindex="0" type="button" class="btn clr-bg-primary text-base-100 btn-sm px-2 flex items-center gap-2">
+                            <span class="status-caret">
+                                <x-icons.dropdown />
+                            </span>
+                            <span>
+                                @php
+                                $selectedName = 'Project';
+                                foreach ($projects as $p) {
+                                $pid = (int) ($p['id'] ?? $p['Id'] ?? 0);
+                                if ($pid === (int) $selectedProjectId) {
+                                $selectedName = $p['name'] ?? $p['Name'] ?? $p['title'] ?? 'Project';
+                                break;
+                                }
+                                }
+                                @endphp
+                                {{ $selectedName }}
+                            </span>
+                        </button>
+                        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-lg border absolute right-0 top-full mt-2">
+                            @foreach($projects as $project)
+                            @php
+                            $projId = (int) ($project['id'] ?? $project['Id'] ?? 0);
+                            $projName = $project['name'] ?? $project['Name'] ?? $project['title'] ?? 'Project';
+                            @endphp
+                            <li>
+                                <button type="button"
+                                    wire:click="$set('selectedProjectId', {{ $projId }})"
+                                    @click="$nextTick(() => $el.closest('.dropdown')?.querySelector('button')?.blur())"
+                                    class="{{ (int) $selectedProjectId === $projId ? 'active' : '' }}">
+                                    {{ $projName }}
+                                </button>
+                            </li>
+                            @endforeach
+                            @if(empty($projects))
+                            <li><span class="text-gray-400 text-sm">No projects</span></li>
+                            @endif
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="w-72 h-72 relative">
+                    <canvas x-ref="canvas" class="w-full h-full"></canvas>
+                </div>
+
+                <div class="flex flex-row flex-wrap justify-content gap-4 text-sm">
+                    <template x-for="seg in segments" :key="seg.label">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full" :style="`background:${seg.color};`"></span>
+                            <span class="font-medium" x-text="seg.label"></span>
+                            <span class="text-gray-500" x-text="`(${seg.value})`"></span>
+                        </div>
+                    </template>
+                    <span x-show="segments.length === 0" class="text-gray-400 text-sm">No task data</span>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>
+
+@once
+    <script>
+        function taskStatusChart(breakdown) {
+            const palette = {
+                'Completed': '#16A34A',
+                'For Review': '#F59E0B',
+                'In Progress': '#2563EB',
+                'Not Started': '#EF4444',
+            };
+
+            return {
+                chart: null,
+                chartType: 'doughnut',
+                segments: [],
+                _layoutObserver: null,
+                get chartTypeLabel() {
+                    return this.chartType === 'doughnut' ? 'Donut' : 'Pie';
+                },
+                init() {
+                    const rows = Array.isArray(breakdown) ? breakdown : [];
+                    this.segments = rows.map((row) => {
+                        const label = (row.statusName || row.status || '').toString().trim();
+                        const value = parseInt(row.count || 0, 10) || 0;
+                        return {
+                            label,
+                            value,
+                            color: palette[label] || '#9ca3af',
+                        };
+                    });
+                    this.$nextTick(() => this.scheduleRender());
+                },
+                scheduleRender() {
+                    let attempts = 0;
+                    const tryRender = () => {
+                        attempts++;
+                        const canvas = this.$refs.canvas;
+                        const ready =
+                            window.Chart &&
+                            canvas &&
+                            canvas.clientWidth > 0 &&
+                            canvas.clientHeight > 0;
+                        if (ready) {
+                            this.renderChart();
+                            this.attachLayoutObserver();
+                            return;
+                        }
+                        if (attempts < 120) {
+                            requestAnimationFrame(tryRender);
+                        } else {
+                            this.renderChart();
+                        }
+                    };
+                    requestAnimationFrame(tryRender);
+                },
+                attachLayoutObserver() {
+                    if (this._layoutObserver || typeof ResizeObserver === 'undefined') return;
+                    const el = this.$refs.canvas?.parentElement;
+                    if (!el) return;
+                    this._layoutObserver = new ResizeObserver(() => {
+                        if (this.chart) {
+                            requestAnimationFrame(() => this.chart.resize());
+                        }
+                    });
+                    this._layoutObserver.observe(el);
+                },
+                setChartType(type) {
+                    if (this.chartType === type) return;
+                    this.chartType = type;
+                    this.$nextTick(() => this.scheduleRender());
+                },
+                renderChart() {
+                    if (!window.Chart || !this.$refs.canvas) return;
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
+
+                    const labels = this.segments.map(s => s.label);
+                    const values = this.segments.map(s => s.value);
+                    const colors = this.segments.map(s => s.color);
+
+                    const centerTextPlugin = {
+                        id: 'centerTextPlugin',
+                        afterDraw: (chart) => {
+                            if (this.chartType !== 'doughnut') return;
+                            const meta = chart.getDatasetMeta(0);
+                            if (!meta || !meta.data || !meta.data.length) return;
+                            const x = meta.data[0].x;
+                            const y = meta.data[0].y;
+                            const ctx = chart.ctx;
+                            const dataArr = chart.data?.datasets?.[0]?.data ?? [];
+                            const total = Array.isArray(dataArr)
+                                ? dataArr.reduce((sum, v) => sum + (Number(v) || 0), 0)
+                                : 0;
+                            ctx.save();
+                            ctx.textAlign = 'center';
+                            ctx.fillStyle = '#111827';
+                            ctx.font = '700 28px Ubuntu, sans-serif';
+                            ctx.fillText(String(total), x, y - 2);
+                            ctx.fillStyle = '#6b7280';
+                            ctx.font = '500 12px Ubuntu, sans-serif';
+                            ctx.fillText('Total', x, y + 16);
+                            ctx.restore();
+                        }
+                    };
+
+                    const percentageLabelPlugin = {
+                        id: 'percentageLabelPlugin',
+                        afterDatasetsDraw: (chart) => {
+                            const meta = chart.getDatasetMeta(0);
+                            if (!meta || !meta.data || !meta.data.length) return;
+
+                            const ctx = chart.ctx;
+                            const dataArr = chart.data?.datasets?.[0]?.data ?? [];
+                            const total = Array.isArray(dataArr)
+                                ? dataArr.reduce((sum, v) => sum + (Number(v) || 0), 0)
+                                : 0;
+                            if (!total) return;
+
+                            ctx.save();
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.font = '600 11px Ubuntu, sans-serif';
+
+                            meta.data.forEach((arc, i) => {
+                                const raw = Number(dataArr[i] || 0);
+                                if (!raw) return;
+
+                                const pct = (raw / total) * 100;
+                                const label = `${Math.round(pct)}%`;
+
+                                const angle = (arc.startAngle + arc.endAngle) / 2;
+                                const radius = this.chartType === 'doughnut'
+                                    ? (arc.innerRadius + arc.outerRadius) / 2
+                                    : arc.outerRadius * 0.62;
+                                const x = arc.x + Math.cos(angle) * radius;
+                                const y = arc.y + Math.sin(angle) * radius;
+
+                                // White text works across dark slices; slight shadow improves readability.
+                                ctx.fillStyle = '#ffffff';
+                                ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                                ctx.shadowBlur = 2;
+                                ctx.fillText(label, x, y);
+                                ctx.shadowBlur = 0;
+                            });
+
+                            ctx.restore();
+                        }
+                    };
+
+                    this.chart = new Chart(this.$refs.canvas.getContext('2d'), {
+                        type: this.chartType,
+                        data: {
+                            labels,
+                            datasets: [{
+                                data: values,
+                                backgroundColor: colors,
+                                borderColor: '#ffffff',
+                                borderWidth: 2,
+                                hoverOffset: 2,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: this.chartType === 'doughnut' ? '62%' : '0%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed || 0;
+                                            return `${label}: ${value}`;
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        plugins: [centerTextPlugin, percentageLabelPlugin]
+                    });
+                    requestAnimationFrame(() => {
+                        if (this.chart) this.chart.resize();
+                    });
+                },
+                destroy() {
+                    if (this._layoutObserver) {
+                        this._layoutObserver.disconnect();
+                        this._layoutObserver = null;
+                    }
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
+                }
+            };
+        }
+    </script>
+@endonce

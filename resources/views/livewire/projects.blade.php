@@ -1,66 +1,65 @@
 <div class="">
-        <div class="w-full">
-            <div class="flex w-full items-center clr-primary ">
-                <a href="/dashboard"
-               class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
+    <div class="w-full">
+        <div class="flex w-full items-center clr-primary ">
+            <a href="/dashboard"
+                class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
                 <x-icons.back-btn classes="w-6 h-6" />
-                </a>
-                <span class="group-hover:block text-xl">Projects</span>
-            </div>
-            <hr class="border-2 clr-bg-primary">
-            <div>
-                <div class="flex items-center justify-between p-2 flex-shrink-0">
-                    <div>
-                        <button type="button" class="btn w-36 border-2 border-gray clr-bg-primary text-base-100 rounded-xl m-1" wire:click="archiveSelected">
-                            <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <x-search-input wire:model.live.debounce.300ms="search" />
-                        <x-filter-dropdown
-                            button-class="btn w-36 border-2 border-gray rounded-xl m-1 hover-clr-bg-primary hover:text-white"
-                            clear-action="clearFilters"
-                        >
+            </a>
+            <span class="group-hover:block text-xl">Projects</span>
+        </div>
+        <hr class="border-2 clr-bg-primary">
+        <div>
+            <div class="flex items-center justify-between p-2 flex-shrink-0">
+                <div>
+                    <button type="button" class="btn w-36 border-2 border-gray clr-bg-primary text-base-100 rounded-xl m-1" wire:click="archiveSelected">
+                        <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
+                    </button>
+                </div>
+                <div class="flex items-center gap-4">
+                    <x-search-input wire:model.live.debounce.300ms="search" />
+                    <x-filter-dropdown
+                        button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
+                        clear-action="clearFilters">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-gray-600">Status</span>
+                            <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                                <option value="">All statuses</option>
+                                @foreach(($projectStatuses ?? []) as $ps)
+                                <option value="{{ $ps }}">{{ $ps }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-gray-600">Project Manager</span>
+                            <select wire:model.live="filterProjectManager" class="select select-bordered w-full bg-white text-gray-900">
+                                <option value="">All managers</option>
+                                @foreach(($projectManagerOptions ?? []) as $pm)
+                                <option value="{{ $pm }}">{{ $pm }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-gray-600">Progress</span>
+                            <select wire:model.live="filterProgress" class="select select-bordered w-full bg-white text-gray-900">
+                                <option value="">All progress</option>
+                                <option value="0-25">0% - 25%</option>
+                                <option value="26-50">26% - 50%</option>
+                                <option value="51-75">51% - 75%</option>
+                                <option value="76-99">76% - 99%</option>
+                                <option value="100">100%</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
                             <div class="flex flex-col gap-1">
-                                <span class="text-gray-600">Status</span>
-                                <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
-                                    <option value="">All statuses</option>
-                                    @foreach(($projectStatuses ?? []) as $ps)
-                                        <option value="{{ $ps }}">{{ $ps }}</option>
-                                    @endforeach
-                                </select>
+                                <span class="text-gray-600">Date From</span>
+                                <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <span class="text-gray-600">Project Manager</span>
-                                <select wire:model.live="filterProjectManager" class="select select-bordered w-full bg-white text-gray-900">
-                                    <option value="">All managers</option>
-                                    @foreach(($projectManagerOptions ?? []) as $pm)
-                                        <option value="{{ $pm }}">{{ $pm }}</option>
-                                    @endforeach
-                                </select>
+                                <span class="text-gray-600">Date To</span>
+                                <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
                             </div>
-                            <div class="flex flex-col gap-1">
-                                <span class="text-gray-600">Progress</span>
-                                <select wire:model.live="filterProgress" class="select select-bordered w-full bg-white text-gray-900">
-                                    <option value="">All progress</option>
-                                    <option value="0-25">0% - 25%</option>
-                                    <option value="26-50">26% - 50%</option>
-                                    <option value="51-75">51% - 75%</option>
-                                    <option value="76-99">76% - 99%</option>
-                                    <option value="100">100%</option>
-                                </select>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="flex flex-col gap-1">
-                                    <span class="text-gray-600">Date From</span>
-                                    <input wire:model.live="filterDateFrom" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <span class="text-gray-600">Date To</span>
-                                    <input wire:model.live="filterDateTo" type="date" class="input input-bordered w-full bg-white text-gray-900" />
-                                </div>
-                            </div>
-                        </x-filter-dropdown>
+                        </div>
+                    </x-filter-dropdown>
 
                     <div>
                         <button type="button" wire:click="openModal" class="btn w-36 border-2 clr-bg-primary rounded-lg text-base-100">+ Add Project</button>
@@ -102,7 +101,7 @@
                                     @include('livewire.partials.project-form-fields', ['formContext' => 'edit'])
                                     <div class="modal-action">
                                         <button type="button" class="btn clr-bg-primary text-base-100 px-2"
-                                                wire:click="prepareEditSubmit">
+                                            wire:click="prepareEditSubmit">
                                             Update Project
                                         </button>
                                     </div>
@@ -150,136 +149,177 @@
                         </form>
                     </dialog>
                     @endif
-                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="overflow-x-auto">
-            <table class="table">
-                <!-- head -->
-                <thead>
-                    <tr>
-                        <th class="!font-normal">Project Name</th>
-                        <th class="!font-normal">Project Manager</th>
-                        <th class="!font-normal">Members</th>
-                        <th class="!font-normal">Progress</th>
-                        <th class="!font-normal">Status</th>
-                        <th class="!font-normal">Created At</th>
-                        <th class="!font-normal">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
+    <div class="overflow-x-auto overflow-y-auto" style="height: 60vh;">
+        <table class="table">
+            <!-- head -->
+            <thead>
+                <tr>
+                    <th class="!font-normal">Project Name</th>
+                    <th class="!font-normal">Project Manager</th>
+                    <th class="!font-normal">Members</th>
+                    <th class="!font-normal">Progress</th>
+                    <th class="!font-normal">Status</th>
+                    <th class="!font-normal">Created At</th>
+                    <th class="!font-normal">Action</th>
+                </tr>
+            </thead>
+            <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
+                @if($loading)
+                @foreach(range(1, 7) as $i)
+                <tr>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-36"></div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-28"></div>
+                    </td>
+                    <td>
+                        <div class="flex gap-1">
+                            <div class="h-6 w-6 bg-gray-200 rounded-full animate-pulse"></div>
+                            <div class="h-6 w-6 bg-gray-200 rounded-full animate-pulse"></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                    </td>
+                    <td>
+                        <div class="h-6 bg-gray-200 rounded animate-pulse w-24"></div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
+                    </td>
+                </tr>
+                @endforeach
+                @else
                 @forelse(($filteredProjects ?? []) as $project)
-                    @php
-                        $projectId = $project['id'] ?? $project['Id'] ?? null;
-                        $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
-                        $status = $project['statusName'] ?? $project['status'] ?? '';
-                        $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
-                        $createdAt = $project['createdAt'] ?? null;
+                @php
+                $projectId = $project['id'] ?? $project['Id'] ?? null;
+                $name = $project['name'] ?? $project['projectName'] ?? $project['title'] ?? '—';
+                $status = $project['statusName'] ?? $project['status'] ?? '';
+                $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
+                $createdAt = $project['createdAt'] ?? null;
 
-                        // Leader name comes from createdByName
-                        $leaderDisplay = $project['createdByName'] ?? '—';
+                // Leader name comes from createdByName
+                $leaderDisplay = $project['createdByName'] ?? '—';
 
-                        // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
-                        $memberNames = [];
-                        $memberProfiles = [];
-                        $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
-                        if (is_array($assigneeIds) && !empty($assigneeIds)) {
-                            $creatorIdInt = (int)($creatorId ?? 0);
-                            foreach ($assigneeIds as $aid) {
-                                $aid = (int) $aid;
-                                if ($aid === $creatorIdInt) continue;
-                                $acc = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $aid);
-                                if ($acc) {
-                                    $memberName = trim($acc['name'] ?? $acc['Name'] ?? '');
-                                    if ($memberName !== '') $memberNames[] = $memberName;
+                // Members: if API returns assigneeIds use that, else use memberNames (backend sometimes returns stale list after PATCH)
+                $memberNames = [];
+                $memberProfiles = [];
+                $pmId = (int) ($project['projectManagerId'] ?? $project['ProjectManagerId'] ?? $project['createdById'] ?? $project['CreatedById'] ?? 0);
+                $smId = (int) ($project['scrumMasterId'] ?? $project['ScrumMasterId'] ?? 0);
+                $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? null;
+                if (is_array($assigneeIds) && !empty($assigneeIds)) {
+                $creatorIdInt = (int)($creatorId ?? 0);
+                foreach ($assigneeIds as $aid) {
+                $aid = (int) $aid;
+                if ($aid === $creatorIdInt) continue;
+                $acc = collect($accounts ?? [])->first(fn ($a) => (int)($a['id'] ?? $a['Id'] ?? 0) === $aid);
+                if ($acc) {
+                $memberName = trim($acc['name'] ?? $acc['Name'] ?? '');
+                if ($memberName !== '') $memberNames[] = $memberName;
 
-                                    $pp = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
+                $pp = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
 
-                                    // Build initials from name (fallback if no picture)
-                                    $parts = preg_split('/\s+/', trim($memberName));
-                                    $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
-                                    $first = (string) ($parts[0] ?? '');
-                                    $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
-                                    $a0 = mb_substr(trim($first), 0, 1);
-                                    $b0 = mb_substr(trim($last), 0, 1);
-                                    $initials = '';
-                                    if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
-                                    elseif ($a0 !== '') $initials = mb_strtoupper($a0);
+                // Build initials from name (fallback if no picture)
+                $parts = preg_split('/\s+/', trim($memberName));
+                $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                $first = (string) ($parts[0] ?? '');
+                $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                $a0 = mb_substr(trim($first), 0, 1);
+                $b0 = mb_substr(trim($last), 0, 1);
+                $initials = '';
+                if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
+                elseif ($a0 !== '') $initials = mb_strtoupper($a0);
 
-                                    $memberProfiles[] = [
-                                        'profilePicture' => $pp,
-                                        'initials' => $initials ?: '?',
-                                    ];
-                                }
-                            }
-                        }
-                        if (empty($memberNames)) {
-                            $raw = $project['memberNames'] ?? $project['members'] ?? [];
-                            $memberNames = is_array($raw) ? $raw : [];
-                            if (!empty($memberNames)) {
-                                if ($leaderDisplay !== '—') {
-                                    $memberNames = array_values(array_filter(
-                                        $memberNames,
-                                        static fn ($m) => trim((string) $m) !== trim((string) $leaderDisplay)
-                                    ));
-                                }
-                                $memberNames = array_values(array_unique(array_map('trim', $memberNames)));
-                            }
+                $memberProfiles[] = [
+                    'profilePicture' => $pp,
+                    'initials' => $initials ?: '?',
+                    'name' => $memberName,
+                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'role' => $aid === $pmId ? 'Project Manager' : ($aid === $smId ? 'Scrum Master' : 'Member'),
+                ];
+                }
+                }
+                }
+                if (empty($memberNames)) {
+                $raw = $project['memberNames'] ?? $project['members'] ?? [];
+                $memberNames = is_array($raw) ? $raw : [];
+                if (!empty($memberNames)) {
+                if ($leaderDisplay !== '—') {
+                $memberNames = array_values(array_filter(
+                $memberNames,
+                static fn ($m) => trim((string) $m) !== trim((string) $leaderDisplay)
+                ));
+                }
+                $memberNames = array_values(array_unique(array_map('trim', $memberNames)));
+                }
 
-                            // If backend didn't provide assigneeIds, we can only approximate member avatars from names.
-                            if (!empty($memberNames)) {
-                                $accountsList = collect($accounts ?? []);
-                                foreach ($memberNames as $mn) {
-                                    $mn = (string) trim($mn);
-                                    $acc = $accountsList->first(function ($a) use ($mn) {
-                                        $name = (string) ($a['name'] ?? $a['Name'] ?? '');
-                                        return trim($name) === trim($mn);
-                                    });
+                // If backend didn't provide assigneeIds, we can only approximate member avatars from names.
+                if (!empty($memberNames)) {
+                $accountsList = collect($accounts ?? []);
+                foreach ($memberNames as $mn) {
+                $mn = (string) trim($mn);
+                $acc = $accountsList->first(function ($a) use ($mn) {
+                $name = (string) ($a['name'] ?? $a['Name'] ?? '');
+                return trim($name) === trim($mn);
+                });
 
-                                    $pp = $acc ? ($acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null) : null;
+                $pp = $acc ? ($acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null) : null;
 
-                                    $parts = preg_split('/\s+/', trim($mn));
-                                    $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
-                                    $first = (string) ($parts[0] ?? '');
-                                    $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
-                                    $a0 = mb_substr(trim($first), 0, 1);
-                                    $b0 = mb_substr(trim($last), 0, 1);
-                                    $initials = '';
-                                    if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
-                                    elseif ($a0 !== '') $initials = mb_strtoupper($a0);
-                                    $memberProfiles[] = ['profilePicture' => $pp, 'initials' => $initials ?: '?'];
-                                }
-                            }
-                        }
-                        $memberCount = is_array($memberProfiles) ? count($memberProfiles) : 0;
-                        $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
-                        $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
-                    @endphp
-                    <tr class="hover:bg-gray-50 cursor-pointer border-b border-gray-200"
-                        @if($projectId)
-                            @click="window.location='{{ route('projects.tasks', $projectId) }}'"
-                        @endif
-                    >
-                        <td><span class="underline-offset-2">{{ $name }}</span></td>
-                        <td>{{ $leaderDisplay }}</td>
-                        <td>
-                            @if($memberCount > 0)
-                                @php
-                                    $visibleProfiles = array_slice($memberProfiles, 0, 3);
-                                    $overflowCount = max(0, (int) $memberCount - 3);
-                                @endphp
-                                <div class="avatar-group -space-x-3">
-                                    @foreach($visibleProfiles as $mp)
+                $parts = preg_split('/\s+/', trim($mn));
+                $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                $first = (string) ($parts[0] ?? '');
+                $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                $a0 = mb_substr(trim($first), 0, 1);
+                $b0 = mb_substr(trim($last), 0, 1);
+                $initials = '';
+                if ($a0 !== '' && $b0 !== '') $initials = mb_strtoupper($a0 . $b0);
+                elseif ($a0 !== '') $initials = mb_strtoupper($a0);
+                $memberProfiles[] = [
+                    'profilePicture' => $pp,
+                    'initials' => $initials ?: '?',
+                    'name' => $mn,
+                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'role' => 'Member',
+                ];
+                }
+                }
+                }
+                $memberCount = is_array($memberProfiles) ? count($memberProfiles) : 0;
+                $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
+                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
+                @endphp
+                <tr class="hover:bg-gray-50 cursor-pointer border-b border-gray-200"
+                    @if($projectId)
+                    @click="window.location='{{ route('projects.tasks', $projectId) }}'"
+                    @endif>
+                    <td><span class="underline-offset-2">{{ $name }}</span></td>
+                    <td>{{ $leaderDisplay }}</td>
+                    <td>
+                        @if($memberCount > 0)
+                            @php
+                                $visibleProfiles = array_slice($memberProfiles, 0, 3);
+                                $overflowCount = max(0, (int) $memberCount - 3);
+                            @endphp
+                            <div class="flex items-center gap-1 -space-x-3">
+                                @foreach($visibleProfiles as $mp)
+                                    <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
                                         <div class="avatar" data-member-avatar>
                                             <div
-                                                class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden"
-                                            >
+                                                class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center relative overflow-hidden">
                                                 <span
                                                     data-member-initials
-                                                    class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}"
-                                                >
+                                                    class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
                                                     {{ $mp['initials'] ?? '?' }}
                                                 </span>
 
@@ -290,94 +330,105 @@
                                                         class="absolute inset-0 w-full h-full rounded-full object-cover"
                                                         loading="lazy"
                                                         referrerpolicy="no-referrer"
-                                                        onerror="this.style.display='none'; var wrap=this.closest('[data-member-avatar]'); if(wrap){var sp=wrap.querySelector('[data-member-initials]'); if(sp){sp.classList.remove('hidden');}}"
-                                                    />
+                                                        onerror="this.style.display='none'; var wrap=this.closest('[data-member-avatar]'); if(wrap){var sp=wrap.querySelector('[data-member-initials]'); if(sp){sp.classList.remove('hidden');}}" />
                                                 @endif
                                             </div>
                                         </div>
-                                    @endforeach
 
-                                    @if($overflowCount > 0)
-                                        <div class="avatar avatar-placeholder">
-                                            <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                                <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                            </div>
+                                        <div x-show="open" x-transition
+                                             class="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-50">
+                                            <x-profile-hover-card
+                                                :name="$mp['name'] ?? ''"
+                                                :email="$mp['email'] ?? ''"
+                                                :specialization="$mp['specialization'] ?? ''"
+                                                :role="$mp['role'] ?? ''"
+                                                :avatar-url="$mp['profilePicture'] ?? null"
+                                            />
                                         </div>
-                                    @endif
-                                </div>
-                            @else
-                                <span class="text-sm text-gray-400">No members</span>
-                            @endif
-                        </td>
-                        <td>
-                            @php
-                                $progressValue = (int) ($project['completionPercentage'] ?? $project['progress'] ?? 0);
-                                if ($progressValue < 0) $progressValue = 0;
-                                if ($progressValue > 100) $progressValue = 100;
+                                    </div>
+                                @endforeach
+
+                                @if($overflowCount > 0)
+                                    <div class="avatar avatar-placeholder">
+                                        <div class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center">
+                                            <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="text-sm text-gray-400">No members</span>
+                        @endif
+                    </td>
+                    <td>
+                        @php
+                        $progressValue = (int) ($project['completionPercentage'] ?? $project['progress'] ?? 0);
+                        if ($progressValue < 0) $progressValue=0;
+                            if ($progressValue> 100) $progressValue = 100;
                             @endphp
                             <div class="flex items-center gap-2 w-32">
                                 <progress class="progress flex-1" value="{{ $progressValue }}" max="100"></progress>
                                 <span class="text-xs text-gray-600">{{ $progressValue }}%</span>
                             </div>
-                        </td>
-                        <th>
-                            @php
-                                // Project status is derived from tasks; display-only (no dropdown).
-                                // Derived in ProjectController@index using GetTasksByProject:
-                                // - Completed only when all tasks are completed
-                                // - Not Started when project has no tasks
-                                // - Active when project has tasks but not all completed
-                                $displayStatus = $project['_derivedStatus'] ?? ($status ?: 'Unknown');
-                                $statusPillStyle = match($displayStatus) {
-                                    'Not Started' => 'background:#f3f4f6;color:#374151;',
-                                    'Active'      => 'background:#dbeafe;color:#1d4ed8;',
-                                    'Completed'   => 'background:#d1fae5;color:#065f46;',
-                                    default       => 'background:#f3f4f6;color:#374151;',
-                                };
-                            @endphp
-                            <div class="inline-flex items-center gap-2 rounded-none px-2 py-1 w-[9.5rem] overflow-hidden" style="{{ $statusPillStyle }}">
-                                <span class="shrink-0 text-current">
-                                    <x-icons.circle />
-                                </span>
-                                <span class="text-xs font-medium whitespace-nowrap truncate">{{ $displayStatus }}</span>
-                            </div>
-                        </th>
-                        <th>
-                            <span class="!font-normal text-sm">
-                                {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
+                    </td>
+                    <th>
+                        @php
+                        // Project status is derived from tasks; display-only (no dropdown).
+                        // Derived in ProjectController@index using GetTasksByProject:
+                        // - Completed only when all tasks are completed
+                        // - Not Started when project has no tasks
+                        // - Active when project has tasks but not all completed
+                        $displayStatus = $project['_derivedStatus'] ?? ($status ?: 'Unknown');
+                        $statusPillStyle = match($displayStatus) {
+                        'Not Started' => 'background:#f3f4f6;color:#374151;',
+                        'Active' => 'background:#dbeafe;color:#1d4ed8;',
+                        'Completed' => 'background:#d1fae5;color:#065f46;',
+                        default => 'background:#f3f4f6;color:#374151;',
+                        };
+                        @endphp
+                        <div class="inline-flex items-center gap-2 rounded-none px-2 py-1 w-[9.5rem] overflow-hidden" style="{{ $statusPillStyle }}">
+                            <span class="shrink-0 text-current">
+                                <x-icons.circle />
                             </span>
-                        </th>
-                        <th>
-                            @if($isLeader && $projectId)
-                            <div class="dropdown dropdown-end" wire:click.stop>
-                                <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
-                                    <x-icons.three-dot classes="w-5 h-5" />
-                                </button>
-                                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                    <li>
-                                        <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
-                                            Edit
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
-                                            Delete
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                            @else
-                                <span class="text-gray-400">—</span>
-                            @endif
-                        </th>
-                    </tr>
+                            <span class="text-xs font-medium whitespace-nowrap truncate">{{ $displayStatus }}</span>
+                        </div>
+                    </th>
+                    <th>
+                        <span class="!font-normal text-sm">
+                            {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
+                        </span>
+                    </th>
+                    <th>
+                        @if($isLeader && $projectId)
+                        <div class="dropdown dropdown-end" wire:click.stop>
+                            <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
+                                <x-icons.three-dot classes="w-5 h-5" />
+                            </button>
+                            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                <li>
+                                    <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
+                                        Edit
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
+                                        Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        @else
+                        <span class="text-gray-400">—</span>
+                        @endif
+                    </th>
+                </tr>
                 @empty
-                    <tr class="border-b border-gray-200">
-                        <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
-                    </tr>
+                <tr class="border-b border-gray-200">
+                    <td colspan="7" class="text-center py-8 text-gray-500">No projects yet.</td>
+                </tr>
                 @endforelse
-                </tbody>
-            </table>
-            </div>
+            @endif
+            </tbody>
+        </table>
     </div>
-
+</div>

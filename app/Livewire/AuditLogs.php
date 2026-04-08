@@ -4,38 +4,56 @@ namespace App\Livewire;
 
 use App\Services\CsharpApiService;
 use Illuminate\Support\Facades\Session;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class AuditLogs extends Component
 {
     public array $logs = [];
+
     public array $loginLogs = [];
+
     public array $accounts = [];
 
     public string $search = '';
 
     public int $page = 1;
+
     public int $perPage = 25;
 
     public ?int $filterUserId = null;
+
     public ?int $filterTaskId = null;
+
     public string $filterAction = '';
+
     public ?string $filterFrom = null; // YYYY-MM-DD
+
     public ?string $filterTo = null;   // YYYY-MM-DD
+
     public string $filterRole = '';
+
     public string $filterProject = '';
+
     public string $filterStatus = '';
+
     public string $filterUserSearch = '';
+
     public string $filterRoleSearch = '';
+
     public string $filterProjectSearch = '';
 
     public ?string $loadError = null;
 
+    public bool $loading = true;
+
     public function mount(): void
     {
+        $this->loading = true;
         $this->loadAccounts();
         $this->fetchLogs();
         $this->fetchLoginLogoutLogs();
+        $this->loading = false;
     }
 
     public function updated(string $name, mixed $value): void
@@ -43,6 +61,7 @@ class AuditLogs extends Component
         // Search is client-side (does not change endpoint)
         if ($name === 'search') {
             $this->page = 1;
+
             return;
         }
 
@@ -50,6 +69,7 @@ class AuditLogs extends Component
         // Role / Project / Status are client-side filters on the fetched logs.
         if (in_array($name, ['filterRole', 'filterProject', 'filterStatus', 'filterUserSearch', 'filterRoleSearch', 'filterProjectSearch'], true)) {
             $this->page = 1;
+
             return;
         }
 
@@ -95,6 +115,7 @@ class AuditLogs extends Component
     private function requesterId(): int
     {
         $user = Session::get('user', []);
+
         return (int) ($user['id'] ?? $user['Id'] ?? 0);
     }
 
@@ -104,12 +125,16 @@ class AuditLogs extends Component
             $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
             $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
             $this->accounts = array_values(array_filter(array_map(function ($acc) {
-                if (!is_array($acc)) return null;
+                if (! is_array($acc)) {
+                    return null;
+                }
                 $id = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
-                if ($id <= 0) return null;
+                if ($id <= 0) {
+                    return null;
+                }
                 $name = $acc['name'] ?? $acc['Name'] ?? $acc['fullName']
-                    ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))
-                    ?: ('User #' . $id);
+                    ?? trim(($acc['firstName'] ?? '').' '.($acc['lastName'] ?? ''))
+                    ?: ('User #'.$id);
                 $email = (string) ($acc['email'] ?? $acc['Email'] ?? '');
                 $email = trim($email);
 
@@ -135,6 +160,7 @@ class AuditLogs extends Component
         $requesterId = $this->requesterId();
         if ($requesterId <= 0) {
             $this->logs = [];
+
             return;
         }
 
@@ -142,7 +168,7 @@ class AuditLogs extends Component
 
         try {
             // Default: GetAllLogs (generalization)
-            $endpoint = '/api/AuditLog/GetAllLogs';
+            $endpoint = '/api/AuditLog/GetActionLogs';
             $query = ['requesterId' => $requesterId];
 
             // Filtering (use more specific endpoints)
@@ -154,8 +180,12 @@ class AuditLogs extends Component
 
             if ($from !== '' || $to !== '') {
                 $endpoint = '/api/AuditLog/GetLogsByDateRange';
-                if ($from !== '') $query['from'] = $from;
-                if ($to !== '')   $query['to'] = $to;
+                if ($from !== '') {
+                    $query['from'] = $from;
+                }
+                if ($to !== '') {
+                    $query['to'] = $to;
+                }
             } elseif ($action !== '') {
                 $endpoint = '/api/AuditLog/GetLogsByAction';
                 $query['action'] = $action;
@@ -225,7 +255,7 @@ class AuditLogs extends Component
         $userEmail = trim($userEmail);
         $projectRole = (string) ($log['projectRole'] ?? $log['ProjectRole'] ?? '');
         $projectRole = trim($projectRole);
-        $userRole = $projectRole; 
+        $userRole = $projectRole;
 
         $taskId = (int) ($log['taskId'] ?? $log['TaskId'] ?? $log['entityId'] ?? $log['EntityId'] ?? 0);
         $entity = (string) ($log['entity'] ?? $log['Entity'] ?? $log['entityType'] ?? $log['EntityType'] ?? '');
@@ -280,9 +310,13 @@ class AuditLogs extends Component
         // Map accountId => details for filtering/display fallback
         $accountMap = [];
         foreach ($this->accounts as $a) {
-            if (!is_array($a)) continue;
+            if (! is_array($a)) {
+                continue;
+            }
             $id = (int) ($a['id'] ?? 0);
-            if ($id <= 0) continue;
+            if ($id <= 0) {
+                continue;
+            }
             $accountMap[$id] = [
                 'name' => (string) ($a['name'] ?? ''),
                 'email' => (string) ($a['email'] ?? ''),
@@ -308,9 +342,10 @@ class AuditLogs extends Component
             // Role shown in the table/dropdown is projectRole (do not fall back to account role)
             $role = trim((string) ($l['userRole'] ?? $l['projectRole'] ?? ''));
 
-            $l['userName']  = $name;
+            $l['userName'] = $name;
             $l['userEmail'] = $email;
-            $l['userRole']  = $role;
+            $l['userRole'] = $role;
+
             return $l;
         }, array_values(array_filter($this->logs, 'is_array')));
 
@@ -330,9 +365,10 @@ class AuditLogs extends Component
 
             $role = trim((string) ($l['userRole'] ?? $l['projectRole'] ?? ''));
 
-            $l['userName']  = $name;
+            $l['userName'] = $name;
             $l['userEmail'] = $email;
-            $l['userRole']  = $role;
+            $l['userRole'] = $role;
+
             return $l;
         }, array_values(array_filter($this->loginLogs, 'is_array')));
 
@@ -349,6 +385,7 @@ class AuditLogs extends Component
                     (string) ($l['accountId'] ?? ''),
                     mb_strtolower((string) ($l['entity'] ?? '')),
                 ]);
+
                 return str_contains($hay, $q);
             }));
         }
@@ -357,6 +394,7 @@ class AuditLogs extends Component
         if ($roleNeedle !== '') {
             $filtered = array_values(array_filter($filtered, function ($l) use ($roleNeedle) {
                 $r = mb_strtolower(trim((string) ($l['userRole'] ?? '')));
+
                 return $r === $roleNeedle;
             }));
         }
@@ -365,6 +403,7 @@ class AuditLogs extends Component
         if ($projectNeedle !== '') {
             $filtered = array_values(array_filter($filtered, function ($l) use ($projectNeedle) {
                 $p = mb_strtolower(trim((string) ($l['projectName'] ?? '')));
+
                 return $p === $projectNeedle;
             }));
         }
@@ -373,6 +412,7 @@ class AuditLogs extends Component
         if ($statusNeedle !== '') {
             $filtered = array_values(array_filter($filtered, function ($l) use ($statusNeedle) {
                 $s = mb_strtolower(trim((string) ($l['status'] ?? '')));
+
                 return $s === $statusNeedle;
             }));
         }
@@ -385,7 +425,7 @@ class AuditLogs extends Component
                 $fallbackName = $uid > 0 ? (string) (($accountMap[$uid]['name'] ?? '')) : '';
                 $fallbackEmail = $uid > 0 ? (string) (($accountMap[$uid]['email'] ?? '')) : '';
 
-                $name  = mb_strtolower(trim((string) ($l['userName'] ?? $fallbackName)));
+                $name = mb_strtolower(trim((string) ($l['userName'] ?? $fallbackName)));
                 $email = mb_strtolower(trim((string) ($l['userEmail'] ?? $fallbackEmail)));
 
                 return str_contains($name, $userText) || str_contains($email, $userText);
@@ -396,6 +436,7 @@ class AuditLogs extends Component
         if ($roleText !== '') {
             $filtered = array_values(array_filter($filtered, function ($l) use ($roleText) {
                 $r = mb_strtolower(trim((string) ($l['userRole'] ?? '')));
+
                 return str_contains($r, $roleText);
             }));
         }
@@ -404,6 +445,7 @@ class AuditLogs extends Component
         if ($projectText !== '') {
             $filtered = array_values(array_filter($filtered, function ($l) use ($projectText) {
                 $p = mb_strtolower(trim((string) ($l['projectName'] ?? '')));
+
                 return str_contains($p, $projectText);
             }));
         }
@@ -413,8 +455,12 @@ class AuditLogs extends Component
         $perPage = max(1, (int) $this->perPage);
         $totalPages = (int) max(1, (int) ceil($total / $perPage));
         $page = (int) $this->page;
-        if ($page < 1) $page = 1;
-        if ($page > $totalPages) $page = $totalPages;
+        if ($page < 1) {
+            $page = 1;
+        }
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
         $this->page = $page;
 
         $offset = ($page - 1) * $perPage;
@@ -424,7 +470,9 @@ class AuditLogs extends Component
         $actions = [];
         foreach ($this->logs as $l) {
             $a = trim((string) ($l['action'] ?? ''));
-            if ($a !== '') $actions[$a] = true;
+            if ($a !== '') {
+                $actions[$a] = true;
+            }
         }
         $actionOptions = array_keys($actions);
         sort($actionOptions);
@@ -432,7 +480,9 @@ class AuditLogs extends Component
         $roles = [];
         foreach ($this->logs as $l) {
             $r = trim((string) ($l['userRole'] ?? ''));
-            if ($r !== '') $roles[$r] = true;
+            if ($r !== '') {
+                $roles[$r] = true;
+            }
         }
         $roleOptions = array_keys($roles);
         sort($roleOptions);
@@ -440,7 +490,9 @@ class AuditLogs extends Component
         $projects = [];
         foreach ($this->logs as $l) {
             $p = trim((string) ($l['projectName'] ?? ''));
-            if ($p !== '') $projects[$p] = true;
+            if ($p !== '') {
+                $projects[$p] = true;
+            }
         }
         $projectOptions = array_keys($projects);
         sort($projectOptions);
@@ -448,7 +500,9 @@ class AuditLogs extends Component
         $statuses = [];
         foreach ($this->logs as $l) {
             $s = trim((string) ($l['status'] ?? ''));
-            if ($s !== '') $statuses[$s] = true;
+            if ($s !== '') {
+                $statuses[$s] = true;
+            }
         }
         $statusOptions = array_keys($statuses);
         sort($statusOptions);
@@ -457,9 +511,12 @@ class AuditLogs extends Component
         $accountsForSelect = $this->accounts;
         if ($userSearchNeedle !== '') {
             $accountsForSelect = array_values(array_filter($accountsForSelect, function ($a) use ($userSearchNeedle) {
-                if (!is_array($a)) return false;
+                if (! is_array($a)) {
+                    return false;
+                }
                 $name = mb_strtolower(trim((string) ($a['name'] ?? '')));
                 $email = mb_strtolower(trim((string) ($a['email'] ?? '')));
+
                 return str_contains($name, $userSearchNeedle) || str_contains($email, $userSearchNeedle);
             }));
         }

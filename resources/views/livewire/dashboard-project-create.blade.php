@@ -1,5 +1,5 @@
 <div>
-    @if($showAddModal)
+    @if ($showAddModal)
         <dialog class="modal modal-open">
             <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
                 <div class="modal-action">
@@ -22,4 +22,3 @@
         </dialog>
     @endif
 </div>
-
