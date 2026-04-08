@@ -29,14 +29,30 @@
 
     <div class="flex justify-between">
         <div class="flex gap-2">
-            <button wire:click="switchView('list')"
+            <button wire:click="switchView('list')" data-viewmode-btn data-viewmode="list"
                 class="btn p-4 {{ $viewMode === 'list' ? 'clr-bg-primary text-base-100' : 'border-2 border-gray-400 clr-primary hover-clr-bg-primary hover:text-base-100 hover:border-none' }}">
                 <x-icons.list class="w-4 h-4 inline-block" /> List
             </button>
-            <button wire:click="switchView('board')"
+            <button wire:click="switchView('board')" data-viewmode-btn data-viewmode="board"
                 class="btn p-4 {{ $viewMode === 'board' ? 'clr-bg-primary text-base-100' : 'border-2 border-gray-400 clr-primary hover-clr-bg-primary hover:text-base-100 hover:border-none' }}">
                 <x-icons.board class="w-4 h-4 inline-block" /> Board View
             </button>
+
+            <script>
+                (function () {
+                    document.addEventListener('click', function (e) {
+                        var btn = e.target && e.target.closest ? e.target.closest('[data-viewmode-btn]') : null;
+                        if (!btn) return;
+                        var mode = btn.getAttribute('data-viewmode');
+                        
+                        try {
+                            var url = new URL(window.location.href);
+                            url.searchParams.set('view', mode);
+                            window.history.replaceState({}, '', url.toString());
+                        } catch (e2) {}
+                    });
+                })();
+            </script>
         </div>
         <div class="flex items-center gap-2">
             <x-search-input wire:model.live.debounce.300ms="search" />
@@ -354,14 +370,49 @@
                     $dStart = $t['startDate'] ?? ($t['StartDate'] ?? null);
                     $dDue = $t['dueDate'] ?? ($t['dueAt'] ?? null);
                     $dAssignee = $t['assigneeName'] ?? ($t['assignedToName'] ?? null);
+                    $dAssigneeProfiles = [];
+                    $aids = $t['assigneeIds'] ?? ($t['assigneeId'] ?? []);
+                    if (!is_array($aids)) {
+                        $aids = $aids ? [$aids] : [];
+                    }
                     if ($dAssignee === null || $dAssignee === '') {
-                        $aids = $t['assigneeIds'] ?? ($t['assigneeId'] ?? []);
-                        if (!is_array($aids)) {
-                            $aids = $aids ? [$aids] : [];
-                        }
                         $dAssignee =
                             implode(', ', array_filter(array_map(fn($id) => $accountMap[(int) $id] ?? null, $aids))) ?:
                             '—';
+                    }
+                    if (!empty($aids)) {
+                        $profilesById = [];
+                        foreach ($aids as $aid) {
+                            $aidInt = (int) $aid;
+                            if ($aidInt <= 0) {
+                                continue;
+                            }
+                            if (isset($accountProfiles[$aidInt])) {
+                                $profilesById[$aidInt] = array_merge(['id' => $aidInt], $accountProfiles[$aidInt]);
+                                continue;
+                            }
+                            $name = $accountMap[$aidInt] ?? null;
+                            $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
+                            $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
+                            $first = (string) ($parts[0] ?? '');
+                            $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                            $a0 = mb_substr(trim($first), 0, 1);
+                            $b0 = mb_substr(trim($last), 0, 1);
+                            if ($a0 !== '' && $b0 !== '') {
+                                $initials = mb_strtoupper($a0.$b0);
+                            } elseif ($a0 !== '') {
+                                $initials = mb_strtoupper($a0);
+                            } else {
+                                $initials = '?';
+                            }
+                            $profilesById[$aidInt] = [
+                                'id' => $aidInt,
+                                'profilePicture' => null,
+                                'initials' => $initials,
+                                'name' => $name,
+                            ];
+                        }
+                        $dAssigneeProfiles = array_values($profilesById);
                     }
                     // Assigned by = task creator (who created the task)
                     $dAssignedBy =
@@ -413,7 +464,11 @@
                     {{-- Row 3 --}}
                     <div style="grid-column:1/-1;">
                         <p class="text-xs font-normal text-gray-500 uppercase tracking-wide mb-1">Assigned To</p>
-                        <p class="text-sm text-gray-900">{{ $dAssignee ?: '—' }}</p>
+                        <div class="flex items-center gap-3">
+                            @if (!empty($dAssigneeProfiles))
+                                <x-avatar-group :profiles="$dAssigneeProfiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
+                            @endif
+                        </div>
                     </div>
                 </div>
 

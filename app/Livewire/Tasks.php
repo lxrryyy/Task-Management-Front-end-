@@ -94,6 +94,12 @@ class Tasks extends Component
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
         $this->taskParentId = $taskParentId;
+
+        $requestedView = (string) request()->query('view', '');
+        if ($requestedView === 'board' || $requestedView === 'list') {
+            $this->viewMode = $requestedView;
+        }
+
         $this->taskWarnings = array_values(array_filter((array) Session::get('task_warnings', [])));
 
         $statusData = app(TaskController::class)->getStatuses();
