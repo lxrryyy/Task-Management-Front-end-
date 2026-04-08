@@ -1,5 +1,29 @@
 import "./bootstrap";
+import Chart from "chart.js/auto";
 import { registerNotifications } from "./notifications";
+
+window.Chart = Chart;
+
+window.countUpNumber = function countUpNumber(targetValue, durationMs) {
+    const safeTarget = Math.max(0, parseInt(targetValue || 0, 10));
+    const safeDuration = Math.max(250, parseInt(durationMs || 700, 10));
+    return {
+        target: safeTarget,
+        duration: safeDuration,
+        display: "0",
+        start() {
+            const started = performance.now();
+            const animate = (now) => {
+                const progress = Math.min((now - started) / this.duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = Math.round(this.target * eased);
+                this.display = current.toLocaleString();
+                if (progress < 1) requestAnimationFrame(animate);
+            };
+            requestAnimationFrame(animate);
+        },
+    };
+};
 
 document.addEventListener("livewire:init", () => {
     registerNotifications();

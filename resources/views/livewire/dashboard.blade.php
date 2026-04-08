@@ -44,28 +44,44 @@
                 <span class="text-lg font-medium">
                     My Projects
                 </span>
-                <h1 class="text-3xl font-bold">{{ (int) ($summaryCards['projects'] ?? 0) }}</h1>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-projects-{{ (int) ($summaryCards['projects'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['projects'] ?? 0) }}, 650)"
+                    x-init="start()"
+                    x-text="display"></h1>
                 <label for="">Active</label>
             </div>
             <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
                 <span class="text-lg font-medium">
                     Tasks
                 </span>
-                <h1 class="text-3xl font-bold">{{ (int) ($summaryCards['tasks'] ?? 0) }}</h1>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-tasks-{{ (int) ($summaryCards['tasks'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['tasks'] ?? 0) }}, 700)"
+                    x-init="start()"
+                    x-text="display"></h1>
                 <label for="">Assigned to me</label>
             </div>
             <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
                 <span class="text-lg font-medium">
                     For Review
                 </span>
-                <h1 class="text-3xl font-bold">{{ (int) ($summaryCards['forReview'] ?? 0) }}</h1>
+                <h1 class="text-3xl font-bold"
+                    wire:key="card-review-{{ (int) ($summaryCards['forReview'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['forReview'] ?? 0) }}, 750)"
+                    x-init="start()"
+                    x-text="display"></h1>
                 <label for="">Awaiting Review</label>
             </div>
             <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
                 <span class="text-lg font-medium">
                     Completed
                 </span>
-                <h1 class="text-3xl font-bold text-green-600">{{ (int) ($summaryCards['completed'] ?? 0) }}</h1>
+                <h1 class="text-3xl font-bold text-green-600"
+                    wire:key="card-completed-{{ (int) ($summaryCards['completed'] ?? 0) }}"
+                    x-data="countUpNumber({{ (int) ($summaryCards['completed'] ?? 0) }}, 800)"
+                    x-init="start()"
+                    x-text="display"></h1>
                 <label for="">Active</label>
             </div>
         </div>
@@ -191,6 +207,7 @@
             @else
             <div
                 class="flex flex-col items-center gap-6 pl-4 mt-4 w-full"
+                wire:key="task-status-chart-{{ (int) $selectedProjectId }}-{{ (int) ($taskStatusSummary['totalTasks'] ?? 0) }}"
                 x-data="taskStatusChart(@js($taskStatusSummary['breakdown'] ?? []))"
                 x-init="init()"
             >
@@ -274,7 +291,6 @@
 </div>
 
 @once
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         function taskStatusChart(breakdown) {
             const palette = {
@@ -288,6 +304,7 @@
                 chart: null,
                 chartType: 'doughnut',
                 segments: [],
+                _layoutObserver: null,
                 get chartTypeLabel() {
                     return this.chartType === 'doughnut' ? 'Donut' : 'Pie';
                 },
@@ -302,21 +319,57 @@
                             color: palette[label] || '#9ca3af',
                         };
                     });
-                    this.renderChart();
+                    this.$nextTick(() => this.scheduleRender());
+                },
+                scheduleRender() {
+                    let attempts = 0;
+                    const tryRender = () => {
+                        attempts++;
+                        const canvas = this.$refs.canvas;
+                        const ready =
+                            window.Chart &&
+                            canvas &&
+                            canvas.clientWidth > 0 &&
+                            canvas.clientHeight > 0;
+                        if (ready) {
+                            this.renderChart();
+                            this.attachLayoutObserver();
+                            return;
+                        }
+                        if (attempts < 120) {
+                            requestAnimationFrame(tryRender);
+                        } else {
+                            this.renderChart();
+                        }
+                    };
+                    requestAnimationFrame(tryRender);
+                },
+                attachLayoutObserver() {
+                    if (this._layoutObserver || typeof ResizeObserver === 'undefined') return;
+                    const el = this.$refs.canvas?.parentElement;
+                    if (!el) return;
+                    this._layoutObserver = new ResizeObserver(() => {
+                        if (this.chart) {
+                            requestAnimationFrame(() => this.chart.resize());
+                        }
+                    });
+                    this._layoutObserver.observe(el);
                 },
                 setChartType(type) {
                     if (this.chartType === type) return;
                     this.chartType = type;
-                    this.renderChart();
+                    this.$nextTick(() => this.scheduleRender());
                 },
                 renderChart() {
                     if (!window.Chart || !this.$refs.canvas) return;
-                    if (this.chart) this.chart.destroy();
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
 
                     const labels = this.segments.map(s => s.label);
                     const values = this.segments.map(s => s.value);
                     const colors = this.segments.map(s => s.color);
-                    const total = values.reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
 
                     const centerTextPlugin = {
                         id: 'centerTextPlugin',
@@ -327,6 +380,10 @@
                             const x = meta.data[0].x;
                             const y = meta.data[0].y;
                             const ctx = chart.ctx;
+                            const dataArr = chart.data?.datasets?.[0]?.data ?? [];
+                            const total = Array.isArray(dataArr)
+                                ? dataArr.reduce((sum, v) => sum + (Number(v) || 0), 0)
+                                : 0;
                             ctx.save();
                             ctx.textAlign = 'center';
                             ctx.fillStyle = '#111827';
@@ -370,6 +427,19 @@
                         },
                         plugins: [centerTextPlugin]
                     });
+                    requestAnimationFrame(() => {
+                        if (this.chart) this.chart.resize();
+                    });
+                },
+                destroy() {
+                    if (this._layoutObserver) {
+                        this._layoutObserver.disconnect();
+                        this._layoutObserver = null;
+                    }
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
                 }
             };
         }
