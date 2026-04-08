@@ -294,42 +294,7 @@
                     <td>{{ $leaderDisplay }}</td>
                     <td>
                         @if($memberCount > 0)
-                        @php
-                        $visibleProfiles = array_slice($memberProfiles, 0, 3);
-                        $overflowCount = max(0, (int) $memberCount - 3);
-                        @endphp
-                        <div class="avatar-group -space-x-3">
-                            @foreach($visibleProfiles as $mp)
-                            <div class="avatar" data-member-avatar>
-                                <div
-                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden">
-                                    <span
-                                        data-member-initials
-                                        class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
-                                        {{ $mp['initials'] ?? '?' }}
-                                    </span>
-
-                                    @if(!empty($mp['profilePicture']))
-                                    <img
-                                        src="{{ $mp['profilePicture'] }}"
-                                        alt=""
-                                        class="absolute inset-0 w-full h-full rounded-full object-cover"
-                                        loading="lazy"
-                                        referrerpolicy="no-referrer"
-                                        onerror="this.style.display='none'; var wrap=this.closest('[data-member-avatar]'); if(wrap){var sp=wrap.querySelector('[data-member-initials]'); if(sp){sp.classList.remove('hidden');}}" />
-                                    @endif
-                                </div>
-                            </div>
-                            @endforeach
-
-                            @if($overflowCount > 0)
-                            <div class="avatar avatar-placeholder">
-                                <div class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                    <span class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                </div>
-                            </div>
-                            @endif
-                        </div>
+                            <x-avatar-group :profiles="$memberProfiles" :visible="3" overlap-class="-space-x-3" data-prefix="member" />
                         @else
                         <span class="text-sm text-gray-400">No members</span>
                         @endif

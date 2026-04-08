@@ -696,18 +696,63 @@
                         }
 
                         // Build assignee avatar profiles from IDs (if present).
-                        $rawIds = $task['assigneeIds'] ?? ($task['assigneeId'] ?? []);
-                        if (!is_array($rawIds)) {
+                        // API can send many shapes/keys: array, scalar, "1,2", or array of objects.
+                        $rawIds =
+                            $task['assigneeIds']
+                            ?? ($task['assigneeIDs'] ?? null)
+                            ?? ($task['AssigneeIds'] ?? null)
+                            ?? ($task['assigneeId'] ?? null)
+                            ?? ($task['AssigneeId'] ?? null)
+                            ?? [];
+
+                        if (is_string($rawIds)) {
+                            $rawIds = preg_split('/[,\s;]+/', $rawIds);
+                            $rawIds = array_filter(array_map('trim', $rawIds));
+                        } elseif (!is_array($rawIds)) {
                             $rawIds = [$rawIds];
                         }
+
+                        $profilesById = [];
                         foreach ($rawIds as $aid) {
-                            $aidInt = (int) $aid;
-                            if ($aidInt > 0 && isset($accountProfiles[$aidInt])) {
-                                $assigneeProfiles[] = $accountProfiles[$aidInt];
+                            if (is_array($aid)) {
+                                $aid = $aid['id'] ?? $aid['Id'] ?? $aid['accountId'] ?? $aid['userId'] ?? null;
                             }
+
+                            $aidInt = (int) $aid;
+                            if ($aidInt <= 0) {
+                                continue;
+                            }
+
+                            if (isset($accountProfiles[$aidInt])) {
+                                $profilesById[$aidInt] = array_merge(['id' => $aidInt], $accountProfiles[$aidInt]);
+                                continue;
+                            }
+
+                            // Fallback avatar when accounts list doesn't include this id.
+                            $name = $accountMap[$aidInt] ?? null;
+                            $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
+                            $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+                            $first = (string) ($parts[0] ?? '');
+                            $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                            $a0 = mb_substr(trim($first), 0, 1);
+                            $b0 = mb_substr(trim($last), 0, 1);
+                            if ($a0 !== '' && $b0 !== '') {
+                                $initials = mb_strtoupper($a0.$b0);
+                            } elseif ($a0 !== '') {
+                                $initials = mb_strtoupper($a0);
+                            } else {
+                                $initials = '?';
+                            }
+
+                            $profilesById[$aidInt] = [
+                                'id' => $aidInt,
+                                'profilePicture' => null,
+                                'initials' => $initials,
+                                'name' => $name,
+                            ];
                         }
-                        // De-dupe (in case API returns duplicates)
-                        $assigneeProfiles = array_values(array_unique($assigneeProfiles, SORT_REGULAR));
+                        // IDs are already unique because we key by id.
+                        $assigneeProfiles = array_values($profilesById);
                         $dueDateRaw = $task['dueDate'] ?? ($task['dueAt'] ?? null);
                         $storyPoints = $task['storyPoints'] ?? ($task['storyPoint'] ?? ($task['points'] ?? null));
                         $status = $task['statusName'] ?? ($task['status'] ?? '');
@@ -821,40 +866,9 @@
                                     $profiles = is_array($p['assigneeProfiles'] ?? null)
                                         ? $p['assigneeProfiles'] ?? []
                                         : [];
-                                    $assigneeCount = count($profiles);
-                                    $visibleProfiles = array_slice($profiles, 0, 3);
-                                    $overflowCount = max(0, $assigneeCount - 3);
                                 @endphp
-                                @if ($assigneeCount > 0)
-                                    <div class="avatar-group -space-x-6">
-                                        @foreach ($visibleProfiles as $mp)
-                                            <div class="avatar">
-                                                <div data-assignee-avatar
-                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center relative overflow-hidden">
-                                                    <span data-assignee-initials
-                                                        class="text-xs font-semibold leading-none {{ !empty($mp['profilePicture']) ? 'hidden' : '' }}">
-                                                        {{ $mp['initials'] ?? '?' }}
-                                                    </span>
-                                                    @if (!empty($mp['profilePicture']))
-                                                        <img src="{{ $mp['profilePicture'] }}" alt=""
-                                                            class="absolute inset-0 w-full h-full rounded-full object-cover"
-                                                            loading="lazy" referrerpolicy="no-referrer"
-                                                            onerror="this.style.display='none'; var wrap=this.closest('[data-assignee-avatar]'); if(wrap){var sp=wrap.querySelector('[data-assignee-initials]'); if(sp){sp.classList.remove('hidden');}}" />
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        @endforeach
-
-                                        @if ($overflowCount > 0)
-                                            <div class="avatar avatar-placeholder">
-                                                <div
-                                                    class="bg-neutral text-neutral-content w-6 h-6 rounded-full flex items-center justify-center">
-                                                    <span
-                                                        class="text-xs font-semibold leading-none">+{{ $overflowCount }}</span>
-                                                </div>
-                                            </div>
-                                        @endif
-                                    </div>
+                                @if (!empty($profiles))
+                                    <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                 @else
                                     <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
                                 @endif
@@ -975,7 +989,7 @@
                                             $overflowCount = max(0, $assigneeCount - 3);
                                         @endphp
                                         @if ($assigneeCount > 0)
-                                            <div class="avatar-group -space-x-6">
+                                            <div class="avatar-group -space-x-3">
                                                 @foreach ($visibleProfiles as $mp)
                                                     <div class="avatar">
                                                         <div data-assignee-avatar
@@ -1506,21 +1520,92 @@
                                                 pts</span>
                                         @endif
                                     </div>
-                                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
+                                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2 gap-2">
                                         @php
-                                            $boardAssignee = $task['assigneeName'] ?? ($task['assignedToName'] ?? null);
-                                            if (!$boardAssignee) {
-                                                $bids = $task['assigneeIds'] ?? ($task['assigneeId'] ?? []);
-                                                if (!is_array($bids)) {
-                                                    $bids = [$bids];
+                                            // Prefer API-provided profiles if present (same shape as list view),
+                                            // otherwise build from ids. Some APIs send assigneeIds as "1,2,3".
+                                            $profiles = is_array($task['assigneeProfiles'] ?? null)
+                                                ? $task['assigneeProfiles'] ?? []
+                                                : [];
+
+                                            if (empty($profiles)) {
+                                                $rawIds =
+                                                    $task['assigneeIds']
+                                                    ?? ($task['assigneeIDs'] ?? null)
+                                                    ?? ($task['AssigneeIds'] ?? null)
+                                                    ?? ($task['assigneeId'] ?? null)
+                                                    ?? ($task['AssigneeId'] ?? null)
+                                                    ?? [];
+
+                                                // Normalize into a flat array of scalar IDs.
+                                                if (is_string($rawIds)) {
+                                                    // Handle "1,2,3" or "1;2;3" or "1 2 3"
+                                                    $rawIds = preg_split('/[,\s;]+/', $rawIds);
+                                                    $rawIds = array_filter(array_map('trim', $rawIds));
+                                                } elseif (!is_array($rawIds)) {
+                                                    $rawIds = [$rawIds];
                                                 }
-                                                $bnames = array_filter(
-                                                    array_map(fn($id) => $accountMap[(int) $id] ?? null, $bids),
-                                                );
-                                                $boardAssignee = implode(', ', $bnames) ?: 'Unassigned';
+
+                                                $ids = [];
+                                                foreach ($rawIds as $aid) {
+                                                    if (is_array($aid)) {
+                                                        $aid = $aid['id'] ?? $aid['Id'] ?? $aid['accountId'] ?? $aid['userId'] ?? null;
+                                                    }
+                                                    if ($aid === null || $aid === '') {
+                                                        continue;
+                                                    }
+                                                    $ids[] = (int) $aid;
+                                                }
+                                                $ids = array_values(array_unique(array_filter($ids, fn($v) => $v > 0)));
+
+                                                $profilesById = [];
+                                                foreach ($ids as $aidInt) {
+                                                    if (isset($accountProfiles[$aidInt])) {
+                                                        $profilesById[$aidInt] = array_merge(['id' => $aidInt], $accountProfiles[$aidInt]);
+                                                        continue;
+                                                    }
+
+                                                    $name = $accountMap[$aidInt] ?? null;
+                                                    $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
+                                                    $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
+                                                    $first = (string) ($parts[0] ?? '');
+                                                    $last = (string) (! empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                                                    $a0 = mb_substr(trim($first), 0, 1);
+                                                    $b0 = mb_substr(trim($last), 0, 1);
+                                                    if ($a0 !== '' && $b0 !== '') {
+                                                        $initials = mb_strtoupper($a0.$b0);
+                                                    } elseif ($a0 !== '') {
+                                                        $initials = mb_strtoupper($a0);
+                                                    } else {
+                                                        $initials = '?';
+                                                    }
+
+                                                    // Fallback avatar when accountProfiles is missing this id.
+                                                    $profilesById[$aidInt] = [
+                                                        'id' => $aidInt,
+                                                        'profilePicture' => null,
+                                                        'initials' => $initials,
+                                                        'name' => $name,
+                                                    ];
+                                                }
+
+                                                $profiles = array_values($profilesById);
                                             }
+
+                                            // IDs are already unique because we key by id.
+                                            $assigneeCount = count($profiles);
+                                            $visibleProfiles = array_slice($profiles, 0, 3);
+                                            $overflowCount = max(0, $assigneeCount - 3);
                                         @endphp
-                                        <span>{{ $boardAssignee }}</span>
+
+                                        @if ($assigneeCount > 0)
+                                            <div class="min-w-0">
+                                                <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
+                                            </div>
+                                        @else
+                                            <span class="text-sm">—</span>
+                                        @endif
+
                                         @if (!empty($task['dueDate']) || !empty($task['dueAt']))
                                             <span>{{ \Carbon\Carbon::parse($task['dueDate'] ?? $task['dueAt'])->format('M d') }}</span>
                                         @endif
