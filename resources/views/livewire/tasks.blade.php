@@ -304,13 +304,32 @@
     <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
         <div class="modal-box w-11/12 max-w-3xl overflow-y-auto rounded-2xl shadow-xl">
             <div class="flex items-start justify-between gap-4 mb-6">
-                <h2 class="font-normal text-2xl text-gray-900 leading-tight flex-1 min-w-0">
+                <div class="flex-1 min-w-0">
+                    @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
+                        <div class="text-lg text-gray-500 mb-1 truncate">
+                            @foreach ($detailBreadcrumb as $i => $bt)
+                                @php
+                                    $bName = $bt['name'] ?? ($bt['title'] ?? '—');
+                                    $bId = (int) ($bt['id'] ?? $bt['Id'] ?? 0);
+                                @endphp
+                                @if ($i > 0)
+                                    <span class="mx-1">/</span>
+                                @endif
+                                <button type="button" class="hover:underline"
+                                    wire:click="openTaskDetail({{ $bId }})">
+                                    {{ $bName }}
+                                </button>
+                            @endforeach
+                        </div>
+                    @endif
+                    <h2 class="font-normal text-2xl text-gray-900 leading-tight">
                     @if ($detailTask)
                         {{ $detailTask['name'] ?? ($detailTask['title'] ?? 'Task details') }}
                     @else
                         Task details
                     @endif
-                </h2>
+                    </h2>
+                </div>
                 <button type="button" wire:click="closeTaskDetail"
                     class="btn btn-ghost btn-sm btn-circle w-8 h-8 min-h-0 shrink-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full">✕</button>
             </div>

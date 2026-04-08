@@ -56,6 +56,9 @@ class Tasks extends Component
 
     public ?array $detailTask = null;
 
+    /** ordered ancestor chain from root -> current (for detail modal) */
+    public array $detailBreadcrumb = [];
+
     public array $taskComments = [];
 
     public string $newComment = '';
@@ -137,6 +140,7 @@ class Tasks extends Component
         $task = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
         $this->detailTask = $task ?: null;
         $this->showTaskDetailModal = $this->detailTask !== null;
+        $this->detailBreadcrumb = $this->detailTask ? $this->buildTaskBreadcrumb($taskId) : [];
         $this->newComment = '';
         $this->editingCommentId = null;
         $this->editingCommentContent = '';
@@ -152,11 +156,44 @@ class Tasks extends Component
     {
         $this->showTaskDetailModal = false;
         $this->detailTask = null;
+        $this->detailBreadcrumb = [];
         $this->taskComments = [];
         $this->newComment = '';
         $this->editingCommentId = null;
         $this->editingCommentContent = '';
         $this->commentError = null;
+    }
+
+    private function buildTaskBreadcrumb(int $taskId): array
+    {
+        // Build lookups once from current in-memory tasks.
+        $byId = [];
+        $parentById = [];
+        foreach ($this->tasks as $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            $id = (int) ($t['id'] ?? $t['Id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $byId[$id] = $t;
+            $parentById[$id] = $t['parentTaskId'] ?? $t['parentId'] ?? $t['parentID'] ?? null;
+        }
+
+        $chain = [];
+        $seen = [];
+        $cur = $taskId;
+        $guard = 0;
+        while ($cur > 0 && $guard < 25 && isset($byId[$cur]) && !isset($seen[$cur])) {
+            $seen[$cur] = true;
+            $chain[] = $byId[$cur];
+            $pidRaw = $parentById[$cur] ?? null;
+            $cur = $pidRaw !== null ? (int) $pidRaw : 0;
+            $guard++;
+        }
+
+        return array_reverse($chain);
     }
 
     private function currentAccountId(): int
@@ -765,10 +802,6 @@ class Tasks extends Component
 
         $grouped = array_fill_keys($statuses, []);
         foreach ($filtered as $task) {
-            $pid = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
-            if ($pid !== null) {
-                continue;
-            }
             $s = $task['statusName'] ?? $task['status'] ?? 'Not Started';
             if (! array_key_exists($s, $grouped)) {
                 $grouped[$s] = [];
