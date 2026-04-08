@@ -242,33 +242,47 @@
                         $bg = $bgColors[(int) (abs(crc32($seed)) % count($bgColors))];
                         $initialsTextClass = $bg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
                     @endphp
-                    <a href="/settings" aria-label="Open settings">
-                        <div id="header-avatar"
-                            class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
-                            style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
-                            data-avatar-bg="{{ $bg }}"
-                            data-avatar-initials-text-class="{{ $initialsTextClass }}">
-                            {{-- Always render initials; hide it only when the image loads --}}
-                            <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
-                                style="{{ $avatarHasImage ? 'display:none;' : '' }}">
-                                {{ $initials }}
-                            </span>
-                            <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
-                                class="h-full w-full object-cover"
-                                onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
-                                onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
-                                style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                    @php
+                        $headerName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? 'User'));
+                        $specialization = (string) ($navUser['specialization'] ?? ($navUser['Specialization'] ?? ''));
+                        $headerEmail = (string) ($navUser['email'] ?? ($navUser['Email'] ?? ''));
+                        $headerRoleRaw = (string) ($navUser['role'] ?? ($navUser['Role'] ?? ($navUser['roleName'] ?? ($navUser['RoleName'] ?? ''))));
+                        $headerRole = $headerRoleRaw !== '' ? ucwords(str_replace('_', ' ', mb_strtolower($headerRoleRaw))) : '';
+                    @endphp
+                    <div class="relative flex items-center gap-3" x-data="{ open:false }" @mouseenter="open=true" @mouseleave="open=false">
+                        <a href="/settings" aria-label="Open settings">
+                            <div id="header-avatar"
+                                class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
+                                style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
+                                data-avatar-bg="{{ $bg }}"
+                                data-avatar-initials-text-class="{{ $initialsTextClass }}">
+                                {{-- Always render initials; hide it only when the image loads --}}
+                                <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
+                                    style="{{ $avatarHasImage ? 'display:none;' : '' }}">
+                                    {{ $initials }}
+                                </span>
+                                <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
+                                    class="h-full w-full object-cover"
+                                    onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
+                                    onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
+                                    style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                            </div>
+                        </a>
+                        <div class="flex flex-col leading-tight">
+                            <div class="text-sm font-semibold text-white truncate max-w-[220px]">{{ $headerName }}</div>
+                            @if ($specialization !== '')
+                                <div class="text-xs text-base-100 truncate max-w-[220px]">{{ $specialization }}</div>
+                            @endif
                         </div>
-                    </a>
-                    <div class="flex flex-col leading-tight">
-                        @php
-                            $headerName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? 'User'));
-                            $specialization = (string) ($navUser['specialization'] ?? ($navUser['Specialization'] ?? ''));
-                        @endphp
-                        <div class="text-sm font-semibold text-white truncate max-w-[220px]">{{ $headerName }}</div>
-                        @if ($specialization !== '')
-                            <div class="text-xs text-base-100 truncate max-w-[220px]">{{ $specialization }}</div>
-                        @endif
+                        <div x-show="open" x-transition class="absolute right-0 top-full mt-2 z-[9999]">
+                            <x-profile-hover-card
+                                :name="$headerName"
+                                :email="$headerEmail"
+                                :specialization="$specialization"
+                                :role="$headerRole"
+                                :avatar-url="$avatarSrc"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

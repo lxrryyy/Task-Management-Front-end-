@@ -1452,7 +1452,7 @@
             @foreach ($boardStatuses as $status)
                 @php $statusJs = addslashes($status); @endphp
                 <div x-data="{ dragOver: false }"
-                    class="flex flex-col gap-2 flex-1 min-w-[260px] max-w-[320px] rounded-lg transition-all duration-150 shrink-0"
+                    class="flex flex-col gap-2 flex-1 min-w-[260px] max-w-[320px] rounded-lg border border-gray-200 bg-white transition-all duration-150 shrink-0"
                     :class="dragOver ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''" @dragover.prevent
                     @dragenter.prevent="dragOver = true"
                     @dragleave="if (!$event.relatedTarget || !$el.contains($event.relatedTarget)) dragOver = false"
@@ -1462,7 +1462,7 @@
                         <span class="font-normal text-sm">{{ $status }}</span>
                         <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
                     </div>
-                    <div class="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 bg-white min-h-[80vh]">
+                    <div class="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 min-h-[80vh]">
                         @foreach ($boardGrouped[$status] ?? [] as $task)
                             @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                             <div x-data="{ dragging: false, dragStarted: false, moved: false }"
