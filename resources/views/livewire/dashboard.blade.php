@@ -294,10 +294,10 @@
     <script>
         function taskStatusChart(breakdown) {
             const palette = {
-                'Completed': '#102B3C',
-                'For Review': '#F0EFEF',
-                'In Progress': '#205375',
-                'Not Started': '#ED1C24',
+                'Completed': '#16A34A',
+                'For Review': '#F59E0B',
+                'In Progress': '#2563EB',
+                'Not Started': '#EF4444',
             };
 
             return {
@@ -396,6 +396,50 @@
                         }
                     };
 
+                    const percentageLabelPlugin = {
+                        id: 'percentageLabelPlugin',
+                        afterDatasetsDraw: (chart) => {
+                            const meta = chart.getDatasetMeta(0);
+                            if (!meta || !meta.data || !meta.data.length) return;
+
+                            const ctx = chart.ctx;
+                            const dataArr = chart.data?.datasets?.[0]?.data ?? [];
+                            const total = Array.isArray(dataArr)
+                                ? dataArr.reduce((sum, v) => sum + (Number(v) || 0), 0)
+                                : 0;
+                            if (!total) return;
+
+                            ctx.save();
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.font = '600 11px Ubuntu, sans-serif';
+
+                            meta.data.forEach((arc, i) => {
+                                const raw = Number(dataArr[i] || 0);
+                                if (!raw) return;
+
+                                const pct = (raw / total) * 100;
+                                const label = `${Math.round(pct)}%`;
+
+                                const angle = (arc.startAngle + arc.endAngle) / 2;
+                                const radius = this.chartType === 'doughnut'
+                                    ? (arc.innerRadius + arc.outerRadius) / 2
+                                    : arc.outerRadius * 0.62;
+                                const x = arc.x + Math.cos(angle) * radius;
+                                const y = arc.y + Math.sin(angle) * radius;
+
+                                // White text works across dark slices; slight shadow improves readability.
+                                ctx.fillStyle = '#ffffff';
+                                ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                                ctx.shadowBlur = 2;
+                                ctx.fillText(label, x, y);
+                                ctx.shadowBlur = 0;
+                            });
+
+                            ctx.restore();
+                        }
+                    };
+
                     this.chart = new Chart(this.$refs.canvas.getContext('2d'), {
                         type: this.chartType,
                         data: {
@@ -425,7 +469,7 @@
                                 }
                             }
                         },
-                        plugins: [centerTextPlugin]
+                        plugins: [centerTextPlugin, percentageLabelPlugin]
                     });
                     requestAnimationFrame(() => {
                         if (this.chart) this.chart.resize();
