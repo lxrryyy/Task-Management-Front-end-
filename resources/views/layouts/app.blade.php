@@ -260,6 +260,16 @@
                                 style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
                         </div>
                     </a>
+                    <div class="flex flex-col leading-tight">
+                        @php
+                            $headerName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? 'User'));
+                            $specialization = (string) ($navUser['specialization'] ?? ($navUser['Specialization'] ?? ''));
+                        @endphp
+                        <div class="text-sm font-semibold text-white truncate max-w-[220px]">{{ $headerName }}</div>
+                        @if ($specialization !== '')
+                            <div class="text-xs text-base-100 truncate max-w-[220px]">{{ $specialization }}</div>
+                        @endif
+                    </div>
                 </div>
             </div>
 

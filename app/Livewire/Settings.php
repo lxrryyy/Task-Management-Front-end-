@@ -387,6 +387,8 @@ class Settings extends Component
             $user['Name'] = $this->fullName;
             $user['id'] = $this->accountId;
             $user['Id'] = $this->accountId;
+            $user['specialization'] = trim((string) $this->bio);
+            $user['Specialization'] = trim((string) $this->bio);
             Session::put('user', $user);
 
             $this->dispatch(

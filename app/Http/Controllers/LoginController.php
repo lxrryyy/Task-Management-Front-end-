@@ -41,7 +41,13 @@ class LoginController extends Controller
             if ($userId) {
                 try {
                     $profile = $this->api->get('/api/Account/GetAccountById/' . $userId);
-                    $user['specialization'] = $profile['specialization'] ?? null;
+                    $specialization = $profile['specialization']
+                        ?? $profile['Specialization']
+                        ?? $profile['bio']
+                        ?? $profile['Bio']
+                        ?? null;
+                    $user['specialization'] = is_string($specialization) ? trim($specialization) : $specialization;
+                    $user['Specialization'] = $user['specialization'];
                 } catch (\Throwable $e) {
                 }
             }
