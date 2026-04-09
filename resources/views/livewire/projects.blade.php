@@ -69,10 +69,10 @@
                     @if($showAddModal)
                     <dialog id="addProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
-                            <div class="modal-action">
-                                <button type="button" wire:click="closeAddModal" class="btn">X</button>
+                            <div class="flex items-start justify-between mb-2">
+                                <h3 class="font-semibold text-2xl">Add New Project</h3>
+                                <button type="button" wire:click="closeAddModal" class="btn btn-ghost btn-sm btn-circle">✕</button>
                             </div>
-                            <h3 class="font-normal text-lg">New Project</h3>
                             <form method="POST" action="{{ route('projects.store') }}" class="mt-0">
                                 @csrf
                                 @include('livewire.partials.project-form-fields', ['formContext' => 'add'])

@@ -19,37 +19,53 @@
     </div>
 @endif
 
+@php
+    $descriptionContent = $isEdit ? '' : (string) ($descValue ?? '');
+    $creatorIdInt = (int) ($creatorId ?? 0);
+    $scrumMasterIdInt = (int) ($selectedScrumMasterId ?? 0);
+    $effectiveScrumMasterId = $scrumMasterIdInt > 0 ? $scrumMasterIdInt : $creatorIdInt;
+    $showCreatorAsScrumMaster = $isEdit && $creatorIdInt > 0 && $effectiveScrumMasterId === $creatorIdInt;
+    $creatorAccount = null;
+    if ($showCreatorAsScrumMaster) {
+        $creatorAccount = collect($accounts ?? [])->first(
+            fn($a) => (int) ($a['id'] ?? ($a['Id'] ?? 0)) === $creatorIdInt,
+        );
+    }
+    $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
+    $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
+@endphp
+
 <div class="flex flex-col gap-4 my-4">
-    <span>Project Name</span>
-    <input name="name" type="text" placeholder="Type here" class="input input-bordered rounded-lg w-full"
-        @if ($isEdit) wire:model.lazy="formName" @else value="{{ $nameValue }}" @endif
-        required />
+    <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Project Name</span>
+    <input name="name" type="text" placeholder="Type here"
+        class="input input-bordered border-gray-300 focus:border-gray-300 rounded-lg w-full"
+        @if ($isEdit) wire:model.lazy="formName" @else value="{{ $nameValue }}" @endif required />
     @foreach ($errors->get('name') as $msg)
         <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
     @endforeach
 </div>
-@php
-    $descriptionContent = $isEdit ? '' : (string) ($descValue ?? '');
-@endphp
+
 <div class="flex flex-col gap-4 my-4">
-    <span>Description</span>
-    <textarea name="description" class="textarea textarea-bordered rounded-lg w-full" placeholder="Project Description"
+    <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Description</span>
+    <textarea name="description" class="textarea textarea-bordered border-gray-300 focus:border-gray-300 rounded-lg w-full min-h-24"
+        placeholder="{{ $isEdit ? 'Project Description' : 'Description here...' }}"
         @if ($isEdit) wire:model.lazy="formDescription" @endif>{{ $descriptionContent }}</textarea>
 </div>
-<div class="flex flex-row gap-4 my-4">
-    <div class="flex flex-col gap-2 my-4">
-        <span>Start Date</span>
+
+<div class="grid grid-cols-2 gap-4 my-4">
+    <div class="flex flex-col gap-2">
+        <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Start Date</span>
         <input name="startDate" type="date"
-            class="input input-bordered rounded-lg {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
+            class="input input-bordered rounded-lg {{ $errors->has('startDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
             @if ($isEdit) wire:model.lazy="formStartDate" @else value="{{ $startDateValue }}" @endif />
         @foreach ($errors->get('startDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
         @endforeach
     </div>
-    <div class="flex flex-col gap-2 my-4">
-        <span>End Date</span>
+    <div class="flex flex-col gap-2">
+        <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">{{ $isEdit ? 'End Date' : 'Due Date' }}</span>
         <input name="endDate" type="date"
-            class="input input-bordered rounded-lg {{ $errors->has('endDate') ? 'border-red-500' : '' }}"
+            class="input input-bordered rounded-lg {{ $errors->has('endDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
             @if ($isEdit) wire:model.lazy="formEndDate" @else value="{{ $endDateValue }}" @endif />
         @foreach ($errors->get('endDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
@@ -58,89 +74,69 @@
 </div>
 
 <div class="flex flex-col gap-2 my-4">
-    <span>Members</span>
-    @php
-        $creatorIdInt = (int) ($creatorId ?? 0);
-        $scrumMasterIdInt = (int) ($selectedScrumMasterId ?? 0);
-        $effectiveScrumMasterId = $scrumMasterIdInt > 0 ? $scrumMasterIdInt : $creatorIdInt;
-        $showCreatorAsScrumMaster = $isEdit && $creatorIdInt > 0 && $effectiveScrumMasterId === $creatorIdInt;
-        $creatorAccount = null;
-        if ($showCreatorAsScrumMaster) {
-            $creatorAccount = collect($accounts ?? [])->first(
-                fn($a) => (int) ($a['id'] ?? ($a['Id'] ?? 0)) === $creatorIdInt,
-            );
-        }
-    @endphp
-    <div class="dropdown w-full">
-        <div tabindex="0" role="button"
-            class="border flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer bg-base-100">
-            <div class="flex flex-col">
-                <span class="font-medium text-sm">Select members</span>
-                @php
-                    $selectedCount = count((array) ($selectedMemberIds ?? []));
-                @endphp
-                <span class="text-xs text-gray-500">
-                    @if ($selectedCount > 0)
-                        {{ $selectedCount }} selected
-                    @else
-                        Choose one or more members
+    <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Team Members</span>
+    <div class="flex items-center gap-3">
+        @if (!empty($selectedMemberIds))
+            @php
+                $addProfiles = [];
+                foreach ((array) $selectedMemberIds as $sid) {
+                    $sid = (int) $sid;
+                    $acc = collect($accounts ?? [])->first(fn($a) => (int) ($a['id'] ?? ($a['Id'] ?? 0)) === $sid);
+                    if (!$acc) continue;
+                    $name = (string) ($acc['name'] ?? $acc['Name'] ?? 'Unknown');
+                    $parts = preg_split('/\s+/', trim($name));
+                    $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
+                    $initials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
+                    $addProfiles[] = [
+                        'profilePicture' => $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null),
+                        'initials' => $initials ?: '?',
+                        'name' => $name,
+                        'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                        'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                        'role' => 'Member',
+                    ];
+                }
+            @endphp
+            <x-avatar-group :profiles="$addProfiles" :visible="5" overlap-class="-space-x-2" />
+        @endif
+        <div class="dropdown">
+            <button tabindex="0" type="button" class="btn btn-sm border-2 border-dotted border-gray-300 bg-white text-gray-800 p-4 rounded-lg">+ Add Member</button>
+            <ul tabindex="0"
+                class="dropdown-content bg-base-100 rounded-box z-[999] w-[40rem] max-w-[90vw] shadow-lg border mt-1 max-h-60 overflow-y-auto p-1">
+                @forelse(($accounts ?? []) as $account)
+                    @php
+                        $aid = $account['id'] ?? ($account['Id'] ?? null);
+                        $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
+                        $aemail = $account['email'] ?? ($account['Email'] ?? '');
+                        $apic = $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null);
+                        if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
+                            $apic = 'data:image/jpeg;base64,' . $apic;
+                        }
+                        $apart = preg_split('/\s+/', trim((string) $aname));
+                        $ainitials = mb_strtoupper(mb_substr($apart[0] ?? '', 0, 1) . mb_substr($apart[1] ?? '', 0, 1));
+                        $checked = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
+                        $isCreator = $creatorId && (int) $creatorId === (int) $aid;
+                    @endphp
+                    @if ($aid !== null && !$isCreator)
+                        <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
+                            <x-person-option :checked="$checked" :name="$aname" :email="$aemail" :picture="$apic"
+                                initials="{{ $ainitials }}" wire:click="toggleMember({{ (int) $aid }})" />
+                        </li>
                     @endif
-                </span>
-            </div>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
+                @empty
+                    <li class="px-3 py-2 text-sm text-gray-400">No accounts loaded.</li>
+                @endforelse
+            </ul>
         </div>
-        <ul tabindex="0"
-            class="dropdown-content bg-base-100 rounded-box z-[999] w-full shadow-lg border mt-1 max-h-60 overflow-y-auto">
-            @if ($showCreatorAsScrumMaster && is_array($creatorAccount))
-                @php
-                    $cname = $creatorAccount['name'] ?? ($creatorAccount['Name'] ?? 'Project Manager');
-                    $cemail = $creatorAccount['email'] ?? ($creatorAccount['Email'] ?? '');
-                @endphp
-                <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-creator-sm-{{ $creatorIdInt }}">
-                    <x-person-option :checked="true" :name="((string) $cname) . ' (Scrum Master)'" :email="$cemail" :picture="$creatorAccount['profilePicture'] ?? ($creatorAccount['ProfilePicture'] ?? null)"
-                        :initials="mb_strtoupper(mb_substr($cname, 0, 1))" disabled class="opacity-75 cursor-not-allowed pointer-events-none" />
-                </li>
-            @endif
-            @forelse(($accounts ?? []) as $account)
-                @php
-                    $aid = $account['id'] ?? ($account['Id'] ?? null);
-                    $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
-                    $aemail = $account['email'] ?? ($account['Email'] ?? '');
-                    $apic = $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null);
-                    if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
-                        $apic = 'data:image/jpeg;base64,' . $apic;
-                    }
-                    $apart = preg_split('/\s+/', trim((string) $aname));
-                    $ainitials = mb_strtoupper(mb_substr($apart[0] ?? '', 0, 1) . mb_substr($apart[1] ?? '', 0, 1));
-                    $checked = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
-                    $isCreator = $creatorId && (int) $creatorId === (int) $aid;
-                @endphp
-                @if ($aid !== null && !$isCreator)
-                    <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
-                        <x-person-option :checked="$checked" :name="$aname" :email="$aemail" :picture="$apic"
-                            initials="{{ $ainitials }}" wire:click="toggleMember({{ (int) $aid }})" />
-                    </li>
-                @endif
-            @empty
-                <li class="px-3 py-2 text-sm text-gray-400">No accounts loaded.</li>
-            @endforelse
-        </ul>
     </div>
     @foreach ($errors->get('memberIds') as $msg)
         <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
     @endforeach
-    @php
-        $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
-        $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
-    @endphp
+
     @if ($isEdit)
-        {{-- Current selection as JSON so "Yes, Update" can sync into form before submit (fixes removed members not persisting) --}}
         <div id="edit-form-member-ids-data" data-member-ids="{{ json_encode($hiddenIds) }}" class="hidden"
             aria-hidden="true"></div>
     @endif
-    {{-- wire:key changes whenever selectedMemberIds changes, forcing Livewire to fully replace this div --}}
     <div wire:key="{{ $hiddenKey }}" id="{{ $isEdit ? 'edit-form-member-ids-inputs' : '' }}">
         @foreach ($hiddenIds as $id)
             <input type="hidden" name="memberIds[]" value="{{ $id }}" />
@@ -152,11 +148,11 @@
     @endif
 </div>
 
-<div class="overflow-x-auto">
-    <table class="table">
+<div class="overflow-x-auto border-t border-gray-200 pt-2">
+    <table class="table table-sm">
         <thead>
             <tr>
-                <th>Name</th>
+                <th>Members</th>
                 <th>Email</th>
                 <th>Position</th>
                 <th>Action</th>
@@ -178,9 +174,28 @@
                     @php
                         $cname = $creatorAccount['name'] ?? ($creatorAccount['Name'] ?? 'Project Manager');
                         $cemail = $creatorAccount['email'] ?? ($creatorAccount['Email'] ?? '');
+                        $cPic = $creatorAccount['profilePicture'] ?? ($creatorAccount['ProfilePicture'] ?? null);
+                        if ($cPic && !str_starts_with($cPic, 'http') && !str_starts_with($cPic, 'data:')) {
+                            $cPic = 'data:image/jpeg;base64,' . $cPic;
+                        }
+                        $cParts = preg_split('/\s+/', trim((string) $cname));
+                        $cInitials = mb_strtoupper(mb_substr($cParts[0] ?? '', 0, 1) . mb_substr($cParts[1] ?? '', 0, 1));
                     @endphp
                     <tr wire:key="{{ $ctx }}-member-row-creator-sm-{{ $creatorIdInt }}">
-                        <td><span>{{ $cname }}</span></td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <div class="avatar">
+                                    <div class="w-6 h-6 rounded-full overflow-hidden bg-neutral text-neutral-content flex items-center justify-center">
+                                        @if ($cPic)
+                                            <img src="{{ $cPic }}" alt="{{ $cname }}" class="w-full h-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
+                                        @else
+                                            <span class="text-[10px] font-semibold">{{ $cInitials ?: '?' }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <span>{{ $cname }}</span>
+                            </div>
+                        </td>
                         <td><span>{{ $cemail }}</span></td>
                         <td>
                             <select class="select h-9 select-bordered select-sm w-full max-w-xs" disabled>
@@ -199,6 +214,12 @@
                         }
                         $name = $acc['name'] ?? ($acc['Name'] ?? 'Unknown');
                         $email = $acc['email'] ?? ($acc['Email'] ?? '');
+                        $pic = $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null);
+                        if ($pic && !str_starts_with($pic, 'http') && !str_starts_with($pic, 'data:')) {
+                            $pic = 'data:image/jpeg;base64,' . $pic;
+                        }
+                        $parts = preg_split('/\s+/', trim((string) $name));
+                        $initials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
                         $pos = $memberRoles[$memberId] ?? 'Member';
                         // Only one Scrum Master among table members:
                         // disable "Scrum Master" only if SOME OTHER non-creator member is already Scrum Master.
@@ -209,7 +230,20 @@
                             $scrumMasterIdInt !== $memberId;
                     @endphp
                     <tr wire:key="{{ $ctx }}-member-row-{{ $memberId }}">
-                        <td><span>{{ $name }}</span></td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <div class="avatar">
+                                    <div class="w-6 h-6 rounded-full overflow-hidden bg-neutral text-neutral-content flex items-center justify-center">
+                                        @if ($pic)
+                                            <img src="{{ $pic }}" alt="{{ $name }}" class="w-full h-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
+                                        @else
+                                            <span class="text-[10px] font-semibold">{{ $initials ?: '?' }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <span>{{ $name }}</span>
+                            </div>
+                        </td>
                         <td><span>{{ $email }}</span></td>
                         <td>
                             <select class="select h-9 select-bordered select-sm w-full max-w-xs"
