@@ -318,7 +318,7 @@
 
     {{-- Task detail modal --}}
     <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box w-11/12 max-w-3xl overflow-y-auto rounded-2xl shadow-xl">
+        <div class="modal-box w-11/12 max-w-3xl max-h-[90vh] overflow-visible rounded-2xl shadow-xl">
             <div class="flex items-start justify-between gap-4 mb-6">
                 <div class="flex-1 min-w-0">
                     @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
@@ -730,9 +730,9 @@
         </form>
     </dialog>
 
-    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto overflow-y-auto h-[500px] relative"
+    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative"
         data-tasks-table-scroll>
-        <table class="table w-full table-fixed border-collapse">
+        <table class="table w-full table-fixed border-collapse h-[80vh]">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
                 <col class="w-10"><!-- checkbox -->

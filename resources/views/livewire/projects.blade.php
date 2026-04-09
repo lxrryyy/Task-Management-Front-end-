@@ -226,7 +226,7 @@
         </div>
     </div>
 
-    <div class="overflow-x-auto overflow-y-auto" style="height: 60vh;">
+    <div class="overflow-x-auto overflow-y-auto" style="height: 80vh;">
         <table class="table">
             <!-- head -->
             <thead>
