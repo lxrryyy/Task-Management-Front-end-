@@ -17,7 +17,7 @@
     <dialog class="{{ $showAddUserModal ? 'modal modal-open' : 'modal' }}">
         <div class="modal-box overflow-y-auto" style="max-height: 90vh; width: min(90vw, 1100px); max-width: 1100px;">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold">Add user</h3>
+                <h3 class="text-lg font-medium">Add user</h3>
                 <button type="button" class="btn btn-ghost btn-sm btn-circle" wire:click="closeAddUserModal">✕</button>
             </div>
             <hr>
@@ -113,9 +113,9 @@
 
     {{-- Edit User Modal --}}
     <dialog class="{{ $showEditUserModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box overflow-y-auto" style="width: min(90vw, 600px); max-width: 600px;">
+        <div class="modal-box overflow-y-auto" style="width: min(90vw, 980px); max-width: 980px;">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold">Edit User</h3>
+                <h3 class="text-lg font-medium">Edit User</h3>
                 <button type="button" class="btn btn-ghost btn-sm btn-circle"
                     wire:click="closeEditUserModal">✕</button>
             </div>
@@ -128,31 +128,60 @@
             @endif
 
             <div class="flex flex-col gap-4 mt-4">
-                <div class="flex flex-col">
-                    <label>Name</label>
-                    <input type="text" wire:model.defer="editName" class="input input-bordered rounded-lg w-full" />
+                <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
+                    <div class="avatar">
+                        <div class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium">
+                            @php
+                                $ef = trim((string) ($editFirstName ?? ''));
+                                $el = trim((string) ($editLastName ?? ''));
+                                $initials = mb_strtoupper(mb_substr($ef, 0, 1) . mb_substr($el, 0, 1));
+                            @endphp
+                            {{ $initials !== '' ? $initials : '?' }}
+                        </div>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">{{ trim(($editFirstName ?? '') . ' ' . ($editLastName ?? '')) ?: 'User' }}</p>
+                        <p class="text-xs text-gray-500">{{ $editEmail ?: '—' }}</p>
+                    </div>
                 </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">First Name</label>
+                        <input type="text" wire:model.defer="editFirstName" class="input input-bordered rounded-none h-9 w-full" />
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">Last Name</label>
+                        <input type="text" wire:model.defer="editLastName" class="input input-bordered rounded-none h-9 w-full" />
+                    </div>
+                </div>
+
                 <div class="flex flex-col">
                     <label>Email</label>
                     <input type="text" value="{{ $editEmail }}"
-                        class="input input-bordered rounded-lg w-full bg-gray-100" disabled />
-                    <span class="text-xs text-gray-500">Email cannot be changed</span>
+                        class="input input-bordered rounded-none h-9 w-full bg-gray-100" disabled />
                 </div>
-                <div class="flex flex-col">
-                    <label>Bio/Specialization (Optional)</label>
-                    <input type="text" wire:model.defer="editSpecialization"
-                        class="input input-bordered rounded-lg w-full" />
+                <hr class="border-gray-200">
+
+                <div class="grid grid-cols-[1fr_auto] gap-4 items-end">
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">Bio / Specialization (optional)</label>
+                        <input type="text" wire:model.defer="editSpecialization"
+                            class="input input-bordered rounded-none h-9 w-full" />
+                    </div>
+                    <label class="inline-flex items-center gap-2 mb-1">
+                        <span class="text-base font-medium text-gray-800">Active</span>
+                        <input type="checkbox" wire:model.defer="editIsActive" class="checkbox checkbox-sm rounded-none" />
+                    </label>
                 </div>
+
                 <div class="flex flex-col">
-                    <label>Role</label>
-                    <select wire:model.defer="editRole" class="select select-bordered rounded-lg w-full">
+                    <label class="text-xs font-medium">Role</label>
+                    <select wire:model.defer="editRole" class="select select-bordered rounded-none h-9 w-full">
+                        <option value="">...</option>
                         <option value="User">User</option>
                         <option value="Admin">Admin</option>
                     </select>
-                </div>
-                <div class="flex items-center gap-3">
-                    <label>Active</label>
-                    <input type="checkbox" wire:model.defer="editIsActive" class="toggle toggle-sm" />
                 </div>
             </div>
 
@@ -298,30 +327,73 @@
 
     {{-- User detail modal --}}
     <dialog class="{{ $showUserDetailModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box w-11/12 max-w-2xl overflow-y-auto">
-            <div class="flex items-start justify-between gap-4 mb-4">
-                <h3 class="text-lg font-bold">
-                    {{ $selectedUser['name'] ?? 'User' }}
-                </h3>
+        <div class="modal-box overflow-y-auto" style="width: min(90vw, 980px); max-width: 980px;">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium">User Details</h3>
                 <button type="button" class="btn btn-ghost btn-sm btn-circle"
                     wire:click="closeUserDetail">✕</button>
             </div>
+            <hr>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div><span class="text-gray-500">Email</span>
-                    <div class="font-medium">{{ $selectedUser['email'] ?? '—' }}</div>
+            @php
+                $detailName = (string) ($selectedUser['name'] ?? '');
+                $parts = preg_split('/\s+/', trim($detailName));
+                $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
+                $detailFirst = (string) ($parts[0] ?? '');
+                $detailLast = (string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '');
+                $detailInitials = mb_strtoupper(mb_substr($detailFirst, 0, 1) . mb_substr($detailLast, 0, 1));
+                $detailStatus = (bool) ($selectedUser['isActive'] ?? false);
+            @endphp
+
+            <div class="flex flex-col gap-4 mt-4">
+                <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
+                    <div class="avatar">
+                        <div class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium">
+                            {{ $detailInitials !== '' ? $detailInitials : '?' }}
+                        </div>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">{{ $selectedUser['name'] ?? 'User' }}</p>
+                        <p class="text-xs text-gray-500">{{ $selectedUser['email'] ?? '—' }}</p>
+                    </div>
                 </div>
-                <div><span class="text-gray-500">Specialization</span>
-                    <div class="font-medium">{{ $selectedUser['specialization'] ?? '—' }}</div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">First Name</label>
+                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                            value="{{ $detailFirst ?: '—' }}" readonly />
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">Last Name</label>
+                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                            value="{{ $detailLast ?: '—' }}" readonly />
+                    </div>
                 </div>
-                <div><span class="text-gray-500">Projects</span>
-                    <div class="font-medium">{{ (int) ($selectedUser['projectsCount'] ?? 0) }}</div>
+
+                <div class="flex flex-col">
+                    <label>Email</label>
+                    <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                        value="{{ $selectedUser['email'] ?? '—' }}" readonly />
                 </div>
-                <div><span class="text-gray-500">Tasks</span>
-                    <div class="font-medium">{{ (int) ($selectedUser['tasksCount'] ?? 0) }}</div>
+                <hr class="border-gray-200">
+
+                <div class="grid grid-cols-[1fr_auto] gap-4 items-end">
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium">Bio / Specialization (optional)</label>
+                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                            value="{{ ($selectedUser['specialization'] ?? '—') === '—' ? '' : ($selectedUser['specialization'] ?? '') }}" readonly />
+                    </div>
+                    <label class="inline-flex items-center gap-2 mb-1">
+                        <span class="text-base font-medium text-gray-800">Active</span>
+                        <input type="checkbox" class="checkbox checkbox-sm rounded-none" {{ $detailStatus ? 'checked' : '' }} disabled />
+                    </label>
                 </div>
-                <div class="sm:col-span-2"><span class="text-gray-500">Status</span>
-                    <div class="font-medium">{{ $selectedUser['status'] ?? '—' }}</div>
+
+                <div class="flex flex-col">
+                    <label class="text-xs font-medium">Role</label>
+                    <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                        value="{{ $selectedUser['status'] ?? '—' }}" readonly />
                 </div>
             </div>
 

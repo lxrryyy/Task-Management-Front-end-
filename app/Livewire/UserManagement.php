@@ -55,6 +55,10 @@ class UserManagement extends Component
 
     public string $editName = '';
 
+    public string $editFirstName = '';
+
+    public string $editLastName = '';
+
     public string $editEmail = '';
 
     public string $editSpecialization = '';
@@ -430,6 +434,10 @@ class UserManagement extends Component
 
         $this->editUserId = $userId;
         $this->editName = $user['name'] === '—' ? '' : $user['name'];
+        $parts = preg_split('/\s+/', trim($this->editName));
+        $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+        $this->editFirstName = (string) ($parts[0] ?? '');
+        $this->editLastName = (string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '');
         $this->editEmail = $user['email'] === '—' ? '' : $user['email'];
         $this->editSpecialization = $user['specialization'] === '—' ? '' : $user['specialization'];
         $this->editRole = $user['raw']['role'] ?? $user['raw']['Role'] ?? 'User';
@@ -444,6 +452,8 @@ class UserManagement extends Component
         $this->showEditUserModal = false;
         $this->editUserId = 0;
         $this->editName = '';
+        $this->editFirstName = '';
+        $this->editLastName = '';
         $this->editEmail = '';
         $this->editSpecialization = '';
         $this->editRole = 'User';
@@ -457,8 +467,11 @@ class UserManagement extends Component
         $this->editUserError = null;
         $this->editUserSuccess = null;
 
-        if (trim($this->editName) === '') {
-            $this->editUserError = 'Name is required.';
+        $first = trim($this->editFirstName);
+        $last = trim($this->editLastName);
+        $fullName = trim($first.' '.$last);
+        if ($fullName === '') {
+            $this->editUserError = 'First name and last name are required.';
 
             return;
         }
@@ -468,7 +481,7 @@ class UserManagement extends Component
             $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
             $payload = [
-                'name' => trim($this->editName),
+                'name' => $fullName,
                 'role' => $this->editRole,
                 'isActive' => $this->editIsActive,
                 'specialization' => trim($this->editSpecialization) ?: null,
