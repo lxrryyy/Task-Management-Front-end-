@@ -363,7 +363,7 @@
                         'Urgent' => 'background:#fee2e2;color:#ef4444;',
                         'Important' => 'background:#fce7f3;color:#ec4899;',
                         'Medium' => 'background:#dbeafe;color:#3b82f6;',
-                        'Low' => 'background:#f3f4f6;color:#6b7280;',
+                        'Low' => 'background:#e5e7eb;color:#374151;',
                         default => 'background:#f3f4f6;color:#6b7280;',
                     };
                     $dStoryPoints = $t['storyPoints'] ?? ($t['storyPoint'] ?? null);
@@ -879,7 +879,7 @@
                             'Urgent' => 'background:#fee2e2;color:#ef4444;',
                             'Important' => 'background:#fce7f3;color:#ec4899;',
                             'Medium' => 'background:#dbeafe;color:#3b82f6;',
-                            'Low' => 'background:#f3f4f6;color:#6b7280;',
+                            'Low' => 'background:#e5e7eb;color:#374151;',
                             default => 'background:#f3f4f6;color:#6b7280;',
                         };
 
@@ -1452,7 +1452,7 @@
             'Urgent' => 'background:#fee2e2;color:#ef4444;',
             'Important' => 'background:#fce7f3;color:#ec4899;',
             'Medium' => 'background:#dbeafe;color:#3b82f6;',
-            'Low' => 'background:#f3f4f6;color:#6b7280;',
+            'Low' => 'background:#e5e7eb;color:#374151;',
         ];
     @endphp
     <div
