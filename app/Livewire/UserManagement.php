@@ -175,7 +175,8 @@ class UserManagement extends Component
                 'email' => $email,
                 'password' => $tempPassword,
                 'passwordHash' => $tempPassword,
-                'specialization' => $spec,
+                // Backend may expect this key to exist even when optional.
+                'specialization' => $spec ?? '',
                 'role' => 'User',
                 'isActive' => true,
             ];

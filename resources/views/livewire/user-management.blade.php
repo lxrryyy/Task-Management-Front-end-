@@ -32,7 +32,10 @@
     {{-- Add User Modal --}}
     <dialog class="{{ $showAddUserModal ? 'modal modal-open' : 'modal' }}">
         <div class="modal-box overflow-y-auto" style="max-height: 90vh; width: min(90vw, 1100px); max-width: 1100px;">
-            <h3 class="text-lg font-bold">Add user</h3>
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Add user</h3>
+                <button type="button" class="btn btn-ghost btn-sm btn-circle" wire:click="closeAddUserModal">✕</button>
+            </div>
             <hr>
             <div class="flex flex-col gap-4">
                 <div class="flex flex-row gap-4">
