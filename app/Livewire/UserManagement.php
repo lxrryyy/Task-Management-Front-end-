@@ -73,6 +73,22 @@ class UserManagement extends Component
 
     public bool $loading = true;
 
+    protected array $rules = [
+        'newFirstName' => ['required', 'string', 'max:100'],
+        'newLastName' => ['required', 'string', 'max:100'],
+        'newEmail' => ['required', 'email', 'max:255'],
+        'newTemporaryPassword' => ['required', 'string', 'min:8'],
+        'newSpecialization' => ['nullable', 'string', 'max:255'],
+    ];
+
+    protected array $validationAttributes = [
+        'newFirstName' => 'first name',
+        'newLastName' => 'last name',
+        'newEmail' => 'email',
+        'newTemporaryPassword' => 'temporary password',
+        'newSpecialization' => 'bio/specialization',
+    ];
+
     public function mount(): void
     {
         $this->loading = true;
@@ -89,6 +105,7 @@ class UserManagement extends Component
     {
         $this->createAccountError = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
 
         $this->showAddUserModal = true;
     }
@@ -104,6 +121,7 @@ class UserManagement extends Component
         $this->newRole = 'User';
         $this->createAccountError = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
     }
 
     public function generateTemporaryPassword(): void
@@ -142,20 +160,22 @@ class UserManagement extends Component
         $this->createAccountError = null;
         $this->createAccountSuccess = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
 
-        $first = trim($this->newFirstName);
-        $last = trim($this->newLastName);
-        $email = trim($this->newEmail);
-        $tempPassword = trim($this->newTemporaryPassword);
-        $spec = trim($this->newSpecialization) !== '' ? trim($this->newSpecialization) : null;
+        $this->newFirstName = trim($this->newFirstName);
+        $this->newLastName = trim($this->newLastName);
+        $this->newEmail = trim($this->newEmail);
+        $this->newTemporaryPassword = trim($this->newTemporaryPassword);
+        $this->newSpecialization = trim($this->newSpecialization);
+
+        $validated = $this->validate();
+
+        $first = trim((string) ($validated['newFirstName'] ?? ''));
+        $last = trim((string) ($validated['newLastName'] ?? ''));
+        $email = trim((string) ($validated['newEmail'] ?? ''));
+        $tempPassword = trim((string) ($validated['newTemporaryPassword'] ?? ''));
+        $spec = trim((string) ($validated['newSpecialization'] ?? '')) !== '' ? trim((string) ($validated['newSpecialization'] ?? '')) : null;
         $fullName = trim($first.' '.$last);
-
-        if ($fullName === '' || $email === '' || $tempPassword === '') {
-            $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
-            $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
-
-            return;
-        }
 
         $this->creatingAccount = true;
         try {

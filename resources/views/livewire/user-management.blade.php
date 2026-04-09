@@ -7,22 +7,6 @@
 
     {{-- API session role debug removed --}}
 
-    @if ($createAccountError)
-        <div class="alert alert-error text-sm flex items-center gap-2 py-2 px-4 rounded-lg m-4">
-            <span>{{ $createAccountError }}</span>
-        </div>
-    @endif
-
-    @if (!empty($createAccountErrors))
-        <div class="alert alert-error text-sm m-4">
-            <ul class="list-disc list-inside mt-2 px-1">
-                @foreach ($createAccountErrors as $msg)
-                    <li>{{ $msg }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     @if ($createAccountSuccess)
         <div class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg m-4">
             <span>{{ $createAccountSuccess }}</span>
@@ -43,15 +27,24 @@
                         <label>First Name</label>
                         <input type="text" wire:model="newFirstName"
                             class="input input-bordered rounded-lg w-full" />
+                        @error('newFirstName')
+                            <span class="text-xs text-red-600 mt-1">{{ $message }}</span>
+                        @enderror
                     </div>
                     <div class="flex flex-1 flex-col">
                         <label>Last Name</label>
                         <input type="text" wire:model="newLastName" class="input input-bordered rounded-lg w-full" />
+                        @error('newLastName')
+                            <span class="text-xs text-red-600 mt-1">{{ $message }}</span>
+                        @enderror
                     </div>
                 </div>
                 <div class="flex flex-1 flex-col">
                     <label>Email</label>
                     <input type="text" wire:model="newEmail" class="input input-bordered rounded-lg w-full" />
+                    @error('newEmail')
+                        <span class="text-xs text-red-600 mt-1">{{ $message }}</span>
+                    @enderror
                 </div>
                 <div class="flex flex-row justify-center items-center gap-4">
                     <div class="flex flex-1 flex-col">
@@ -80,6 +73,9 @@
                                 @endif
                             </button>
                         </div>
+                        @error('newTemporaryPassword')
+                            <span class="text-xs text-red-600 mt-1">{{ $message }}</span>
+                        @enderror
                         <label class="text-xs">A welcome email with login credentials will be sent automatically</label>
                     </div>
                     <div class="flex flex-col justify-center items-center mt-2">
@@ -95,6 +91,9 @@
                     <label>Bio/Specialization (Optional)</label>
                     <input type="text" wire:model="newSpecialization"
                         class="input input-bordered rounded-lg w-full" />
+                    @error('newSpecialization')
+                        <span class="text-xs text-red-600 mt-1">{{ $message }}</span>
+                    @enderror
                 </div>
                 <hr>
                 <div class="flex justify-end">
