@@ -68,6 +68,23 @@ class NotificationController extends Controller
         }
     }
 
+    /** PUT /notifications/{id}/unread */
+    public function markUnread(int $id): JsonResponse
+    {
+        if ($id <= 0) {
+            return response()->json(['message' => 'Invalid id.'], 422);
+        }
+
+        try {
+            $data = $this->api->put("/api/Notification/{$id}/unread", []);
+            return response()->json(is_array($data) ? $data : ['message' => 'Notification marked as unread.']);
+        } catch (RequestException) {
+            return response()->json(['message' => 'Failed to mark unread.'], 200);
+        } catch (\Throwable) {
+            return response()->json(['message' => 'Failed to mark unread.'], 200);
+        }
+    }
+
     /** PUT /notifications/read-all */
     public function markAllRead(Request $request): JsonResponse
     {

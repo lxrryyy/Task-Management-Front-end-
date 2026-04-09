@@ -201,10 +201,11 @@
                                                 <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
                                             </div>
                                             <div class="flex items-center gap-2 shrink-0">
-                                                <span x-show="!n.isRead"
-                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
-                                                    Unread
-                                                </span>
+                                                <button type="button"
+                                                    class="text-xs text-blue-600 hover:underline"
+                                                    @click.stop="if (n.isRead) { (async () => { try { await fetch(`/notifications/${n.id}/unread`, { method: 'PUT', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' }, credentials: 'same-origin' }); n.isRead = false; unreadCount = Math.max(0, items.filter((x) => !x.isRead).length); } catch (e) {} })(); } else { markRead(n); }"
+                                                    x-text="n.isRead ? 'Unread' : 'Read'">
+                                                </button>
                                                 <button type="button" class="text-xs text-red-600 hover:text-red-700"
                                                     @click.stop="remove(n)">
                                                     Delete
