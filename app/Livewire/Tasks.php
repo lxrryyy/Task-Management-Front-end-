@@ -273,8 +273,10 @@ class Tasks extends Component
             );
             $this->newComment = '';
             $this->loadTaskComments($taskId);
+            $this->dispatch('app-toast', type: 'success', message: 'Comment added successfully.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->commentError = 'Failed to add comment.';
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
         }
     }
 
@@ -315,8 +317,10 @@ class Tasks extends Component
             $this->editingCommentId = null;
             $this->editingCommentContent = '';
             $this->loadTaskComments($taskId);
+            $this->dispatch('app-toast', type: 'success', message: 'Comment updated successfully.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->commentError = 'Failed to update comment.';
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
         }
     }
 
@@ -336,8 +340,10 @@ class Tasks extends Component
                 $this->editingCommentContent = '';
             }
             $this->loadTaskComments($taskId);
+            $this->dispatch('app-toast', type: 'success', message: 'Comment deleted successfully.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->commentError = 'Failed to delete comment.';
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
         }
     }
 

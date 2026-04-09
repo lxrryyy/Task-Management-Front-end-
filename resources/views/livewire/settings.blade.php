@@ -128,7 +128,7 @@
                     <span>Bio/Specialization</span>
                     <input type="text" class="w-full rounded-lg border border-gray-300 px-3 py-2 mt-1"
                         wire:model.defer="bio">
-                    <span>Shows under your name</span>
+                    <span class="text-xs text-gray-500">Shows under your name</span>
                 </div>
                 <div class="flex flex-col flex-1 mt-2 gap-4">
                     <span>Email:</span>

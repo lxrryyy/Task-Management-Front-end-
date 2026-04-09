@@ -313,6 +313,27 @@
     <script>
         document.addEventListener('livewire:load', () => {
             if (typeof Livewire === 'undefined') return;
+            const toastContainer = document.getElementById('toast-container');
+            const showToast = (payload = {}) => {
+                if (!toastContainer) return;
+                const type = (payload?.type || 'success').toString().toLowerCase();
+                const message = (payload?.message || '').toString().trim();
+                const timeout = Number(payload?.timeout || 2000);
+                if (!message) return;
+
+                const toast = document.createElement('div');
+                const tone = type === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-green-200 bg-green-50 text-green-700';
+                toast.className = `pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow ${tone}`;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+
+                window.setTimeout(() => {
+                    toast.remove();
+                }, timeout > 0 ? timeout : 2000);
+            };
+
             Livewire.on('avatar-updated', (payload) => {
                 const wrap = document.getElementById('header-avatar');
                 const img = document.getElementById('header-avatar-img');
@@ -338,6 +359,7 @@
 
                 if (payload?.initials) span.textContent = payload.initials;
             });
+            Livewire.on('app-toast', showToast);
         });
     </script>
 </body>

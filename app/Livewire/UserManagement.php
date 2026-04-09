@@ -152,6 +152,7 @@ class UserManagement extends Component
 
         if ($fullName === '' || $email === '' || $tempPassword === '') {
             $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
+            $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
 
             return;
         }
@@ -164,6 +165,7 @@ class UserManagement extends Component
             if ($adminId <= 0) {
                 $this->creatingAccount = false;
                 $this->createAccountError = 'Admin ID is required. Please log out and log in again as an admin.';
+                $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
 
                 return;
             }
@@ -181,6 +183,7 @@ class UserManagement extends Component
             app(CsharpApiService::class)->post('/api/Account/CreateAccount?adminid='.$adminId, $payload);
 
             $this->createAccountSuccess = 'User created successfully.';
+            $this->dispatch('app-toast', type: 'success', message: $this->createAccountSuccess, timeout: 2000);
             $this->creatingAccount = false;
             $this->reloadUsersFromApi();
             $this->closeAddUserModal();
@@ -198,9 +201,12 @@ class UserManagement extends Component
             }
             $this->createAccountErrors = array_values(array_unique($flat));
             $this->createAccountError = ! empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
+            $msg = !empty($this->createAccountErrors) ? implode(' ', $this->createAccountErrors) : ((string) $this->createAccountError);
+            $this->dispatch('app-toast', type: 'error', message: $msg !== '' ? $msg : 'Failed to create user. Please try again.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->creatingAccount = false;
             $this->createAccountError = $e->getMessage() ?: 'Failed to create user. Please try again.';
+            $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
         }
     }
 

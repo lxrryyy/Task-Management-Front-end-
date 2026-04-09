@@ -95,8 +95,13 @@
                 </div>
                 <hr>
                 <div class="flex justify-end">
-                    <button type="button" class="btn clr-bg-primary text-base-100 p-4" wire:click="createAccount">
-                        Add User
+                    <button type="button" class="btn clr-bg-primary text-base-100 p-4" wire:click="createAccount"
+                        wire:target="createAccount" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="createAccount">Add User</span>
+                        <span wire:loading wire:target="createAccount" class="inline-flex items-center gap-2">
+                            <span class="loading loading-spinner loading-xs"></span>
+                            Adding...
+                        </span>
                     </button>
                 </div>
             </div>

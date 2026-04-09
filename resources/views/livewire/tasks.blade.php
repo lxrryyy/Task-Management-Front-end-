@@ -501,7 +501,15 @@
                             </div>
                             <div class="flex justify-end">
                                 <button type="button" wire:click="addComment"
-                                    class="btn clr-bg-primary text-base-100 px-4">Send</button>
+                                    wire:target="addComment" wire:loading.attr="disabled"
+                                    class="btn clr-bg-primary text-base-100 px-4">
+                                    <span wire:loading.remove wire:target="addComment">Send</span>
+                                    <span wire:loading wire:target="addComment"
+                                        class="inline-flex items-center gap-2">
+                                        <span class="loading loading-spinner loading-xs"></span>
+                                        Sending...
+                                    </span>
+                                </button>
                             </div>
                         </div>
 
@@ -535,7 +543,14 @@
                                                 @endif
                                                 <button type="button"
                                                     wire:click="deleteComment({{ (int) ($cmt['id'] ?? 0) }})"
-                                                    class="text-xs text-red-600 hover:underline">Delete</button>
+                                                    wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="text-xs text-red-600 hover:underline">
+                                                    <span wire:loading.remove
+                                                        wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})">Delete</span>
+                                                    <span wire:loading
+                                                        wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})">Deleting...</span>
+                                                </button>
                                             </div>
                                         @endif
                                     </div>
@@ -546,7 +561,14 @@
                                             <div class="flex flex-col gap-1">
                                                 <button type="button"
                                                     wire:click="updateComment({{ (int) ($cmt['id'] ?? 0) }})"
-                                                    class="btn btn-xs clr-bg-primary text-base-100">Save</button>
+                                                    wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="btn btn-xs clr-bg-primary text-base-100">
+                                                    <span wire:loading.remove
+                                                        wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})">Save</span>
+                                                    <span wire:loading
+                                                        wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})">Saving...</span>
+                                                </button>
                                                 <button type="button" wire:click="cancelEditComment"
                                                     class="btn btn-xs">Cancel</button>
                                             </div>
