@@ -315,6 +315,12 @@
                             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
                         @endforeach
 
+                        <div class="mt-2 hidden items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900"
+                            data-due-calc-hint>
+                            <span class="loading loading-spinner loading-xs"></span>
+                            <span>Auto-computing due date...</span>
+                        </div>
+
                         <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 hidden"
                             data-overload-warnings>
                             <p class="font-semibold mb-1">Task created with warnings:</p>
@@ -637,6 +643,13 @@
                 box.classList.toggle('hidden', msgs.length === 0);
             }
 
+            function setDueCalcState(form, isCalculating) {
+                const hint = form?.querySelector('[data-due-calc-hint]');
+                if (!hint) return;
+                hint.classList.toggle('hidden', !isCalculating);
+                hint.classList.toggle('flex', isCalculating);
+            }
+
             async function recalcDueAndWarnings(form) {
                 if (!form) return;
                 const startInput = form.querySelector('input[name="startDate"]');
@@ -652,10 +665,12 @@
                     dueInput.min = '';
                     dueInput.max = '';
                     setOverloadWarnings(form, []);
+                    setDueCalcState(form, false);
                     return;
                 }
 
                 try {
+                    setDueCalcState(form, true);
                     // Use the full datetime-local value so the API can calculate correctly.
                     const startDateParam = toDateTimeLocal(start);
                     const aid = assignees?.value ? String(assignees.value) : '';
@@ -686,6 +701,8 @@
                     setOverloadWarnings(form, data?.warnings || []);
                 } catch {
                     // ignore
+                } finally {
+                    setDueCalcState(form, false);
                 }
             }
 
