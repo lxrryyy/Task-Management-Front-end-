@@ -101,20 +101,20 @@
     @endforeach
 </div>
 
-<div class="grid grid-cols-2 gap-4 my-4">
-    <div class="flex flex-col gap-2">
+<div class="flex flex-row w-full gap-4 my-4">
+    <div class="flex flex-col gap-2 flex-1">
         <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Start Date</span>
         <input name="startDate" type="date"
-            class="input input-bordered rounded-lg {{ $errors->has('startDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
+            class="input input-bordered rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
             @if ($isEdit) wire:model.lazy="formStartDate" @else value="{{ $startDateValue }}" @endif />
         @foreach ($errors->get('startDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
         @endforeach
     </div>
-    <div class="flex flex-col gap-2">
+    <div class="flex flex-col gap-2 flex-1">
         <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">{{ $isEdit ? 'End Date' : 'Due Date' }}</span>
         <input name="endDate" type="date"
-            class="input input-bordered rounded-lg {{ $errors->has('endDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
+            class="input input-bordered rounded-lg w-full {{ $errors->has('endDate') ? 'border-red-500' : 'border-gray-300 focus:border-gray-300' }}"
             @if ($isEdit) wire:model.lazy="formEndDate" @else value="{{ $endDateValue }}" @endif />
         @foreach ($errors->get('endDate') as $msg)
             <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
