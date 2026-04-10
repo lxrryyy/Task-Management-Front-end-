@@ -49,6 +49,9 @@ class Tasks extends Component
 
     public ?int $taskParentId = null;
 
+    /** Synced from rich-text editor (Alpine) via Livewire.set; required for name="description". */
+    public string $description = '';
+
     /** Persist overload warnings across Livewire re-renders */
     public array $taskWarnings = [];
 
@@ -559,6 +562,7 @@ class Tasks extends Component
     public function openAddTaskModal(): void
     {
         $this->taskParentId = null;
+        $this->description = '';
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }
@@ -567,12 +571,14 @@ class Tasks extends Component
     {
         $this->showAddTaskModal = false;
         $this->taskParentId = null;
+        $this->description = '';
         $this->taskWarnings = [];
     }
 
     public function addSubtask(int $parentTaskId): void
     {
         $this->taskParentId = $parentTaskId;
+        $this->description = '';
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }

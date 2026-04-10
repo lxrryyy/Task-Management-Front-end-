@@ -306,7 +306,7 @@
                 </div>
 
                 {{-- Description --}}
-                <div class="flex flex-col gap-1 wire:ignore">
+                <div wire:ignore class="flex flex-col gap-1">
                     <label class="font-medium text-sm">Description</label>
                     <x-rich-text-editor name="description" :value="old('description', '')" placeholder="Task description" />
                 </div>
@@ -735,13 +735,13 @@
         </form>
     </dialog>
 
-    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative"
+    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative overflow-y-auto"
         data-tasks-table-scroll>
-        <table class="table w-full table-fixed border-collapse h-[80vh]">
+        <table class="table w-full table-fixed border-collapse">
             <colgroup>
-                <col class="w-8"><!-- expand/collapse -->
-                <col class="w-10"><!-- checkbox -->
-                <col><!-- Task Name (flex) -->
+                <col class="w-8"><!-- logical col 1 of 3 (tree cell uses colspan) -->
+                <col class="w-10">
+                <col><!-- Task name / flex remainder -->
                 <col class="w-1/5"><!-- Assignee -->
                 <col class="w-36"><!-- Due Date -->
                 <col style="width: 8rem; max-width: 8rem;"><!-- Story Point -->
@@ -751,9 +751,7 @@
             </colgroup>
             <thead>
                 <tr class="bg-base-200">
-                    <th class="sticky top-0 z-10 bg-base-200 !font-normal"></th>
-                    <th class="sticky top-0 z-10 bg-base-200 !font-normal pr-4"></th>
-                    <th class="sticky top-0 z-10 bg-base-200 !font-normal pl-0">Task Name</th>
+                    <th colspan="3" class="sticky top-0 z-10 bg-base-200 !font-normal pl-0 text-left">Task Name</th>
                     <th class="sticky top-0 z-10 bg-base-200 !font-normal">Assignee</th>
                     <th class="sticky top-0 z-10 bg-base-200 !font-normal">Due Date</th>
                     <th class="sticky top-0 z-10 bg-base-200 !font-normal">Story Point</th>
@@ -907,10 +905,12 @@
                 @if ($loading)
                     @foreach (range(1, 6) as $i)
                         <tr>
-                            <td></td>
-                            <td></td>
-                            <td>
-                                <div class="h-4 bg-gray-200 rounded animate-pulse w-40"></div>
+                            <td colspan="3" class="py-2 pr-2">
+                                <div class="flex items-center gap-2 pl-0">
+                                    <div class="h-6 w-6 shrink-0 rounded bg-gray-200 animate-pulse"></div>
+                                    <div class="h-5 w-5 shrink-0 rounded bg-gray-200 animate-pulse"></div>
+                                    <div class="h-4 flex-1 max-w-xs rounded bg-gray-200 animate-pulse"></div>
+                                </div>
                             </td>
                             <td>
                                 <div class="h-6 w-6 bg-gray-200 rounded-full animate-pulse"></div>
@@ -939,28 +939,32 @@
                             $hasChildren = !empty($children);
                             $isExpanded = $parentId !== null && ($expanded[$parentId] ?? false);
                         @endphp
-                        <!-- Parent task -->
+                        <!-- Parent task (depth 0) -->
                         <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">
-                            <td wire:click.stop>
-                                @if ($parentId !== null)
-                                    <button type="button"
-                                        class="btn btn-ghost btn-xs p-0 w-6 h-6 flex items-center justify-center"
-                                        wire:click.stop="toggle({{ $parentId }})"
-                                        title="{{ $isExpanded ? 'Collapse' : 'Expand' }}">
-                                        <svg class="w-3.5 h-3.5 text-gray-500"
-                                            style="transition:transform 200ms ease;transform:rotate({{ $isExpanded ? '0' : '-90' }}deg);"
-                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </button>
-                                @endif
-                            </td>
-                            <td wire:click.stop class="pr-4">
-                                <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
-                            </td>
-                            <td class="pl-0">
-                                <span class="font-normal">{{ $p['taskName'] }}</span>
+                            <td colspan="3" class="py-2 pr-2 align-middle">
+                                <div class="flex min-w-0 items-center gap-2 pl-0">
+                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
+                                        @if ($parentId !== null)
+                                            <button type="button"
+                                                class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
+                                                wire:click.stop="toggle({{ $parentId }})"
+                                                title="{{ $isExpanded ? 'Collapse' : 'Expand' }}">
+                                                <svg class="h-3.5 w-3.5 text-gray-500"
+                                                    style="transition:transform 200ms ease;transform:rotate({{ $isExpanded ? '0' : '-90' }}deg);"
+                                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        @endif
+                                    </div>
+                                    <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                        <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <span class="font-normal">{{ $p['taskName'] }}</span>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 @php
@@ -1056,29 +1060,33 @@
                                     $childHasChildren = !empty($grandChildren);
                                     $childExpanded = $childId !== null && ($expanded[$childId] ?? false);
                                 @endphp
-                                <!-- Subtask row -->
+                                <!-- Subtask row (depth 1) -->
                                 <tr class="hover:bg-gray-50 cursor-pointer"
                                     wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
-                                    <td wire:click.stop class="pl-8">
-                                        @if ($childId !== null)
-                                            <button type="button"
-                                                class="btn btn-ghost btn-xs p-0 w-6 h-6 flex items-center justify-center ml-4"
-                                                wire:click.stop="toggle({{ $childId }})"
-                                                title="{{ $childExpanded ? 'Collapse' : 'Expand' }}">
-                                                <svg class="w-3.5 h-3.5 text-gray-400"
-                                                    style="transition:transform 200ms ease;transform:rotate({{ $childExpanded ? '0' : '-90' }}deg);"
-                                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                    </td>
-                                    <td wire:click.stop class="pl-10 pr-4">
-                                        <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
-                                    </td>
-                                    <td class="pl-10">
-                                        <span class="font-normal">{{ $c['taskName'] }}</span>
+                                    <td colspan="3" class="py-2 pr-2 align-middle">
+                                        <div class="flex min-w-0 items-center gap-2 pl-5">
+                                            <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
+                                                @if ($childId !== null)
+                                                    <button type="button"
+                                                        class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
+                                                        wire:click.stop="toggle({{ $childId }})"
+                                                        title="{{ $childExpanded ? 'Collapse' : 'Expand' }}">
+                                                        <svg class="h-3.5 w-3.5 text-gray-400"
+                                                            style="transition:transform 200ms ease;transform:rotate({{ $childExpanded ? '0' : '-90' }}deg);"
+                                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                            <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                                <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <span class="font-normal">{{ $c['taskName'] }}</span>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td>
                                         @php
@@ -1179,29 +1187,33 @@
                                             $greatGrandChildren = $gcId !== null ? ($byParent[$gcId] ?? []) : [];
                                             $gcExpanded = $gcId !== null && ($expanded[$gcId] ?? false);
                                         @endphp
-                                        <!-- Grandchild task rows -->
+                                        <!-- Grandchild task rows (depth 2) -->
                                         <tr class="hover:bg-gray-50 cursor-pointer"
                                             wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
-                                            <td wire:click.stop class="pl-16">
-                                                @if ($gcId !== null)
-                                                    <button type="button"
-                                                        class="btn btn-ghost btn-xs p-0 w-6 h-6 flex items-center justify-center ml-6"
-                                                        wire:click.stop="toggle({{ $gcId }})"
-                                                        title="{{ $gcExpanded ? 'Collapse' : 'Expand' }}">
-                                                        <svg class="w-3.5 h-3.5 text-gray-400"
-                                                            style="transition:transform 200ms ease;transform:rotate({{ $gcExpanded ? '0' : '-90' }}deg);"
-                                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    </button>
-                                                @endif
-                                            </td>
-                                            <td wire:click.stop class="pl-16 pr-4">
-                                                <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
-                                            </td>
-                                            <td class="pl-16">
-                                                <span class="font-normal">{{ $g['taskName'] }}</span>
+                                            <td colspan="3" class="py-2 pr-2 align-middle">
+                                                <div class="flex min-w-0 items-center gap-2 pl-10">
+                                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
+                                                        @if ($gcId !== null)
+                                                            <button type="button"
+                                                                class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
+                                                                wire:click.stop="toggle({{ $gcId }})"
+                                                                title="{{ $gcExpanded ? 'Collapse' : 'Expand' }}">
+                                                                <svg class="h-3.5 w-3.5 text-gray-400"
+                                                                    style="transition:transform 200ms ease;transform:rotate({{ $gcExpanded ? '0' : '-90' }}deg);"
+                                                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                                        stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </button>
+                                                        @endif
+                                                    </div>
+                                                    <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                                        <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
+                                                    </div>
+                                                    <div class="min-w-0 flex-1">
+                                                        <span class="font-normal">{{ $g['taskName'] }}</span>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td>
                                                 @php
@@ -1297,15 +1309,21 @@
                                         @if ($gcExpanded && $gcId !== null)
                                             @foreach ($greatGrandChildren as $ggc)
                                                 @php $gg = $fmt($ggc); @endphp
-                                                <!-- Great-grandchild task rows -->
+                                                {{-- Depth 3: use pl-16 (not arbitrary pl-[3.75rem]) so build purge keeps extra indent vs pl-10 grandchild --}}
+                                                <!-- Great-grandchild task rows (depth 3; chevron slot kept empty) -->
                                                 <tr class="hover:bg-gray-50 cursor-pointer"
                                                     wire:click="openTaskDetail({{ $gg['id'] ?? 0 }})">
-                                                    <td wire:click.stop class="pl-14"></td>
-                                                    <td wire:click.stop class="pl-20 pr-4">
-                                                        <x-checkbox :task-id="$gg['id'] ?? 0" :initial-status="$gg['status'] ?? ''" />
-                                                    </td>
-                                                    <td class="pl-20">
-                                                        <span class="font-normal">{{ $gg['taskName'] }}</span>
+                                                    <td colspan="3" class="py-2 pr-2 align-middle">
+                                                        <div class="flex min-w-0 items-center gap-2 pl-16">
+                                                            <div class="flex h-6 w-6 shrink-0 items-center justify-center"
+                                                                aria-hidden="true"></div>
+                                                            <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                                                <x-checkbox :task-id="$gg['id'] ?? 0" :initial-status="$gg['status'] ?? ''" />
+                                                            </div>
+                                                            <div class="min-w-0 flex-1">
+                                                                <span class="font-normal">{{ $gg['taskName'] }}</span>
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                     <td>
                                                         @php
@@ -1401,10 +1419,11 @@
                                             @endforeach
                                             <tr class="hover:bg-blue-50 cursor-pointer"
                                                 wire:click="addSubtask({{ $gcId }})">
-                                                <td></td>
-                                                <td></td>
-                                                <td style="padding-left: 6rem !important;">
-                                                    <span class="text-sm clr-primary font-medium">+ Add subtask</span>
+                                                <td colspan="3" class="py-2 pr-2 align-middle">
+                                                    <div class="flex min-w-0 items-center gap-2 pl-16">
+                                                        <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
+                                                        <span class="text-sm font-medium clr-primary">+ Add subtask</span>
+                                                    </div>
                                                 </td>
                                                 <td colspan="6"></td>
                                             </tr>
@@ -1413,10 +1432,11 @@
                                     {{-- Always show "+ Add subtask" at the bottom of expanded subtask --}}
                                     <tr class="hover:bg-blue-50 cursor-pointer"
                                         wire:click="addSubtask({{ $childId }})">
-                                        <td></td>
-                                        <td></td>
-                                        <td style="padding-left: 4rem !important;">
-                                            <span class="text-sm clr-primary font-medium">+ Add subtask</span>
+                                        <td colspan="3" class="py-2 pr-2 align-middle">
+                                            <div class="flex min-w-0 items-center gap-2 pl-10">
+                                                <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
+                                                <span class="text-sm font-medium clr-primary">+ Add subtask</span>
+                                            </div>
                                         </td>
                                         <td colspan="6"></td>
                                     </tr>
@@ -1425,10 +1445,11 @@
                             {{-- Always show "+ Add subtask" at the bottom of expanded parent --}}
                             <tr class="hover:bg-blue-50 cursor-pointer"
                                 wire:click="addSubtask({{ $parentId }})">
-                                <td></td>
-                                <td></td>
-                                <td style="padding-left: 2.5rem !important;">
-                                    <span class="text-sm clr-primary font-medium">+ Add subtask</span>
+                                <td colspan="3" class="py-2 pr-2 align-middle">
+                                    <div class="flex min-w-0 items-center gap-2 pl-5">
+                                        <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
+                                        <span class="text-sm font-medium clr-primary">+ Add subtask</span>
+                                    </div>
                                 </td>
                                 <td colspan="6"></td>
                             </tr>
