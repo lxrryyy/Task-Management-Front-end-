@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Services\CsharpApiService;
+use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -179,7 +180,7 @@ class Tasks extends Component
         $byId = [];
         $parentById = [];
         foreach ($this->tasks as $t) {
-            if (!is_array($t)) {
+            if (! is_array($t)) {
                 continue;
             }
             $id = (int) ($t['id'] ?? $t['Id'] ?? 0);
@@ -194,7 +195,7 @@ class Tasks extends Component
         $seen = [];
         $cur = $taskId;
         $guard = 0;
-        while ($cur > 0 && $guard < 25 && isset($byId[$cur]) && !isset($seen[$cur])) {
+        while ($cur > 0 && $guard < 25 && isset($byId[$cur]) && ! isset($seen[$cur])) {
             $seen[$cur] = true;
             $chain[] = $byId[$cur];
             $pidRaw = $parentById[$cur] ?? null;
@@ -866,7 +867,7 @@ class Tasks extends Component
                 'initials' => $initials,
                 'name' => $name,
                 'email' => (string) ($account['email'] ?? $account['Email'] ?? ''),
-                'specialization' => (string) ($account['specialization'] ?? $account['Specialization'] ?? ''),
+                'specialization' => AccountPresentation::displaySpecialization($account),
                 'role' => (string) ($account['role'] ?? $account['Role'] ?? ''),
             ];
         }

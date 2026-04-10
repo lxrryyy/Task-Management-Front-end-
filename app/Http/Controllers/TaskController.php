@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AccountListEnrichment;
 use App\Services\CsharpApiService;
+use Carbon\Carbon;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,10 +20,10 @@ class TaskController extends Controller
         $user = Session::get('user', []);
         $accountId = $user['id'] ?? $user['Id'] ?? null;
 
-        if (!$accountId) {
+        if (! $accountId) {
             return view('tasks', [
                 'projectId' => $projectId,
-                'tasks'     => [],
+                'tasks' => [],
             ]);
         }
 
@@ -87,15 +89,19 @@ class TaskController extends Controller
 
             // Keep only accounts that belong to this project
             $accounts = $this->projectMemberAccounts($project ?? [], $allAccounts);
+            $accounts = app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing(
+                $project ? [$project] : [],
+                $accounts
+            );
         } catch (\Exception $e) {
             $accounts = [];
         }
 
         return view('tasks', [
             'projectId' => $projectId,
-            'project'   => $project ?? null,
-            'tasks'     => $tasks,
-            'accounts'  => $accounts,
+            'project' => $project ?? null,
+            'tasks' => $tasks,
+            'accounts' => $accounts,
         ]);
     }
 
@@ -108,16 +114,17 @@ class TaskController extends Controller
         try {
             $list = $this->api->get('/api/Task/GetAllTasksStatuses');
 
-            $map   = [];
+            $map = [];
             $names = [];
             foreach ((array) $list as $s) {
-                $id   = $s['id']   ?? null;
+                $id = $s['id'] ?? null;
                 $name = $s['name'] ?? null;
                 if ($id !== null && $name !== null) {
                     $map[$name] = (int) $id;
-                    $names[]    = $name;
+                    $names[] = $name;
                 }
             }
+
             return ['map' => $map, 'names' => $names];
         } catch (\Throwable) {
             return ['map' => [], 'names' => []];
@@ -142,45 +149,46 @@ class TaskController extends Controller
                 ?? $raw['results'] ?? $raw['Results']
                 ?? $raw;
 
-            if (!is_array($list)) {
+            if (! is_array($list)) {
                 $list = [];
             }
 
             // If $list is associative (object-style), it might be a single item — wrap it
-            if (!empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
+            if (! empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
                 $list = [$list];
             }
 
-            $map   = [];
+            $map = [];
             $names = [];
             $items = [];
             foreach ($list as $p) {
-                if (!is_array($p)) {
+                if (! is_array($p)) {
                     continue;
                 }
-                $id   = $p['id'] ?? $p['Id'] ?? $p['priorityId'] ?? $p['PriorityId'] ?? null;
+                $id = $p['id'] ?? $p['Id'] ?? $p['priorityId'] ?? $p['PriorityId'] ?? null;
                 $name = $p['name'] ?? $p['Name'] ?? $p['priorityName'] ?? $p['PriorityName'] ?? null;
                 if ($id !== null && $name !== null) {
-                    $id   = (int) $id;
+                    $id = (int) $id;
                     $name = (string) trim($name);
                     if ($name !== '') {
-                        $map[$name]   = $id;
-                        $names[]      = $name;
-                        $items[]      = ['id' => $id, 'name' => $name];
+                        $map[$name] = $id;
+                        $names[] = $name;
+                        $items[] = ['id' => $id, 'name' => $name];
                     }
                 }
             }
 
             return ['map' => $map, 'names' => $names, 'items' => $items];
         } catch (\Throwable $e) {
-            Log::warning('GetAllTasksPriorities failed', ['message' => $e->getMessage(), 'url' => config('services.csharp_api.url') . '/api/Task/GetAllTasksPriorities']);
+            Log::warning('GetAllTasksPriorities failed', ['message' => $e->getMessage(), 'url' => config('services.csharp_api.url').'/api/Task/GetAllTasksPriorities']);
+
             return ['map' => [], 'names' => [], 'items' => []];
         }
     }
 
     public function updateStatus(int $projectId, int $taskId, int $statusId): void
     {
-        $user        = Session::get('user', []);
+        $user = Session::get('user', []);
         $requesterId = $user['id'] ?? $user['Id'] ?? null;
 
         $this->api->patch(
@@ -196,18 +204,22 @@ class TaskController extends Controller
     public function calculateDueDate(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'startDate'   => 'required|date',
+            'startDate' => 'required|date',
             'storyPoints' => 'required|integer|min:0',
             'assigneeIds' => 'nullable|string',
-            'projectId'   => 'nullable|integer|min:1',
+            'projectId' => 'nullable|integer|min:1',
         ]);
 
         $params = [
-            'startDate'   => $data['startDate'],
+            'startDate' => $data['startDate'],
             'storyPoints' => $data['storyPoints'],
         ];
-        if (!empty($data['assigneeIds'])) $params['assigneeIds'] = $data['assigneeIds'];
-        if (!empty($data['projectId']))  $params['projectId']  = (int) $data['projectId'];
+        if (! empty($data['assigneeIds'])) {
+            $params['assigneeIds'] = $data['assigneeIds'];
+        }
+        if (! empty($data['projectId'])) {
+            $params['projectId'] = (int) $data['projectId'];
+        }
 
         // New API shape:
         // { projectedStartDate, projectedDueDate, storyPoints, warnings: [{message,...}] }
@@ -228,7 +240,7 @@ class TaskController extends Controller
             : [];
         $warningMessages = [];
         foreach ((array) $warningsRaw as $w) {
-            if (is_array($w) && !empty($w['message'])) {
+            if (is_array($w) && ! empty($w['message'])) {
                 $warningMessages[] = (string) $w['message'];
             } elseif (is_string($w) && trim($w) !== '') {
                 $warningMessages[] = trim($w);
@@ -240,22 +252,27 @@ class TaskController extends Controller
 
     public function store(int $projectId, Request $request)
     {
-        $user      = Session::get('user', []);
+        $user = Session::get('user', []);
         $creatorId = $user['id'] ?? $user['Id'] ?? null;
 
         $request->validate([
-            'name'        => 'required|string|max:255',
-            'priorityId'  => 'required|integer|min:1',
+            'name' => 'required|string|max:255',
+            'priorityId' => 'required|integer|min:1',
             'assigneeIds' => 'nullable|string',
         ], [
             'priorityId.required' => 'Please select a priority.',
-            'priorityId.min'       => 'Please select a valid priority.',
+            'priorityId.min' => 'Please select a valid priority.',
         ]);
 
         $toDate = static function (mixed $v): ?string {
-            if (!$v) return null;
-            try { return \Carbon\Carbon::parse($v)->format('Y-m-d\TH:i:s.v\Z'); }
-            catch (\Throwable) { return null; }
+            if (! $v) {
+                return null;
+            }
+            try {
+                return Carbon::parse($v)->format('Y-m-d\TH:i:s.v\Z');
+            } catch (\Throwable) {
+                return null;
+            }
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
@@ -267,20 +284,26 @@ class TaskController extends Controller
         $priorityId = $request->integer('priorityId');
 
         $payload = [
-            'title'        => $request->input('name'),
-            'description'  => $request->input('description') ?? '',
-            'priorityId'   => $priorityId,
-            'storyPoints'  => $request->integer('storyPoints') ?: 0,
-            'projectId'    => $projectId,
+            'title' => $request->input('name'),
+            'description' => $request->input('description') ?? '',
+            'priorityId' => $priorityId,
+            'storyPoints' => $request->integer('storyPoints') ?: 0,
+            'projectId' => $projectId,
             'parentTaskId' => $parentTaskId,
-            'startDate'    => $toDate($request->input('startDate')),
-            'dueDate'      => $toDate($request->input('dueDate')) ?: null,
-            'assigneeIds'  => $assigneeIds,
+            'startDate' => $toDate($request->input('startDate')),
+            'dueDate' => $toDate($request->input('dueDate')) ?: null,
+            'assigneeIds' => $assigneeIds,
         ];
 
-        if ($payload['startDate'] === null)    unset($payload['startDate']);
-        if ($payload['dueDate']   === null)    unset($payload['dueDate']);
-        if ($payload['parentTaskId'] === null) unset($payload['parentTaskId']);
+        if ($payload['startDate'] === null) {
+            unset($payload['startDate']);
+        }
+        if ($payload['dueDate'] === null) {
+            unset($payload['dueDate']);
+        }
+        if ($payload['parentTaskId'] === null) {
+            unset($payload['parentTaskId']);
+        }
 
         try {
             // ✅ CHANGED: capture result to extract warnings
@@ -290,7 +313,7 @@ class TaskController extends Controller
             $warnings = $result['warnings'] ?? [];
             $warningMessages = [];
             foreach ($warnings as $w) {
-                if (!empty($w['message'])) {
+                if (! empty($w['message'])) {
                     $warningMessages[] = $w['message'];
                 }
             }
@@ -310,8 +333,8 @@ class TaskController extends Controller
 
         } catch (RequestException $e) {
             $response = $e->response;
-            $status   = $response?->status();
-            $body     = $response?->body();
+            $status = $response?->status();
+            $body = $response?->body();
 
             $fieldErrors = $this->api->extractFieldErrors($response);
 
@@ -319,21 +342,26 @@ class TaskController extends Controller
             $fieldErrors = array_map(function ($msgs) {
                 $clean = [];
                 foreach ((array) $msgs as $m) {
-                    if (!is_string($m)) continue;
+                    if (! is_string($m)) {
+                        continue;
+                    }
                     $t = trim($m);
-                    if ($t === '' || $t === '0') continue;
+                    if ($t === '' || $t === '0') {
+                        continue;
+                    }
                     $clean[] = $t;
                 }
+
                 return array_values(array_unique($clean));
             }, $fieldErrors);
-            $fieldErrors = array_filter($fieldErrors, fn ($msgs) => !empty($msgs));
+            $fieldErrors = array_filter($fieldErrors, fn ($msgs) => ! empty($msgs));
 
             Log::warning('Task create failed', [
                 'projectId' => $projectId,
-                'status'    => $status,
-                'body'      => is_string($body) ? mb_substr($body, 0, 5000) : null,
-                'payload'   => $payload,
-                'errors'    => $fieldErrors,
+                'status' => $status,
+                'body' => is_string($body) ? mb_substr($body, 0, 5000) : null,
+                'payload' => $payload,
+                'errors' => $fieldErrors,
             ]);
 
             if (empty($fieldErrors) && $creatorId) {
@@ -347,12 +375,14 @@ class TaskController extends Controller
                         : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
 
                     $needleTitle = mb_strtolower(trim((string) ($payload['title'] ?? '')));
-                    $needlePrio  = (int) ($payload['priorityId'] ?? 0);
+                    $needlePrio = (int) ($payload['priorityId'] ?? 0);
 
                     foreach ((array) $allTasks as $t) {
-                        if (!is_array($t)) continue;
+                        if (! is_array($t)) {
+                            continue;
+                        }
                         $tTitle = mb_strtolower(trim((string) ($t['title'] ?? $t['name'] ?? '')));
-                        $tPrio  = (int) ($t['priorityId'] ?? $t['PriorityId'] ?? 0);
+                        $tPrio = (int) ($t['priorityId'] ?? $t['PriorityId'] ?? 0);
 
                         if ($needleTitle !== '' && $tTitle === $needleTitle && ($needlePrio === 0 || $tPrio === $needlePrio)) {
                             return redirect()->route('projects.tasks', $projectId)
@@ -366,6 +396,7 @@ class TaskController extends Controller
 
             if (empty($fieldErrors)) {
                 $hint = $status ? " (HTTP {$status})" : '';
+
                 return back()->withInput()->withErrors([
                     'api_error' => ["Failed to create task{$hint}. Please try again."],
                 ]);
@@ -375,6 +406,7 @@ class TaskController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Task create exception', ['message' => $e->getMessage()]);
+
             return back()->withInput()->withErrors(['api_error' => ['Failed to create task. Please try again.']]);
         }
     }
@@ -411,11 +443,15 @@ class TaskController extends Controller
             if ($creatorId > 0) {
                 $accounts = array_values(array_filter($accounts, static function ($a) use ($creatorId) {
                     $aid = (int) ($a['id'] ?? $a['Id'] ?? 0);
+
                     return $aid !== $creatorId;
                 }));
             }
 
-            return $accounts;
+            return app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing(
+                $projArr !== [] ? [$projArr] : [],
+                $accounts
+            );
         } catch (\Throwable) {
             return [];
         }
@@ -436,33 +472,35 @@ class TaskController extends Controller
         $memberIds = [];
 
         foreach (['projectManagerId', 'createdById', 'createdBy'] as $key) {
-            if (!empty($project[$key])) {
+            if (! empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
                 break;
             }
         }
 
         foreach (['scrumMasterId', 'ScrumMasterId'] as $key) {
-            if (!empty($project[$key])) {
+            if (! empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
                 break;
             }
         }
 
         foreach (['memberIds', 'MemberIds', 'assigneeIds'] as $key) {
-            if (!empty($project[$key]) && is_array($project[$key])) {
+            if (! empty($project[$key]) && is_array($project[$key])) {
                 foreach ($project[$key] as $mid) {
-                    if ($mid) $memberIds[(int) $mid] = true;
+                    if ($mid) {
+                        $memberIds[(int) $mid] = true;
+                    }
                 }
                 break;
             }
         }
 
         $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
-        if (!empty($memberNames) && is_array($memberNames)) {
+        if (! empty($memberNames) && is_array($memberNames)) {
             $normalised = array_map('mb_strtolower', array_map('trim', $memberNames));
             foreach ($allAccounts as $account) {
-                $aid   = $account['id']   ?? $account['Id']   ?? null;
+                $aid = $account['id'] ?? $account['Id'] ?? null;
                 $aname = mb_strtolower(trim($account['name'] ?? $account['Name'] ?? ''));
                 if ($aid && in_array($aname, $normalised, true)) {
                     $memberIds[(int) $aid] = true;
@@ -476,6 +514,6 @@ class TaskController extends Controller
 
         return array_values(
             array_filter($allAccounts, fn ($a) => isset($memberIds[(int) ($a['id'] ?? $a['Id'] ?? 0)])
-        ));
+            ));
     }
 }

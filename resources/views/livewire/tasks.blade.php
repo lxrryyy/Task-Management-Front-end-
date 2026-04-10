@@ -135,6 +135,39 @@
                     $oldAssigneeIds = is_array($rawOld)
                         ? array_map('intval', $rawOld)
                         : array_filter(array_map('intval', array_filter(explode(',', (string) ($rawOld ?? '')))));
+                    $resolveAccountBioSpec = function (array $account): array {
+                        $bio = '';
+                        foreach (['bio', 'Bio', 'about', 'About', 'summary', 'Summary'] as $key) {
+                            $raw = $account[$key] ?? null;
+                            if ($raw === null || $raw === '') {
+                                continue;
+                            }
+                            $t = trim((string) $raw);
+                            if ($t !== '') {
+                                $bio = $t;
+                                break;
+                            }
+                        }
+                        $spec = '';
+                        foreach (
+                            [
+                                'specialization', 'Specialization', 'specialisations', 'Specialisations',
+                                'jobTitle', 'JobTitle', 'position', 'Position',
+                                'title', 'Title', 'department', 'Department',
+                            ] as $key
+                        ) {
+                            $raw = $account[$key] ?? null;
+                            if ($raw === null || $raw === '') {
+                                continue;
+                            }
+                            $t = trim((string) $raw);
+                            if ($t !== '') {
+                                $spec = $t;
+                                break;
+                            }
+                        }
+                        return [$bio, $spec];
+                    };
                 @endphp
                 <div class="flex flex-col gap-2" x-data="{
                     selectedIds: {{ json_encode($oldAssigneeIds) }},
@@ -175,15 +208,12 @@
                                     $ainitials = mb_strtoupper(
                                         mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
                                     );
-                                    $aspec = trim((string) (
-                                        $account['specialization'] ?? $account['Specialization']
-                                        ?? $account['bio'] ?? $account['Bio'] ?? ''
-                                    ));
+                                    [$abio, $aspec] = $resolveAccountBioSpec($account);
                                 @endphp
                                 @if ($aid !== null)
                                     <li class="px-2 py-1">
                                         <x-person-option name="{{ $aname }}" :email="$aemail" :picture="$apic"
-                                            :specialization="$aspec" initials="{{ $ainitials }}"
+                                            :bio="$abio" :specialization="$aspec" initials="{{ $ainitials }}"
                                             @click="toggle({{ (int) $aid }})">
                                             <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">

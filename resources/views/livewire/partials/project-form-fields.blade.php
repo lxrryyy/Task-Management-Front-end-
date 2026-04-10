@@ -33,6 +33,46 @@
     }
     $hiddenIds = array_values(array_map('intval', (array) ($selectedMemberIds ?? [])));
     $hiddenKey = $ctx . '-hidden-' . implode('-', $hiddenIds ?: ['empty']);
+
+    $resolveAccountBioSpec = function (array $account): array {
+        $bio = '';
+        foreach (['bio', 'Bio', 'about', 'About', 'summary', 'Summary'] as $key) {
+            $raw = $account[$key] ?? null;
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+            $t = trim((string) $raw);
+            if ($t !== '') {
+                $bio = $t;
+                break;
+            }
+        }
+        $spec = '';
+        foreach (
+            [
+                'specialization', 'Specialization', 'specialisations', 'Specialisations',
+                'jobTitle', 'JobTitle', 'position', 'Position',
+                'title', 'Title', 'department', 'Department',
+            ] as $key
+        ) {
+            $raw = $account[$key] ?? null;
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+            $t = trim((string) $raw);
+            if ($t !== '') {
+                $spec = $t;
+                break;
+            }
+        }
+        return [$bio, $spec];
+    };
+    $mergeBioSpecLine = function (string $bio, string $spec): string {
+        if ($bio !== '' && $spec !== '' && $bio !== $spec) {
+            return $bio . ' · ' . $spec;
+        }
+        return $bio !== '' ? $bio : $spec;
+    };
 @endphp
 
 <div class="flex flex-col gap-4 my-4">
@@ -96,12 +136,13 @@
                     $parts = preg_split('/\s+/', trim($name));
                     $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
                     $initials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
+                    [$pBio, $pSpec] = $resolveAccountBioSpec($acc);
                     $addProfiles[] = [
                         'profilePicture' => $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null),
                         'initials' => $initials ?: '?',
                         'name' => $name,
                         'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
-                        'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                        'specialization' => $mergeBioSpecLine($pBio, $pSpec),
                         'role' => 'Member',
                     ];
                 }
@@ -123,17 +164,14 @@
                         }
                         $apart = preg_split('/\s+/', trim((string) $aname));
                         $ainitials = mb_strtoupper(mb_substr($apart[0] ?? '', 0, 1) . mb_substr($apart[1] ?? '', 0, 1));
-                        $aspec = trim((string) (
-                            $account['specialization'] ?? $account['Specialization']
-                            ?? $account['bio'] ?? $account['Bio'] ?? ''
-                        ));
+                        [$abio, $aspec] = $resolveAccountBioSpec($account);
                         $checked = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
                         $isCreator = $creatorId && (int) $creatorId === (int) $aid;
                     @endphp
                     @if ($aid !== null && !$isCreator)
                         <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
                             <x-person-option :checked="$checked" :name="$aname" :email="$aemail" :picture="$apic"
-                                :specialization="$aspec" initials="{{ $ainitials }}"
+                                :bio="$abio" :specialization="$aspec" initials="{{ $ainitials }}"
                                 wire:click="toggleMember({{ (int) $aid }})" />
                         </li>
                     @endif
@@ -194,6 +232,8 @@
                         }
                         $cParts = preg_split('/\s+/', trim((string) $cname));
                         $cInitials = mb_strtoupper(mb_substr($cParts[0] ?? '', 0, 1) . mb_substr($cParts[1] ?? '', 0, 1));
+                        [$cbio, $cspec] = $resolveAccountBioSpec($creatorAccount);
+                        $csub = $mergeBioSpecLine($cbio, $cspec);
                     @endphp
                     <tr wire:key="{{ $ctx }}-member-row-creator-sm-{{ $creatorIdInt }}">
                         <td>
@@ -207,7 +247,12 @@
                                         @endif
                                     </div>
                                 </div>
-                                <span>{{ $cname }}</span>
+                                <div class="flex flex-col min-w-0">
+                                    <span>{{ $cname }}</span>
+                                    @if ($csub !== '')
+                                        <span class="text-xs text-gray-500 truncate">{{ $csub }}</span>
+                                    @endif
+                                </div>
                             </div>
                         </td>
                         <td><span>{{ $cemail }}</span></td>
@@ -242,6 +287,8 @@
                             $scrumMasterIdInt > 0 &&
                             $scrumMasterIdInt !== $creatorIdInt &&
                             $scrumMasterIdInt !== $memberId;
+                        [$mbio, $mspec] = $resolveAccountBioSpec($acc);
+                        $msub = $mergeBioSpecLine($mbio, $mspec);
                     @endphp
                     <tr wire:key="{{ $ctx }}-member-row-{{ $memberId }}">
                         <td>
@@ -255,7 +302,12 @@
                                         @endif
                                     </div>
                                 </div>
-                                <span>{{ $name }}</span>
+                                <div class="flex flex-col min-w-0">
+                                    <span>{{ $name }}</span>
+                                    @if ($msub !== '')
+                                        <span class="text-xs text-gray-500 truncate">{{ $msub }}</span>
+                                    @endif
+                                </div>
                             </div>
                         </td>
                         <td><span>{{ $email }}</span></td>

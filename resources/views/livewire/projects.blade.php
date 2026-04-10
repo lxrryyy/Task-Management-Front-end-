@@ -331,7 +331,7 @@
                     'initials' => $initials ?: '?',
                     'name' => $memberName,
                     'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
-                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'specialization' => \App\Support\AccountPresentation::displaySpecialization($acc),
                     'role' => $aid === $pmId ? 'Project Manager' : ($aid === $smId ? 'Scrum Master' : 'Member'),
                 ];
                 }
@@ -375,8 +375,8 @@
                     'profilePicture' => $pp,
                     'initials' => $initials ?: '?',
                     'name' => $mn,
-                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
-                    'specialization' => (string) ($acc['specialization'] ?? $acc['Specialization'] ?? ''),
+                    'email' => (string) ($acc ? ($acc['email'] ?? $acc['Email'] ?? '') : ''),
+                    'specialization' => $acc ? \App\Support\AccountPresentation::displaySpecialization($acc) : '',
                     'role' => 'Member',
                 ];
                 }
