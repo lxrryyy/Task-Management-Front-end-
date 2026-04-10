@@ -201,10 +201,11 @@
                                                 <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
                                             </div>
                                             <div class="flex items-center gap-2 shrink-0">
-                                                <span x-show="!n.isRead"
-                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
-                                                    Unread
-                                                </span>
+                                                <button type="button"
+                                                    class="text-xs text-blue-600 hover:underline"
+                                                    @click.stop="if (n.isRead) { (async () => { try { await fetch(`/notifications/${n.id}/unread`, { method: 'PUT', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' }, credentials: 'same-origin' }); n.isRead = false; unreadCount = Math.max(0, items.filter((x) => !x.isRead).length); } catch (e) {} })(); } else { markRead(n); }"
+                                                    x-text="n.isRead ? 'Unread' : 'Read'">
+                                                </button>
                                                 <button type="button" class="text-xs text-red-600 hover:text-red-700"
                                                     @click.stop="remove(n)">
                                                     Delete
@@ -313,6 +314,27 @@
     <script>
         document.addEventListener('livewire:load', () => {
             if (typeof Livewire === 'undefined') return;
+            const toastContainer = document.getElementById('toast-container');
+            const showToast = (payload = {}) => {
+                if (!toastContainer) return;
+                const type = (payload?.type || 'success').toString().toLowerCase();
+                const message = (payload?.message || '').toString().trim();
+                const timeout = Number(payload?.timeout || 2000);
+                if (!message) return;
+
+                const toast = document.createElement('div');
+                const tone = type === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-green-200 bg-green-50 text-green-700';
+                toast.className = `pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow ${tone}`;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+
+                window.setTimeout(() => {
+                    toast.remove();
+                }, timeout > 0 ? timeout : 2000);
+            };
+
             Livewire.on('avatar-updated', (payload) => {
                 const wrap = document.getElementById('header-avatar');
                 const img = document.getElementById('header-avatar-img');
@@ -338,6 +360,7 @@
 
                 if (payload?.initials) span.textContent = payload.initials;
             });
+            Livewire.on('app-toast', showToast);
         });
     </script>
 </body>

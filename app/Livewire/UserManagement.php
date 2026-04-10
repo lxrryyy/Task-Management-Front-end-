@@ -55,6 +55,10 @@ class UserManagement extends Component
 
     public string $editName = '';
 
+    public string $editFirstName = '';
+
+    public string $editLastName = '';
+
     public string $editEmail = '';
 
     public string $editSpecialization = '';
@@ -73,6 +77,22 @@ class UserManagement extends Component
 
     public bool $loading = true;
 
+    protected array $rules = [
+        'newFirstName' => ['required', 'string', 'max:100'],
+        'newLastName' => ['required', 'string', 'max:100'],
+        'newEmail' => ['required', 'email', 'max:255'],
+        'newTemporaryPassword' => ['required', 'string', 'min:8'],
+        'newSpecialization' => ['nullable', 'string', 'max:255'],
+    ];
+
+    protected array $validationAttributes = [
+        'newFirstName' => 'first name',
+        'newLastName' => 'last name',
+        'newEmail' => 'email',
+        'newTemporaryPassword' => 'temporary password',
+        'newSpecialization' => 'bio/specialization',
+    ];
+
     public function mount(): void
     {
         $this->loading = true;
@@ -89,6 +109,7 @@ class UserManagement extends Component
     {
         $this->createAccountError = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
 
         $this->showAddUserModal = true;
     }
@@ -104,6 +125,7 @@ class UserManagement extends Component
         $this->newRole = 'User';
         $this->createAccountError = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
     }
 
     public function generateTemporaryPassword(): void
@@ -142,19 +164,22 @@ class UserManagement extends Component
         $this->createAccountError = null;
         $this->createAccountSuccess = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
 
-        $first = trim($this->newFirstName);
-        $last = trim($this->newLastName);
-        $email = trim($this->newEmail);
-        $tempPassword = trim($this->newTemporaryPassword);
-        $spec = trim($this->newSpecialization) !== '' ? trim($this->newSpecialization) : null;
+        $this->newFirstName = trim($this->newFirstName);
+        $this->newLastName = trim($this->newLastName);
+        $this->newEmail = trim($this->newEmail);
+        $this->newTemporaryPassword = trim($this->newTemporaryPassword);
+        $this->newSpecialization = trim($this->newSpecialization);
+
+        $validated = $this->validate();
+
+        $first = trim((string) ($validated['newFirstName'] ?? ''));
+        $last = trim((string) ($validated['newLastName'] ?? ''));
+        $email = trim((string) ($validated['newEmail'] ?? ''));
+        $tempPassword = trim((string) ($validated['newTemporaryPassword'] ?? ''));
+        $spec = trim((string) ($validated['newSpecialization'] ?? '')) !== '' ? trim((string) ($validated['newSpecialization'] ?? '')) : null;
         $fullName = trim($first.' '.$last);
-
-        if ($fullName === '' || $email === '' || $tempPassword === '') {
-            $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
-
-            return;
-        }
 
         $this->creatingAccount = true;
         try {
@@ -164,6 +189,7 @@ class UserManagement extends Component
             if ($adminId <= 0) {
                 $this->creatingAccount = false;
                 $this->createAccountError = 'Admin ID is required. Please log out and log in again as an admin.';
+                $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
 
                 return;
             }
@@ -173,7 +199,8 @@ class UserManagement extends Component
                 'email' => $email,
                 'password' => $tempPassword,
                 'passwordHash' => $tempPassword,
-                'specialization' => $spec,
+                // Backend may expect this key to exist even when optional.
+                'specialization' => $spec ?? '',
                 'role' => 'User',
                 'isActive' => true,
             ];
@@ -181,6 +208,7 @@ class UserManagement extends Component
             app(CsharpApiService::class)->post('/api/Account/CreateAccount?adminid='.$adminId, $payload);
 
             $this->createAccountSuccess = 'User created successfully.';
+            $this->dispatch('app-toast', type: 'success', message: $this->createAccountSuccess, timeout: 2000);
             $this->creatingAccount = false;
             $this->reloadUsersFromApi();
             $this->closeAddUserModal();
@@ -198,9 +226,12 @@ class UserManagement extends Component
             }
             $this->createAccountErrors = array_values(array_unique($flat));
             $this->createAccountError = ! empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
+            $msg = !empty($this->createAccountErrors) ? implode(' ', $this->createAccountErrors) : ((string) $this->createAccountError);
+            $this->dispatch('app-toast', type: 'error', message: $msg !== '' ? $msg : 'Failed to create user. Please try again.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->creatingAccount = false;
             $this->createAccountError = $e->getMessage() ?: 'Failed to create user. Please try again.';
+            $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
         }
     }
 
@@ -403,6 +434,10 @@ class UserManagement extends Component
 
         $this->editUserId = $userId;
         $this->editName = $user['name'] === '—' ? '' : $user['name'];
+        $parts = preg_split('/\s+/', trim($this->editName));
+        $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+        $this->editFirstName = (string) ($parts[0] ?? '');
+        $this->editLastName = (string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '');
         $this->editEmail = $user['email'] === '—' ? '' : $user['email'];
         $this->editSpecialization = $user['specialization'] === '—' ? '' : $user['specialization'];
         $this->editRole = $user['raw']['role'] ?? $user['raw']['Role'] ?? 'User';
@@ -417,6 +452,8 @@ class UserManagement extends Component
         $this->showEditUserModal = false;
         $this->editUserId = 0;
         $this->editName = '';
+        $this->editFirstName = '';
+        $this->editLastName = '';
         $this->editEmail = '';
         $this->editSpecialization = '';
         $this->editRole = 'User';
@@ -430,8 +467,11 @@ class UserManagement extends Component
         $this->editUserError = null;
         $this->editUserSuccess = null;
 
-        if (trim($this->editName) === '') {
-            $this->editUserError = 'Name is required.';
+        $first = trim($this->editFirstName);
+        $last = trim($this->editLastName);
+        $fullName = trim($first.' '.$last);
+        if ($fullName === '') {
+            $this->editUserError = 'First name and last name are required.';
 
             return;
         }
@@ -441,7 +481,7 @@ class UserManagement extends Component
             $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
             $payload = [
-                'name' => trim($this->editName),
+                'name' => $fullName,
                 'role' => $this->editRole,
                 'isActive' => $this->editIsActive,
                 'specialization' => trim($this->editSpecialization) ?: null,

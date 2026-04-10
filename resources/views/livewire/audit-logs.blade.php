@@ -178,7 +178,7 @@
                             </div>
                         </th>
                         <th class="!font-normal">Role</th>
-                        <th class="!font-normal">Project Name</th>
+                        <th class="!font-normal" x-show="currentTab !== 'logs'">Project Name</th>
                         <th class="!font-normal">Action</th>
                         <th class="!font-normal">Description</th>
                         <th class="!font-normal whitespace-nowrap">Date &amp; Time</th>
@@ -186,7 +186,7 @@
                 </thead>
                 <tbody>
                     <tr wire:loading.class.remove="hidden" class="hidden">
-                        <td colspan="6">
+                        <td :colspan="currentTab === 'logs' ? 5 : 6">
                             @foreach (range(1, 8) as $i)
                                 <div class="flex gap-4 px-4 py-4 border-b border-gray-100">
                                     <div class="flex flex-col gap-1 w-40">
@@ -217,7 +217,7 @@
                                 </div>
                             </td>
                             <td class="py-4 text-gray-700 whitespace-nowrap" x-text="l.userRole || '—'"></td>
-                            <td class="py-4 text-gray-700" x-text="l.projectName || '—'"></td>
+                            <td class="py-4 text-gray-700" x-show="currentTab !== 'logs'" x-text="l.projectName || '—'"></td>
                             <td class="py-4 whitespace-nowrap">
                                 <template x-if="l.action">
                                     <span class="px-2 py-1 rounded text-[10px] font-semibold" :style="l.actionStyle"
@@ -241,7 +241,8 @@
                     </template>
 
                     <tr wire:loading.remove x-show="pageItems.length === 0">
-                        <td colspan="6" class="text-center py-10 text-gray-500">No audit logs found.</td>
+                        <td :colspan="currentTab === 'logs' ? 5 : 6" class="text-center py-10 text-gray-500">No audit logs
+                            found.</td>
                     </tr>
                 </tbody>
             </table>

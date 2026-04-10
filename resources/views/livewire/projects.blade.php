@@ -69,10 +69,10 @@
                     @if($showAddModal)
                     <dialog id="addProjectDialog" class="modal modal-open">
                         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
-                            <div class="modal-action">
-                                <button type="button" wire:click="closeAddModal" class="btn">X</button>
+                            <div class="flex items-start justify-between mb-2">
+                                <h3 class="font-semibold text-2xl">Add New Project</h3>
+                                <button type="button" wire:click="closeAddModal" class="btn btn-ghost btn-sm btn-circle">✕</button>
                             </div>
-                            <h3 class="font-normal text-lg">New Project</h3>
                             <form method="POST" action="{{ route('projects.store') }}" class="mt-0">
                                 @csrf
                                 @include('livewire.partials.project-form-fields', ['formContext' => 'add'])
@@ -149,12 +149,84 @@
                         </form>
                     </dialog>
                     @endif
+
+                    {{-- Details modal --}}
+                    @if($showDetailsModal ?? false)
+                    <dialog id="projectDetailsDialog" class="modal modal-open">
+                        <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
+                            <div class="modal-action">
+                                <button type="button" wire:click="closeDetailsModal" class="btn">X</button>
+                            </div>
+                            <h3 class="font-normal text-lg">Project Details</h3>
+                            <div class="flex flex-col gap-4 my-4">
+                                <span>Project Name</span>
+                                <input type="text" class="input input-bordered rounded-lg w-full bg-gray-100 text-gray-700"
+                                    value="{{ $detailsProjectName ?: '—' }}" readonly />
+                            </div>
+                            <div class="flex flex-col gap-4 my-4">
+                                <span>Description</span>
+                                <textarea class="textarea textarea-bordered rounded-lg w-full bg-gray-100 text-gray-700" readonly>{{ $detailsProjectDescription !== '' ? $detailsProjectDescription : 'No description provided.' }}</textarea>
+                            </div>
+                            <div class="flex flex-row gap-4 my-4">
+                                <div class="flex flex-col gap-2 my-4">
+                                    <span>Start Date</span>
+                                    <input type="date" class="input input-bordered rounded-lg bg-gray-100 text-gray-700"
+                                        value="{{ $detailsProjectStartDate }}" readonly />
+                                </div>
+                                <div class="flex flex-col gap-2 my-4">
+                                    <span>End Date</span>
+                                    <input type="date" class="input input-bordered rounded-lg bg-gray-100 text-gray-700"
+                                        value="{{ $detailsProjectEndDate }}" readonly />
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2 my-4">
+                                <span>Members</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Position</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse(($detailsMemberRows ?? []) as $row)
+                                            <tr>
+                                                <td><span>{{ $row['name'] ?? 'Unknown' }}</span></td>
+                                                <td><span>{{ $row['email'] ?? '' }}</span></td>
+                                                <td>
+                                                    <input type="text"
+                                                        class="input input-bordered input-sm w-full max-w-xs bg-gray-100 text-gray-700"
+                                                        value="{{ $row['role'] ?? 'Member' }}" readonly />
+                                                </td>
+                                                <td><span class="text-gray-400">—</span></td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="4" class="text-center text-gray-400 py-4">No members found for this project.</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="modal-action">
+                                <button type="button" class="btn clr-bg-primary text-base-100 p-2" wire:click="closeDetailsModal">Close</button>
+                            </div>
+                        </div>
+                        <form method="dialog" class="modal-backdrop">
+                            <button type="button" wire:click="closeDetailsModal">close</button>
+                        </form>
+                    </dialog>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="overflow-x-auto overflow-y-auto" style="height: 60vh;">
+    <div class="overflow-x-auto overflow-y-auto" style="height: 80vh;">
         <table class="table">
             <!-- head -->
             <thead>
@@ -164,13 +236,14 @@
                     <th class="!font-normal">Members</th>
                     <th class="!font-normal">Progress</th>
                     <th class="!font-normal">Status</th>
-                    <th class="!font-normal">Created At</th>
+                    <th class="!font-normal">Start Date</th>
+                    <th class="!font-normal">End Date</th>
                     <th class="!font-normal">Action</th>
                 </tr>
             </thead>
             <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
                 @if($loading)
-                @foreach(range(1, 7) as $i)
+                @foreach(range(1, 8) as $i)
                 <tr>
                     <td>
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-36"></div>
@@ -194,6 +267,12 @@
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
                     </td>
                     <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </td>
+                    <td>
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
                     </td>
                 </tr>
@@ -206,6 +285,7 @@
                 $status = $project['statusName'] ?? $project['status'] ?? '';
                 $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
                 $createdAt = $project['createdAt'] ?? null;
+                $endDate = $project['endDate'] ?? null;
 
                 // Leader name comes from createdByName
                 $leaderDisplay = $project['createdByName'] ?? '—';
@@ -297,7 +377,22 @@
                 }
                 $memberCount = is_array($memberProfiles) ? count($memberProfiles) : 0;
                 $projectLeaderId = $project['createdById'] ?? $project['CreatedById'] ?? null;
-                $isLeader = $projectLeaderId && (int) $projectLeaderId === (int) $creatorId;
+                $currentUserId = (int) ($creatorId ?? 0);
+                $currentRole = mb_strtolower(trim((string) (\Illuminate\Support\Facades\Session::get('user')['role'] ?? (\Illuminate\Support\Facades\Session::get('user')['Role'] ?? (\Illuminate\Support\Facades\Session::get('user')['roleName'] ?? (\Illuminate\Support\Facades\Session::get('user')['RoleName'] ?? ''))))));
+                $currentName = trim((string) (\Illuminate\Support\Facades\Session::get('user')['name'] ?? (\Illuminate\Support\Facades\Session::get('user')['Name'] ?? '')));
+                $isAdmin = $currentRole === 'admin';
+                $isProjectManager = $pmId > 0 && $pmId === $currentUserId;
+                $isScrumMaster = $smId > 0 && $smId === $currentUserId;
+
+                $isMember = false;
+                if (is_array($assigneeIds) && !empty($assigneeIds)) {
+                    $isMember = in_array($currentUserId, array_map('intval', $assigneeIds), true);
+                } elseif (!empty($memberNames) && $currentName !== '') {
+                    $isMember = in_array(mb_strtolower($currentName), array_map(static fn($n) => mb_strtolower(trim((string) $n)), $memberNames), true);
+                }
+
+                $canOpenActionMenu = $projectId && ($isAdmin || $isProjectManager || $isScrumMaster || $isMember);
+                $canManageProject = $projectId && ($isAdmin || $isProjectManager);
                 @endphp
                 <tr class="hover:bg-gray-50 cursor-pointer border-b border-gray-200"
                     @if($projectId)
@@ -399,22 +494,34 @@
                         </span>
                     </th>
                     <th>
-                        @if($isLeader && $projectId)
+                        <span class="!font-normal text-sm">
+                            {{ $endDate ? \Carbon\Carbon::parse($endDate)->format('m/d/Y') : '—' }}
+                        </span>
+                    </th>
+                    <th>
+                        @if($canOpenActionMenu)
                         <div class="dropdown dropdown-end" wire:click.stop>
                             <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2">
                                 <x-icons.three-dot classes="w-5 h-5" />
                             </button>
                             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
                                 <li>
-                                    <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
-                                        Edit
+                                    <button type="button" wire:click.stop="openDetails({{ (int) $projectId }})">
+                                        Details
                                     </button>
                                 </li>
-                                <li>
-                                    <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
-                                        Delete
-                                    </button>
-                                </li>
+                                @if($canManageProject)
+                                    <li>
+                                        <button type="button" wire:click.stop="startEdit({{ (int) $projectId }})">
+                                            Edit
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="text-red-600" wire:click.stop="confirmDelete({{ (int) $projectId }})">
+                                            Delete
+                                        </button>
+                                    </li>
+                                @endif
                             </ul>
                         </div>
                         @else

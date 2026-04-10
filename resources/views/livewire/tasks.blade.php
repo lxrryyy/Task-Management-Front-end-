@@ -175,11 +175,16 @@
                                     $ainitials = mb_strtoupper(
                                         mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
                                     );
+                                    $aspec = trim((string) (
+                                        $account['specialization'] ?? $account['Specialization']
+                                        ?? $account['bio'] ?? $account['Bio'] ?? ''
+                                    ));
                                 @endphp
                                 @if ($aid !== null)
                                     <li class="px-2 py-1">
                                         <x-person-option name="{{ $aname }}" :email="$aemail" :picture="$apic"
-                                            initials="{{ $ainitials }}" @click="toggle({{ (int) $aid }})">
+                                            :specialization="$aspec" initials="{{ $ainitials }}"
+                                            @click="toggle({{ (int) $aid }})">
                                             <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
                                                     <rect x="0" y="0" width="20" height="20" rx="4"
@@ -318,7 +323,7 @@
 
     {{-- Task detail modal --}}
     <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box w-11/12 max-w-3xl overflow-y-auto rounded-2xl shadow-xl">
+        <div class="modal-box w-11/12 max-w-3xl max-h-[90vh] rounded-2xl shadow-xl overflow-auto">
             <div class="flex items-start justify-between gap-4 mb-6">
                 <div class="flex-1 min-w-0">
                     @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
@@ -363,7 +368,7 @@
                         'Urgent' => 'background:#fee2e2;color:#ef4444;',
                         'Important' => 'background:#fce7f3;color:#ec4899;',
                         'Medium' => 'background:#dbeafe;color:#3b82f6;',
-                        'Low' => 'background:#f3f4f6;color:#6b7280;',
+                        'Low' => 'background:#e5e7eb;color:#374151;',
                         default => 'background:#f3f4f6;color:#6b7280;',
                     };
                     $dStoryPoints = $t['storyPoints'] ?? ($t['storyPoint'] ?? null);
@@ -501,7 +506,15 @@
                             </div>
                             <div class="flex justify-end">
                                 <button type="button" wire:click="addComment"
-                                    class="btn clr-bg-primary text-base-100 px-4">Send</button>
+                                    wire:target="addComment" wire:loading.attr="disabled"
+                                    class="btn clr-bg-primary text-base-100 px-4">
+                                    <span wire:loading.remove wire:target="addComment">Send</span>
+                                    <span wire:loading wire:target="addComment"
+                                        class="inline-flex items-center gap-2">
+                                        <span class="loading loading-spinner loading-xs"></span>
+                                        Sending...
+                                    </span>
+                                </button>
                             </div>
                         </div>
 
@@ -535,7 +548,14 @@
                                                 @endif
                                                 <button type="button"
                                                     wire:click="deleteComment({{ (int) ($cmt['id'] ?? 0) }})"
-                                                    class="text-xs text-red-600 hover:underline">Delete</button>
+                                                    wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="text-xs text-red-600 hover:underline">
+                                                    <span wire:loading.remove
+                                                        wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})">Delete</span>
+                                                    <span wire:loading
+                                                        wire:target="deleteComment({{ (int) ($cmt['id'] ?? 0) }})">Deleting...</span>
+                                                </button>
                                             </div>
                                         @endif
                                     </div>
@@ -546,7 +566,14 @@
                                             <div class="flex flex-col gap-1">
                                                 <button type="button"
                                                     wire:click="updateComment({{ (int) ($cmt['id'] ?? 0) }})"
-                                                    class="btn btn-xs clr-bg-primary text-base-100">Save</button>
+                                                    wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="btn btn-xs clr-bg-primary text-base-100">
+                                                    <span wire:loading.remove
+                                                        wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})">Save</span>
+                                                    <span wire:loading
+                                                        wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})">Saving...</span>
+                                                </button>
                                                 <button type="button" wire:click="cancelEditComment"
                                                     class="btn btn-xs">Cancel</button>
                                             </div>
@@ -708,9 +735,9 @@
         </form>
     </dialog>
 
-    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} overflow-x-auto overflow-y-auto h-[500px] relative"
+    <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative"
         data-tasks-table-scroll>
-        <table class="table w-full table-fixed border-collapse">
+        <table class="table w-full table-fixed border-collapse h-[80vh]">
             <colgroup>
                 <col class="w-8"><!-- expand/collapse -->
                 <col class="w-10"><!-- checkbox -->
@@ -857,7 +884,7 @@
                             'Urgent' => 'background:#fee2e2;color:#ef4444;',
                             'Important' => 'background:#fce7f3;color:#ec4899;',
                             'Medium' => 'background:#dbeafe;color:#3b82f6;',
-                            'Low' => 'background:#f3f4f6;color:#6b7280;',
+                            'Low' => 'background:#e5e7eb;color:#374151;',
                             default => 'background:#f3f4f6;color:#6b7280;',
                         };
 
@@ -1430,7 +1457,7 @@
             'Urgent' => 'background:#fee2e2;color:#ef4444;',
             'Important' => 'background:#fce7f3;color:#ec4899;',
             'Medium' => 'background:#dbeafe;color:#3b82f6;',
-            'Low' => 'background:#f3f4f6;color:#6b7280;',
+            'Low' => 'background:#e5e7eb;color:#374151;',
         ];
     @endphp
     <div

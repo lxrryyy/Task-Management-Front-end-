@@ -47,6 +47,14 @@ class Projects extends Component
     public array $memberRoles = [];
 
     public ?int $editingProjectId = null;
+    public bool $showDetailsModal = false;
+    public string $detailsProjectName = '';
+    public string $detailsProjectDescription = '';
+    public string $detailsProjectStartDate = '';
+    public string $detailsProjectEndDate = '';
+    public array $detailsMemberRows = [];
+    public string $currentUserRole = '';
+    public string $currentUserName = '';
 
     // Form fields for editing
     public string $formName = '';
@@ -72,6 +80,10 @@ class Projects extends Component
         bool $showEditModal = false,
         $editingProjectId = null
     ): void {
+        $user = Session::get('user', []);
+        $this->currentUserRole = mb_strtolower(trim((string) ($user['role'] ?? ($user['Role'] ?? ($user['roleName'] ?? ($user['RoleName'] ?? ''))))));
+        $this->currentUserName = trim((string) ($user['name'] ?? ($user['Name'] ?? '')));
+
         $this->projects = $projects;
         $this->accounts = $accounts;
         $this->creatorId = (int) $creatorId;
@@ -162,6 +174,11 @@ class Projects extends Component
 
     public function confirmDelete(int $projectId): void
     {
+        if (!$this->canManageProject($projectId)) {
+            $this->addError('api_error', 'You are not allowed to delete this project.');
+            return;
+        }
+
         $project = collect($this->projects)->first(function ($p) use ($projectId) {
             $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
             return $id === (int) $projectId;
@@ -183,6 +200,11 @@ class Projects extends Component
     {
         $projectId = (int) ($this->deletingProjectId ?? 0);
         if ($projectId <= 0) {
+            $this->cancelDelete();
+            return null;
+        }
+        if (!$this->canManageProject($projectId)) {
+            $this->addError('api_error', 'You are not allowed to delete this project.');
             $this->cancelDelete();
             return null;
         }
@@ -253,6 +275,11 @@ class Projects extends Component
 
     public function startEdit(int $projectId): void
     {
+        if (!$this->canManageProject($projectId)) {
+            $this->addError('api_error', 'You are not allowed to edit this project.');
+            return;
+        }
+
         $this->editingProjectId = $projectId;
         $this->showAddModal = false;
         $this->showEditModal = true;
@@ -396,6 +423,10 @@ class Projects extends Component
     {
         $projectId = (int) $this->editingProjectId;
         if ($projectId <= 0) return null;
+        if (!$this->canManageProject($projectId)) {
+            $this->addError('api_error', 'You are not allowed to edit this project.');
+            return null;
+        }
 
         $user = Session::get('user', []);
         $requesterId = $user['id'] ?? $user['Id'] ?? null;
@@ -456,6 +487,111 @@ class Projects extends Component
         $this->confirmedMemberIds = [];
         $this->editingProjectId = null;
         return $this->redirect(route('Projects'));
+    }
+
+    public function openDetails(int $projectId): void
+    {
+        $project = collect($this->projects)->first(function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id === (int) $projectId;
+        }) ?? [];
+
+        $pmId = (int) ($project['projectManagerId'] ?? $project['ProjectManagerId'] ?? $project['createdById'] ?? $project['CreatedById'] ?? 0);
+        $smId = (int) ($project['scrumMasterId'] ?? $project['ScrumMasterId'] ?? 0);
+        $assigneeIds = $project['assigneeIds'] ?? $project['AssigneeIds'] ?? [];
+        $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
+        $accountsById = [];
+        foreach ($this->accounts as $acc) {
+            $aid = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
+            if ($aid > 0) {
+                $accountsById[$aid] = $acc;
+            }
+        }
+        $rows = [];
+        if (is_array($assigneeIds)) {
+            foreach ($assigneeIds as $aid) {
+                $aid = (int) $aid;
+                if ($aid <= 0 || !isset($accountsById[$aid])) {
+                    continue;
+                }
+                $acc = $accountsById[$aid];
+                $rows[] = [
+                    'name' => (string) ($acc['name'] ?? $acc['Name'] ?? 'Unknown'),
+                    'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
+                    'role' => $aid === $pmId ? 'Project Manager' : ($aid === $smId ? 'Scrum Master' : 'Member'),
+                ];
+            }
+        }
+        // Fallback: some list payloads provide member names but not assignee IDs.
+        if (empty($rows) && is_array($memberNames) && !empty($memberNames)) {
+            foreach ($memberNames as $memberName) {
+                $memberName = trim((string) $memberName);
+                if ($memberName === '') {
+                    continue;
+                }
+
+                $matched = null;
+                foreach ($this->accounts as $acc) {
+                    $aname = trim((string) ($acc['name'] ?? $acc['Name'] ?? ''));
+                    if ($aname !== '' && mb_strtolower($aname) === mb_strtolower($memberName)) {
+                        $matched = $acc;
+                        break;
+                    }
+                }
+
+                $role = 'Member';
+                if ($matched) {
+                    $aid = (int) ($matched['id'] ?? $matched['Id'] ?? 0);
+                    if ($aid > 0) {
+                        $role = $aid === $pmId ? 'Project Manager' : ($aid === $smId ? 'Scrum Master' : 'Member');
+                    }
+                }
+
+                $rows[] = [
+                    'name' => $matched ? (string) ($matched['name'] ?? $matched['Name'] ?? $memberName) : $memberName,
+                    'email' => $matched ? (string) ($matched['email'] ?? $matched['Email'] ?? '') : '',
+                    'role' => $role,
+                ];
+            }
+        }
+
+        $this->detailsProjectName = (string) ($project['name'] ?? $project['projectName'] ?? $project['title'] ?? 'Project Details');
+        $this->detailsProjectDescription = trim((string) ($project['description'] ?? ''));
+        $rawStart = $project['startDate'] ?? $project['StartDate'] ?? null;
+        $rawEnd = $project['endDate'] ?? $project['EndDate'] ?? null;
+        $this->detailsProjectStartDate = $rawStart ? \Carbon\Carbon::parse($rawStart)->format('Y-m-d') : '';
+        $this->detailsProjectEndDate = $rawEnd ? \Carbon\Carbon::parse($rawEnd)->format('Y-m-d') : '';
+        $this->detailsMemberRows = $rows;
+        $this->showDetailsModal = true;
+    }
+
+    public function closeDetailsModal(): void
+    {
+        $this->showDetailsModal = false;
+        $this->detailsProjectName = '';
+        $this->detailsProjectDescription = '';
+        $this->detailsProjectStartDate = '';
+        $this->detailsProjectEndDate = '';
+        $this->detailsMemberRows = [];
+    }
+
+    private function canManageProject(int $projectId): bool
+    {
+        if ($this->currentUserRole === 'admin') {
+            return true;
+        }
+
+        $project = collect($this->projects)->first(function ($p) use ($projectId) {
+            $id = (int) ($p['id'] ?? $p['Id'] ?? 0);
+            return $id === (int) $projectId;
+        }) ?? [];
+
+        if (empty($project)) {
+            return false;
+        }
+
+        $pmId = (int) ($project['projectManagerId'] ?? $project['ProjectManagerId'] ?? $project['createdById'] ?? $project['CreatedById'] ?? 0);
+        return $pmId > 0 && $pmId === (int) $this->creatorId;
     }
 
     public function render()
