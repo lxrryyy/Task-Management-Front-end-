@@ -8,6 +8,8 @@ use Livewire\Component;
 
 class DashboardProjectCreate extends Component
 {
+    public string $description = '';
+
     public bool $showAddModal = false;
 
     public int $creatorId = 0;
@@ -39,6 +41,7 @@ class DashboardProjectCreate extends Component
     public function close(): void
     {
         $this->showAddModal = false;
+        $this->description = '';
     }
 
     public function resetForm(): void
@@ -46,6 +49,7 @@ class DashboardProjectCreate extends Component
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
+        $this->description = '';
     }
 
     public function toggleMember(int $id): void

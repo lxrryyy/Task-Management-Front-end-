@@ -165,7 +165,14 @@
                             </div>
                             <div class="flex flex-col gap-4 my-4">
                                 <span>Description</span>
-                                <textarea class="textarea textarea-bordered rounded-lg w-full bg-gray-100 text-gray-700" readonly>{{ $detailsProjectDescription !== '' ? $detailsProjectDescription : 'No description provided.' }}</textarea>
+                                <div
+                                    class="rounded-lg w-full min-h-[8rem] border border-gray-300 bg-gray-50/80 text-gray-800 p-4 overflow-auto prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2">
+                                    @if (trim((string) ($detailsProjectDescription ?? '')) !== '')
+                                        {!! $detailsProjectDescription !!}
+                                    @else
+                                        <span class="text-gray-500 not-prose">No description provided.</span>
+                                    @endif
+                                </div>
                             </div>
                             <div class="flex flex-row gap-4 my-4">
                                 <div class="flex flex-col gap-2 my-4">

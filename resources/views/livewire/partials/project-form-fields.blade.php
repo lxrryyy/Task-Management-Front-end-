@@ -47,9 +47,18 @@
 
 <div class="flex flex-col gap-4 my-4">
     <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Description</span>
-    <textarea name="description" class="textarea textarea-bordered border-gray-300 focus:border-gray-300 rounded-lg w-full min-h-24"
-        placeholder="{{ $isEdit ? 'Project Description' : 'Description here...' }}"
-        @if ($isEdit) wire:model.lazy="formDescription" @endif>{{ $descriptionContent }}</textarea>
+    @if ($isEdit)
+        <textarea name="description" class="textarea textarea-bordered border-gray-300 focus:border-gray-300 rounded-lg w-full min-h-24"
+            placeholder="Project Description"
+            wire:model.lazy="formDescription">{{ $descriptionContent }}</textarea>
+    @else
+        <div wire:ignore>
+            <x-rich-text-editor name="description" :value="old('description', '')" placeholder="Description here..." />
+        </div>
+    @endif
+    @foreach ($errors->get('description') as $msg)
+        <p class="text-xs text-red-600 font-medium mt-1">{{ $msg }}</p>
+    @endforeach
 </div>
 
 <div class="grid grid-cols-2 gap-4 my-4">

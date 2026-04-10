@@ -15,6 +15,8 @@ class Projects extends Component
     public string $filterDateFrom = '';
     public string $filterDateTo = '';
 
+    public string $description = '';
+
     /** Show the "Add Project" modal (create only). */
     public bool $showAddModal = false;
 
@@ -156,6 +158,7 @@ class Projects extends Component
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
+        $this->description = '';
     }
 
     public function archiveSelected(): mixed
@@ -245,6 +248,7 @@ class Projects extends Component
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
+        $this->description = '';
     }
 
     public function closeAddModal(): void
@@ -254,6 +258,7 @@ class Projects extends Component
         $this->selectedMemberIds = [];
         $this->memberRoles = [];
         $this->selectedScrumMasterId = 0;
+        $this->description = '';
     }
 
     public function closeEditModal(): void
