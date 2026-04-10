@@ -34,6 +34,7 @@
 </head>
 
 <body class="font-sans antialiased">
+    <x-global-loader />
     <!-- UPDATED, THIS IS THE ONE THAT HAS NO RICH TEXT YET (WORKING) -->
     <div class="flex h-screen relative">
 
