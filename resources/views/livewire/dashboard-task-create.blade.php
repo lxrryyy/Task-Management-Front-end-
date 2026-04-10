@@ -131,11 +131,16 @@
                                         $ainitials = mb_strtoupper(
                                             mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
                                         );
+                                        $aspec = trim((string) (
+                                            $account['specialization'] ?? $account['Specialization']
+                                            ?? $account['bio'] ?? $account['Bio'] ?? ''
+                                        ));
                                     @endphp
                                     @if ($aid !== null)
                                         <li class="px-2 py-1">
                                             <x-person-option name="{{ $aname }}" :email="$aemail"
-                                                :picture="$apic" initials="{{ $ainitials }}"
+                                                :picture="$apic" :specialization="$aspec"
+                                                initials="{{ $ainitials }}"
                                                 @click="toggle({{ (int) $aid }})">
                                                 <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                     <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">

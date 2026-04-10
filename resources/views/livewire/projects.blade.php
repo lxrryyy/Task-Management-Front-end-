@@ -236,13 +236,14 @@
                     <th class="!font-normal">Members</th>
                     <th class="!font-normal">Progress</th>
                     <th class="!font-normal">Status</th>
-                    <th class="!font-normal">Created At</th>
+                    <th class="!font-normal">Start Date</th>
+                    <th class="!font-normal">End Date</th>
                     <th class="!font-normal">Action</th>
                 </tr>
             </thead>
             <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
                 @if($loading)
-                @foreach(range(1, 7) as $i)
+                @foreach(range(1, 8) as $i)
                 <tr>
                     <td>
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-36"></div>
@@ -266,6 +267,12 @@
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
                     </td>
                     <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </td>
+                    <td>
+                        <div class="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                    </td>
+                    <td>
                         <div class="h-4 bg-gray-200 rounded animate-pulse w-8"></div>
                     </td>
                 </tr>
@@ -278,6 +285,7 @@
                 $status = $project['statusName'] ?? $project['status'] ?? '';
                 $currentStatusId = (int) ($project['statusId'] ?? $project['StatusId'] ?? ($projectStatusMap[$status] ?? 0));
                 $createdAt = $project['createdAt'] ?? null;
+                $endDate = $project['endDate'] ?? null;
 
                 // Leader name comes from createdByName
                 $leaderDisplay = $project['createdByName'] ?? '—';
@@ -483,6 +491,11 @@
                     <th>
                         <span class="!font-normal text-sm">
                             {{ $createdAt ? \Carbon\Carbon::parse($createdAt)->format('m/d/Y') : '—' }}
+                        </span>
+                    </th>
+                    <th>
+                        <span class="!font-normal text-sm">
+                            {{ $endDate ? \Carbon\Carbon::parse($endDate)->format('m/d/Y') : '—' }}
                         </span>
                     </th>
                     <th>

@@ -99,10 +99,10 @@
             @endphp
             <x-avatar-group :profiles="$addProfiles" :visible="5" overlap-class="-space-x-2" />
         @endif
-        <div class="dropdown">
+        <div class="dropdown w-full">
             <button tabindex="0" type="button" class="btn btn-sm border-2 border-dotted border-gray-300 bg-white text-gray-800 p-4 rounded-lg">+ Add Member</button>
             <ul tabindex="0"
-                class="dropdown-content bg-base-100 rounded-box z-[999] w-[40rem] max-w-[90vw] shadow-lg border mt-1 max-h-60 overflow-y-auto p-1">
+                class="dropdown-content bg-base-100 rounded-box z-[999] shadow-lg border mt-1 max-h-60 w-full overflow-y-auto p-1">
                 @forelse(($accounts ?? []) as $account)
                     @php
                         $aid = $account['id'] ?? ($account['Id'] ?? null);
@@ -114,13 +114,18 @@
                         }
                         $apart = preg_split('/\s+/', trim((string) $aname));
                         $ainitials = mb_strtoupper(mb_substr($apart[0] ?? '', 0, 1) . mb_substr($apart[1] ?? '', 0, 1));
+                        $aspec = trim((string) (
+                            $account['specialization'] ?? $account['Specialization']
+                            ?? $account['bio'] ?? $account['Bio'] ?? ''
+                        ));
                         $checked = in_array((int) $aid, (array) ($selectedMemberIds ?? []), true);
                         $isCreator = $creatorId && (int) $creatorId === (int) $aid;
                     @endphp
                     @if ($aid !== null && !$isCreator)
                         <li class="px-2 py-1" wire:key="{{ $ctx }}-member-option-{{ $aid }}">
                             <x-person-option :checked="$checked" :name="$aname" :email="$aemail" :picture="$apic"
-                                initials="{{ $ainitials }}" wire:click="toggleMember({{ (int) $aid }})" />
+                                :specialization="$aspec" initials="{{ $ainitials }}"
+                                wire:click="toggleMember({{ (int) $aid }})" />
                         </li>
                     @endif
                 @empty

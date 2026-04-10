@@ -381,7 +381,7 @@
             </div>
 
             <div class="modal-action mt-6">
-                <button type="button" class="btn clr-bg-primary text-base-100" wire:click="closeUserDetail">
+                <button type="button" class="btn clr-bg-primary text-base-100 p-4" wire:click="closeUserDetail">
                     Close
                 </button>
             </div>

@@ -175,11 +175,16 @@
                                     $ainitials = mb_strtoupper(
                                         mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
                                     );
+                                    $aspec = trim((string) (
+                                        $account['specialization'] ?? $account['Specialization']
+                                        ?? $account['bio'] ?? $account['Bio'] ?? ''
+                                    ));
                                 @endphp
                                 @if ($aid !== null)
                                     <li class="px-2 py-1">
                                         <x-person-option name="{{ $aname }}" :email="$aemail" :picture="$apic"
-                                            initials="{{ $ainitials }}" @click="toggle({{ (int) $aid }})">
+                                            :specialization="$aspec" initials="{{ $ainitials }}"
+                                            @click="toggle({{ (int) $aid }})">
                                             <template x-if="selectedIds.includes({{ (int) $aid }})">
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none">
                                                     <rect x="0" y="0" width="20" height="20" rx="4"
@@ -318,7 +323,7 @@
 
     {{-- Task detail modal --}}
     <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box w-11/12 max-w-3xl max-h-[90vh] overflow-visible rounded-2xl shadow-xl">
+        <div class="modal-box w-11/12 max-w-3xl max-h-[90vh] rounded-2xl shadow-xl overflow-auto">
             <div class="flex items-start justify-between gap-4 mb-6">
                 <div class="flex-1 min-w-0">
                     @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
