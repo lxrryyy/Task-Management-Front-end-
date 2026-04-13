@@ -405,7 +405,14 @@ class ProjectController extends Controller
             return back()->withInput()->withErrors($fieldErrors);
         }
 
-        return redirect()->route('Projects');
+        $successMessage = __('Project created successfully.');
+
+        $redirect = (string) $request->input('redirect_to', '');
+        if ($redirect === 'dashboard') {
+            return redirect()->route('dashboard')->with('success', $successMessage);
+        }
+
+        return redirect()->route('Projects')->with('success', $successMessage);
     }
 
     /**

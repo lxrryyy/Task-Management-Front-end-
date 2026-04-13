@@ -35,7 +35,15 @@ class CsharpApiService
             }
         }
 
-        return Http::withHeaders($headers)->baseUrl($this->baseUrl);
+        return $this->withTimeouts(Http::withHeaders($headers)->baseUrl($this->baseUrl));
+    }
+
+    private function withTimeouts(PendingRequest $request): PendingRequest
+    {
+        $timeout = max(1, (int) config('services.csharp_api.timeout', 90));
+        $connectTimeout = max(1, (int) config('services.csharp_api.connect_timeout', 15));
+
+        return $request->timeout($timeout)->connectTimeout($connectTimeout);
     }
 
     /**
@@ -58,7 +66,7 @@ class CsharpApiService
             }
         }
 
-        return Http::withHeaders($headers)->baseUrl($this->baseUrl);
+        return $this->withTimeouts(Http::withHeaders($headers)->baseUrl($this->baseUrl));
     }
 
     public function get(string $endpoint, array $query = []): array

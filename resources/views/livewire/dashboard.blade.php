@@ -24,6 +24,12 @@
     </style>
 
     <div class="flex flex-col mt-4 gap-2">
+        @if (session('success'))
+            <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3500)" x-show="show" x-transition.opacity.duration.300ms
+                class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg">
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
         @php
         use Carbon\Carbon;
         @endphp

@@ -1,5 +1,11 @@
 <div class="">
     <div class="w-full">
+        @if (session('success'))
+            <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3500)" x-show="show" x-transition.opacity.duration.300ms
+                class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg mb-3">
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
         <div class="flex w-full items-center clr-primary ">
             <a href="/dashboard"
                 class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">

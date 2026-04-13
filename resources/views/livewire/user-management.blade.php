@@ -129,15 +129,23 @@
 
             <div class="flex flex-col gap-4 mt-4">
                 <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
-                    <div class="avatar">
-                        <div class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium">
-                            @php
-                                $ef = trim((string) ($editFirstName ?? ''));
-                                $el = trim((string) ($editLastName ?? ''));
-                                $initials = mb_strtoupper(mb_substr($ef, 0, 1) . mb_substr($el, 0, 1));
-                            @endphp
-                            {{ $initials !== '' ? $initials : '?' }}
+                    <div class="avatar" data-user-mgmt-edit-avatar>
+                        @php
+                            $ef = trim((string) ($editFirstName ?? ''));
+                            $el = trim((string) ($editLastName ?? ''));
+                            $editInitials = mb_strtoupper(mb_substr($ef, 0, 1) . mb_substr($el, 0, 1));
+                            $editPic = is_string($editProfilePicture ?? null) ? trim($editProfilePicture) : '';
+                        @endphp
+                        <div
+                            class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium {{ $editPic !== '' ? 'hidden' : '' }}"
+                            data-user-mgmt-edit-initials>
+                            {{ $editInitials !== '' ? $editInitials : '?' }}
                         </div>
+                        @if ($editPic !== '')
+                            <img src="{{ $editPic }}" alt=""
+                                class="w-12 h-12 rounded-full object-cover"
+                                onerror="this.style.display='none'; var w=this.closest('[data-user-mgmt-edit-avatar]'); if(w){var i=w.querySelector('[data-user-mgmt-edit-initials]'); if(i){i.classList.remove('hidden');}}" />
+                        @endif
                     </div>
                     <div class="min-w-0">
                         <p class="text-sm font-medium text-gray-900">{{ trim(($editFirstName ?? '') . ' ' . ($editLastName ?? '')) ?: 'User' }}</p>
@@ -319,25 +327,35 @@
             <hr>
 
             @php
-                $detailName = (string) ($selectedUser['name'] ?? '');
+                $su = is_array($selectedUser ?? null) ? $selectedUser : [];
+                $detailName = (string) ($su['name'] ?? '');
                 $parts = preg_split('/\s+/', trim($detailName));
                 $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
                 $detailFirst = (string) ($parts[0] ?? '');
                 $detailLast = (string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '');
                 $detailInitials = mb_strtoupper(mb_substr($detailFirst, 0, 1) . mb_substr($detailLast, 0, 1));
-                $detailStatus = (bool) ($selectedUser['isActive'] ?? false);
+                $detailStatus = (bool) ($su['isActive'] ?? false);
+                $detailPicRaw = $su['profilePicture'] ?? null;
+                $detailPic = is_string($detailPicRaw) ? trim($detailPicRaw) : '';
             @endphp
 
             <div class="flex flex-col gap-4 mt-4">
                 <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
-                    <div class="avatar">
-                        <div class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium">
+                    <div class="avatar" data-user-mgmt-detail-avatar>
+                        <div
+                            class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium {{ $detailPic !== '' ? 'hidden' : '' }}"
+                            data-user-mgmt-detail-initials>
                             {{ $detailInitials !== '' ? $detailInitials : '?' }}
                         </div>
+                        @if ($detailPic !== '')
+                            <img src="{{ $detailPic }}" alt=""
+                                class="w-12 h-12 rounded-full object-cover"
+                                onerror="this.style.display='none'; var w=this.closest('[data-user-mgmt-detail-avatar]'); if(w){var i=w.querySelector('[data-user-mgmt-detail-initials]'); if(i){i.classList.remove('hidden');}}" />
+                        @endif
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm font-medium text-gray-900">{{ $selectedUser['name'] ?? 'User' }}</p>
-                        <p class="text-xs text-gray-500">{{ $selectedUser['email'] ?? '—' }}</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $su['name'] ?? 'User' }}</p>
+                        <p class="text-xs text-gray-500">{{ $su['email'] ?? '—' }}</p>
                     </div>
                 </div>
 
@@ -357,7 +375,7 @@
                 <div class="flex flex-col">
                     <label>Email</label>
                     <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
-                        value="{{ $selectedUser['email'] ?? '—' }}" readonly />
+                        value="{{ $su['email'] ?? '—' }}" readonly />
                 </div>
                 <hr class="border-gray-200">
 
@@ -365,7 +383,7 @@
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">Bio / Specialization (optional)</label>
                         <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
-                            value="{{ ($selectedUser['specialization'] ?? '—') === '—' ? '' : ($selectedUser['specialization'] ?? '') }}" readonly />
+                            value="{{ ($su['specialization'] ?? '—') === '—' ? '' : ($su['specialization'] ?? '') }}" readonly />
                     </div>
                     <label class="inline-flex items-center gap-2 mb-1">
                         <span class="text-base font-medium text-gray-800">Active</span>
@@ -376,7 +394,7 @@
                 <div class="flex flex-col">
                     <label class="text-xs font-medium">Role</label>
                     <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
-                        value="{{ $selectedUser['status'] ?? '—' }}" readonly />
+                        value="{{ $su['status'] ?? '—' }}" readonly />
                 </div>
             </div>
 
