@@ -424,7 +424,16 @@
 
     window._calPopOut = async function (noteId, noteContent) {
         if (!('documentPictureInPicture' in window)) {
-            alert('Pop Out requires Chrome or Edge.');
+            const currentUrl = window.location.origin || window.location.href || 'this site';
+            const httpsHint = window.isSecureContext
+                ? 'Document Picture-in-Picture is not available in this browser.'
+                : 'This feature requires a secure URL (HTTPS), or localhost in development.';
+            alert(
+                'Unable to open Pop Out notes.\n\n' +
+                httpsHint + '\n' +
+                'Current URL: ' + currentUrl + '\n\n' +
+                'Please open this project using HTTPS to enable this feature.'
+            );
             return;
         }
 
