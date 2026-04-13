@@ -290,8 +290,10 @@
                                     @click="goToTask(task)">
                                     {{-- Title --}}
                                     <div>
-                                        <p class="text-sm font-normal leading-snug" :class="colorClasses(task.color).title" x-text="task.title"></p>
-                                        <p class="text-xs mt-1" :class="colorClasses(task.color).sub" x-text="task.project"></p>
+                                        <p class="text-lg font-normal leading-snug" :class="colorClasses(task.color).title" x-text="task.title"></p>
+                                        <p class="text-xs mt-1" :class="colorClasses(task.color).sub"
+                                            x-text="task.subtasks + ' Subtask' + (task.subtasks!==1?'s':'')"></p>
+                                        <p class="text-sm mt-1" :class="colorClasses(task.color).sub" x-text="task.project"></p>
                                     </div>
                                     {{-- Bottom: avatars --}}
                                     <div class="flex items-center justify-between mt-auto">
