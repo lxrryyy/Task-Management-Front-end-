@@ -99,4 +99,33 @@ class DashboardController extends Controller
             return ['totalTasks' => 0, 'breakdown' => []];
         }
     }
+
+    /**
+     * Fetch admin dashboard stat cards.
+     * Endpoint: GET /api/Dashboard/GetDashboardStats
+     */
+    public function getDashboardStats(int $requesterId = 0): array
+    {
+        $candidates = [
+            ['/api/Dashboard/GetDashboardStats', []],
+            ['/api/Dashboard/GetDashboardStats', ['requesterId' => $requesterId]],
+        ];
+
+        foreach ($candidates as [$endpoint, $query]) {
+            try {
+                $response = $this->api->get($endpoint, $query);
+                if (is_array($response)) {
+                    return $response;
+                }
+            } catch (RequestException $e) {
+                if (in_array($e->response?->status(), [401, 403], true)) {
+                    Session::forget(['api_token', 'user', 'expires_in']);
+                }
+            } catch (\Throwable) {
+                // Try the next shape.
+            }
+        }
+
+        return [];
+    }
 }

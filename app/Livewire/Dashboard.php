@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Session;
 class Dashboard extends Component
 {
     public ?array $user = null;
+    public bool $isAdmin = false;
     public array $projects = [];
     public int $currentUserId = 0;
 
@@ -24,11 +25,14 @@ class Dashboard extends Component
         'forReview' => 0,
         'completed' => 0,
     ];
+    public array $adminSummaryCards = [];
 
     public function mount(): void
     {
         $user = Session::get('user', null);
         $this->user = $user;
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        $this->isAdmin = $role === 'admin';
 
         $accountId = (int) ($user['id'] ?? ($user['Id'] ?? 0));
         $this->currentUserId = $accountId;
@@ -57,6 +61,36 @@ class Dashboard extends Component
         $data = $controller->getMyProjectsAndTasks($this->currentUserId);
         $this->projects = is_array($data) ? $data : [];
         $this->summaryCards = $this->buildSummaryCards($this->projects);
+        if ($this->isAdmin) {
+            $stats = $controller->getDashboardStats($this->currentUserId);
+            $this->adminSummaryCards = [
+                [
+                    'label' => 'Total Users',
+                    'value' => (int) ($stats['totalUsers'] ?? $stats['TotalUsers'] ?? 0),
+                    'sub' => 'Active',
+                    'icon' => 'icons.users',
+                    'iconWrap' => 'bg-blue-50 text-blue-700',
+                ],
+                [
+                    'label' => 'Total Projects',
+                    'value' => (int) ($stats['totalProjects'] ?? $stats['TotalProjects'] ?? 0),
+                    'sub' => 'Active',
+                    'icon' => 'icons.total-projects',
+                ],
+                [
+                    'label' => 'Overdue Tasks',
+                    'value' => (int) ($stats['overdueTasks'] ?? $stats['OverdueTasks'] ?? 0),
+                    'sub' => 'Past due date',
+                    'icon' => 'icons.overdue',
+                ],
+                [
+                    'label' => 'Deactivated Users',
+                    'value' => (int) ($stats['deactivatedUsers'] ?? $stats['DeactivatedUsers'] ?? $stats['completedProjects'] ?? $stats['CompletedProjects'] ?? 0),
+                    'sub' => 'Inactive',
+                    'icon' => 'icons.deactivated',
+                ],
+            ];
+        }
 
         $this->setDefaultSelectedProject();
         $this->loadTaskStatusSummary();
@@ -71,27 +105,36 @@ class Dashboard extends Component
         $completedCount = 0;
 
         foreach ($projects as $project) {
-            if (!is_array($project)) {
-                continue;
-            }
+            $tasks = $this->readField($project, ['tasks', 'Tasks']);
 
-            $tasks = $project['tasks'] ?? $project['Tasks'] ?? [];
-            if (!is_array($tasks)) {
-                continue;
-            }
-
-            foreach ($tasks as $task) {
-                if (!is_array($task)) {
-                    continue;
+            if (is_iterable($tasks)) {
+                foreach ($tasks as $task) {
+                    $tasksCount++;
+                    $status = mb_strtolower(trim((string) $this->readField($task, ['statusName', 'StatusName', 'status', 'Status'], '')));
+                    if ($status === 'for review') {
+                        $forReviewCount++;
+                    } elseif ($status === 'completed') {
+                        $completedCount++;
+                    }
                 }
+                continue;
+            }
 
-                $tasksCount++;
-                $status = mb_strtolower(trim((string) ($task['statusName'] ?? $task['StatusName'] ?? $task['status'] ?? $task['Status'] ?? '')));
+            $tasksCount += (int) $this->readField($project, ['taskCount', 'TaskCount', 'tasksCount', 'TasksCount', 'totalTasks', 'TotalTasks'], 0);
+            $forReviewCount += (int) $this->readField($project, ['forReviewCount', 'ForReviewCount'], 0);
+            $completedCount += (int) $this->readField($project, ['completedCount', 'CompletedCount'], 0);
+        }
 
+        if ($tasksCount === 0) {
+            $breakdown = (array) ($this->taskStatusSummary['breakdown'] ?? []);
+            foreach ($breakdown as $row) {
+                $count = (int) $this->readField($row, ['count', 'Count'], 0);
+                $tasksCount += $count;
+                $status = mb_strtolower(trim((string) $this->readField($row, ['statusName', 'StatusName', 'status', 'Status'], '')));
                 if ($status === 'for review') {
-                    $forReviewCount++;
+                    $forReviewCount += $count;
                 } elseif ($status === 'completed') {
-                    $completedCount++;
+                    $completedCount += $count;
                 }
             }
         }
@@ -102,6 +145,19 @@ class Dashboard extends Component
             'forReview' => $forReviewCount,
             'completed' => $completedCount,
         ];
+    }
+
+    private function readField(mixed $source, array $keys, mixed $default = null): mixed
+    {
+        foreach ($keys as $key) {
+            if (is_array($source) && array_key_exists($key, $source)) {
+                return $source[$key];
+            }
+            if (is_object($source) && isset($source->{$key})) {
+                return $source->{$key};
+            }
+        }
+        return $default;
     }
 
     /** Set selected project to the first project from the list. */
@@ -138,10 +194,14 @@ class Dashboard extends Component
 
     public function render()
     {
+        $this->summaryCards = $this->buildSummaryCards($this->projects);
+
         return view('livewire.dashboard', [
             'projects' => $this->projects,
             'taskStatusSummary' => $this->taskStatusSummary,
             'summaryCards' => $this->summaryCards,
+            'isAdmin' => $this->isAdmin,
+            'adminSummaryCards' => $this->adminSummaryCards,
         ]);
     }
 }

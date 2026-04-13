@@ -18,13 +18,16 @@ class ProjectController extends Controller
     {
         $user = Session::get('user', []);
         $accountId = $user['id'] ?? $user['Id'] ?? null;
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        $isAdmin = $role === 'admin';
 
         if (! $accountId) {
             return view('projects', ['projects' => [], 'accounts' => [], 'creatorId' => 0]);
         }
 
-        $response = $this->api->get("/api/Project/GetMyProjects/{$accountId}");
-        $projects = $this->normalizeProjects($response);
+        $projects = $isAdmin
+            ? $this->fetchProjectsForAdmin((int) $accountId)
+            : $this->normalizeProjects($this->api->get("/api/Project/GetMyProjects/{$accountId}"));
 
         // If we just updated a project, merge in fresh data from GetProjectById (members etc.)
         if (Session::has('refreshed_project')) {
@@ -114,6 +117,37 @@ class ProjectController extends Controller
             'accounts' => $accounts,
             'creatorId' => (int) $accountId,
         ]);
+    }
+
+    /**
+     * Admin view: attempt all-project endpoints first, then fallback to my-projects.
+     * Keeps compatibility with varying backend route names.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchProjectsForAdmin(int $accountId): array
+    {
+        $candidates = [
+            ['/api/Project/GetAllProjects', []],
+            ['/api/Project/GetAllProject', []],
+            ['/api/Project/GetAllProjects', ['requesterId' => $accountId]],
+            ['/api/Project/GetAllProject', ['requesterId' => $accountId]],
+            ["/api/Project/GetMyProjects/{$accountId}", []], // fallback
+        ];
+
+        foreach ($candidates as [$endpoint, $query]) {
+            try {
+                $raw = $this->api->get($endpoint, $query);
+                $projects = $this->normalizeProjects($raw);
+                if (!empty($projects)) {
+                    return $projects;
+                }
+            } catch (\Throwable) {
+                // Try next candidate endpoint.
+            }
+        }
+
+        return [];
     }
 
     public function archive()

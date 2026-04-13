@@ -33,63 +33,73 @@
         @php
         use Carbon\Carbon;
         @endphp
-        {{--
-        @if ($user)
-        <h1 class="text-xl">Welcome, <strong>{{ $user['name'] ?? $user['Name'] ?? 'User' }} </strong> !</h1>
-        @php
-        $specialization = $user['specialization'] ?? $user['Specialization'] ?? null;
-        @endphp
-        @if (!empty($specialization))
-        <div class="text-sm text-gray-500">{{ $specialization }}</div>
-        @endif
-        @endif
-        --}}
         <span class="clr-txt-secondary text-xl font-bold">{{ Carbon::now()->format('l, F j, Y') }}</span>
         <div class="flex flex-row gap-4 w-full h-32">
-            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
-                <span class="text-lg font-medium">
-                    My Projects
-                </span>
-                <h1 class="text-3xl font-bold"
-                    wire:key="card-projects-{{ (int) ($summaryCards['projects'] ?? 0) }}"
-                    x-data="countUpNumber({{ (int) ($summaryCards['projects'] ?? 0) }}, 650)"
-                    x-init="start()"
-                    x-text="display"></h1>
-                <label for="">Active</label>
-            </div>
-            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
-                <span class="text-lg font-medium">
-                    Tasks
-                </span>
-                <h1 class="text-3xl font-bold"
-                    wire:key="card-tasks-{{ (int) ($summaryCards['tasks'] ?? 0) }}"
-                    x-data="countUpNumber({{ (int) ($summaryCards['tasks'] ?? 0) }}, 700)"
-                    x-init="start()"
-                    x-text="display"></h1>
-                <label for="">Assigned to me</label>
-            </div>
-            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
-                <span class="text-lg font-medium">
-                    For Review
-                </span>
-                <h1 class="text-3xl font-bold"
-                    wire:key="card-review-{{ (int) ($summaryCards['forReview'] ?? 0) }}"
-                    x-data="countUpNumber({{ (int) ($summaryCards['forReview'] ?? 0) }}, 750)"
-                    x-init="start()"
-                    x-text="display"></h1>
-                <label for="">Awaiting Review</label>
-            </div>
-            <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
-                <span class="text-lg font-medium">
-                    Completed
-                </span>
-                <h1 class="text-3xl font-bold text-green-600"
-                    wire:key="card-completed-{{ (int) ($summaryCards['completed'] ?? 0) }}"
-                    x-data="countUpNumber({{ (int) ($summaryCards['completed'] ?? 0) }}, 800)"
-                    x-init="start()"
-                    x-text="display"></h1>
-                <label for="">Active</label>
-            </div>
+            @if($isAdmin)
+                @foreach(($adminSummaryCards ?? []) as $idx => $card)
+                    <div class="flex flex-1 border border-gray-200 rounded-lg bg-white h-24 px-4 py-3 items-center gap-3">
+                        <div class="shrink-0">
+                            @if(!empty($card['icon']))
+                                <x-dynamic-component :component="$card['icon']" classes="w-8 h-8" />
+                            @endif
+                        </div>
+                        <div class="min-w-0 flex-1 leading-tight">
+                            <p class="text-sm font-medium text-gray-700 truncate">{{ $card['label'] ?? 'Card' }}</p>
+                            <h1 class="text-3xl font-bold clr-primary mt-0.5"
+                                wire:key="admin-card-{{ $idx }}-{{ (int) ($card['value'] ?? 0) }}"
+                                x-data="countUpNumber({{ (int) ($card['value'] ?? 0) }}, {{ 650 + ($idx * 50) }})"
+                                x-init="start()"
+                                x-text="display"></h1>
+                            <p class="text-[10px] text-gray-500 mt-0.5 truncate">{{ $card['sub'] ?? '' }}</p>
+                        </div>
+                    </div>
+                @endforeach
+            @else
+                <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                    <span class="text-lg font-medium">
+                        My Projects
+                    </span>
+                    <h1 class="text-3xl font-bold"
+                        wire:key="card-projects-{{ (int) ($summaryCards['projects'] ?? 0) }}"
+                        x-data="countUpNumber({{ (int) ($summaryCards['projects'] ?? 0) }}, 650)"
+                        x-init="start()"
+                        x-text="display"></h1>
+                    <label for="">Active</label>
+                </div>
+                <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                    <span class="text-lg font-medium">
+                        Tasks
+                    </span>
+                    <h1 class="text-3xl font-bold"
+                        wire:key="card-tasks-{{ (int) ($summaryCards['tasks'] ?? 0) }}"
+                        x-data="countUpNumber({{ (int) ($summaryCards['tasks'] ?? 0) }}, 700)"
+                        x-init="start()"
+                        x-text="display"></h1>
+                    <label for="">Assigned to me</label>
+                </div>
+                <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                    <span class="text-lg font-medium">
+                        For Review
+                    </span>
+                    <h1 class="text-3xl font-bold"
+                        wire:key="card-review-{{ (int) ($summaryCards['forReview'] ?? 0) }}"
+                        x-data="countUpNumber({{ (int) ($summaryCards['forReview'] ?? 0) }}, 750)"
+                        x-init="start()"
+                        x-text="display"></h1>
+                    <label for="">Awaiting Review</label>
+                </div>
+                <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
+                    <span class="text-lg font-medium">
+                        Completed
+                    </span>
+                    <h1 class="text-3xl font-bold text-green-600"
+                        wire:key="card-completed-{{ (int) ($summaryCards['completed'] ?? 0) }}"
+                        x-data="countUpNumber({{ (int) ($summaryCards['completed'] ?? 0) }}, 800)"
+                        x-init="start()"
+                        x-text="display"></h1>
+                    <label for="">Active</label>
+                </div>
+            @endif
         </div>
     </div>
 
