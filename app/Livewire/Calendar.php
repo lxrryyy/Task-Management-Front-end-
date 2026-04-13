@@ -43,7 +43,7 @@ class Calendar extends Component
             'Low'       => 'gray',
         ];
 
-        // Build account-name lookup for assignee initials
+        // Build account profile lookup for assignee avatars/initials
         $accountMap = [];
         try {
             $raw  = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
@@ -53,8 +53,13 @@ class Calendar extends Component
                 $name = $acc['name'] ?? $acc['Name'] ?? $acc['fullName']
                         ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))
                         ?: null;
+                $pic = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
+                $pic = is_string($pic) ? trim($pic) : '';
                 if ($id > 0 && $name) {
-                    $accountMap[$id] = $name;
+                    $accountMap[$id] = [
+                        'name' => $name,
+                        'profilePicture' => $pic !== '' ? $pic : null,
+                    ];
                 }
             }
         } catch (\Throwable) {}
@@ -77,11 +82,14 @@ class Calendar extends Component
                 if (!is_array($aids)) {
                     $aids = $aids ? [$aids] : [];
                 }
-                $assigneeNames = [];
+                $assignees = [];
                 foreach ($aids as $aid) {
-                    $n = $accountMap[(int) $aid] ?? null;
-                    if ($n) {
-                        $assigneeNames[] = $n;
+                    $profile = $accountMap[(int) $aid] ?? null;
+                    if (is_array($profile) && !empty($profile['name'])) {
+                        $assignees[] = [
+                            'name' => (string) $profile['name'],
+                            'profilePicture' => $profile['profilePicture'] ?? null,
+                        ];
                     }
                 }
 
@@ -95,7 +103,7 @@ class Calendar extends Component
                     'priority'      => $priority,
                     'color'         => $priorityColorMap[$priority] ?? 'blue',
                     'subtasks'      => $subtaskCount,
-                    'assigneeNames' => $assigneeNames,
+                    'assignees'     => $assignees,
                 ];
             }
         }

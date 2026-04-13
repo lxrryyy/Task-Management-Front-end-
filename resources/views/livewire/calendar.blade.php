@@ -78,11 +78,11 @@
             /* ── card colors ────────────────────────── */
             colorClasses(color) {
                 return {
-                    red:  { border:'border-red-400',  bg:'bg-red-50',   title:'text-red-700',   sub:'text-red-400'  },
-                    pink: { border:'border-pink-500',  bg:'bg-pink-50',  title:'text-pink-700',  sub:'text-pink-400' },
-                    blue: { border:'border-blue-500',  bg:'bg-blue-50',  title:'text-blue-800',  sub:'text-blue-400' },
-                    gray: { border:'border-gray-400',  bg:'bg-gray-50',  title:'text-gray-700',  sub:'text-gray-400' },
-                }[color] ?? { border:'border-blue-500', bg:'bg-blue-50', title:'text-blue-800', sub:'text-blue-400' };
+                    red:  { border:'border-red-400',  bg:'bg-white', title:'text-gray-800', sub:'text-gray-500', badge:'bg-red-100 text-red-700' },
+                    pink: { border:'border-pink-500', bg:'bg-white', title:'text-gray-800', sub:'text-gray-500', badge:'bg-pink-100 text-pink-700' },
+                    blue: { border:'border-blue-500', bg:'bg-white', title:'text-gray-800', sub:'text-gray-500', badge:'bg-blue-100 text-blue-800' },
+                    gray: { border:'border-gray-400', bg:'bg-white', title:'text-gray-800', sub:'text-gray-500', badge:'bg-gray-200 text-gray-700' },
+                }[color] ?? { border:'border-blue-500', bg:'bg-white', title:'text-gray-800', sub:'text-gray-500', badge:'bg-blue-100 text-blue-800' };
             },
 
             /* ── mini calendar ──────────────────────── */
@@ -133,6 +133,11 @@
             },
             noteDate(iso) {
                 return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+            },
+            noteBorderClass(note) {
+                const palette = ['border-pink-500', 'border-blue-500', 'border-emerald-500', 'border-amber-500'];
+                const seed = Number(note?.id || 0);
+                return palette[Math.abs(seed) % palette.length];
             },
 
             openNewNote() {
@@ -215,27 +220,44 @@
                         style="min-height:130px;"
                         @click="goToTask(task)">
                         <div class="flex items-start justify-between">
-                            <div>
-                                <p class="font-normal text-sm" :class="colorClasses(task.color).title" x-text="task.title"></p>
-                                <p class="text-xs mt-1" :class="colorClasses(task.color).sub"
-                                x-text="task.subtasks + ' Subtask' + (task.subtasks!==1?'s':'')"></p>
+                            <div class="flex flex-col gap-1">
+                                <div class="">
+                                    <p class="font-normal text-lg" :class="colorClasses(task.color).title" x-text="task.title"></p>
+                                    <p class="text-xs mt-1" :class="colorClasses(task.color).sub"
+                                    x-text="task.subtasks + ' Subtask' + (task.subtasks!==1?'s':'')"></p>
+                                </div>
                             </div>
                             <div class="flex items-center gap-2">
                                 {{-- Assignee initials avatars --}}
                                 <div class="flex -space-x-2">
-                                    <template x-for="(name,i) in task.assigneeNames.slice(0,3)" :key="i">
-                                        <div class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-medium"
-                                            :style="'background:'+avatarBg(name)"
-                                            :title="name"
-                                            x-text="initials(name)"></div>
+                                    <template x-for="(assignee,i) in (task.assignees || []).slice(0,3)" :key="i">
+                                        <div class="w-7 h-7 rounded-full border-2 border-white overflow-hidden flex items-center justify-center text-white text-xs font-medium"
+                                            :style="'background:'+avatarBg(assignee.name)"
+                                            :title="assignee.name">
+                                            <template x-if="assignee.profilePicture">
+                                                <img :src="assignee.profilePicture" alt=""
+                                                    class="w-full h-full object-cover"
+                                                    x-on:error="$el.style.display='none'; const s = $el.parentElement?.querySelector('[data-avatar-initials]'); if (s) s.classList.remove('hidden');" />
+                                            </template>
+                                            <span data-avatar-initials :class="assignee.profilePicture ? 'hidden' : ''" x-text="initials(assignee.name)"></span>
+                                        </div>
                                     </template>
                                 </div>
                                 {{-- Three-dot removed --}}
                             </div>
                         </div>
-                        <div class="flex items-center justify-between text-xs" :class="colorClasses(task.color).sub">
-                            <span x-text="task.project"></span>
-                            <span class="px-2 py-0.5 rounded bg-white/70" :class="colorClasses(task.color).title" x-text="task.priority"></span>
+                        <div class="mt-auto flex items-center justify-between text-xs" :class="colorClasses(task.color).sub">
+                            <span class="text-sm" x-text="task.project"></span>
+                            <span
+                                class="px-2 py-0.5 rounded"
+                                :class="{
+                                    'bg-red-100 text-red-700': task.color === 'red',
+                                    'bg-pink-100 text-pink-700': task.color === 'pink',
+                                    'bg-blue-100 text-blue-800': task.color === 'blue',
+                                    'bg-gray-200 text-gray-700': task.color === 'gray',
+                                    'bg-blue-100 text-blue-800': !['red','pink','blue','gray'].includes(task.color),
+                                }"
+                                x-text="task.priority"></span>
                         </div>
                     </div>
                 </template>
@@ -274,11 +296,17 @@
                                     {{-- Bottom: avatars --}}
                                     <div class="flex items-center justify-between mt-auto">
                                         <div class="flex -space-x-2">
-                                            <template x-for="(name,i) in task.assigneeNames.slice(0,3)" :key="i">
-                                                <div class="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-xs"
-                                                    :style="'background:'+avatarBg(name)"
-                                                    :title="name"
-                                                    x-text="initials(name)"></div>
+                                            <template x-for="(assignee,i) in (task.assignees || []).slice(0,3)" :key="i">
+                                                <div class="w-6 h-6 rounded-full border-2 border-white overflow-hidden flex items-center justify-center text-white text-xs"
+                                                    :style="'background:'+avatarBg(assignee.name)"
+                                                    :title="assignee.name">
+                                                    <template x-if="assignee.profilePicture">
+                                                        <img :src="assignee.profilePicture" alt=""
+                                                            class="w-full h-full object-cover"
+                                                            x-on:error="$el.style.display='none'; const s = $el.parentElement?.querySelector('[data-avatar-initials]'); if (s) s.classList.remove('hidden');" />
+                                                    </template>
+                                                    <span data-avatar-initials :class="assignee.profilePicture ? 'hidden' : ''" x-text="initials(assignee.name)"></span>
+                                                </div>
                                             </template>
                                         </div>
                                     </div>
@@ -382,14 +410,14 @@
                     </template>
 
                     <template x-for="note in notes" :key="note.id">
-                        <div class="relative group rounded-lg p-3 shadow-sm cursor-pointer transition hover:shadow-md clr-bg-secondary text-base-100"
+                        <div :class="['relative group rounded-lg border-l-4 p-3 shadow-sm cursor-pointer transition hover:shadow-md bg-white text-gray-800', noteBorderClass(note)]"
                              @click="openViewNote(note)">
                             {{-- Folded corner --}}
                             <div class="absolute bottom-0 right-0 w-0 h-0 pointer-events-none"
                                  style="border-style:solid;border-width:0 0 14px 14px;border-color:transparent transparent rgba(255,255,255,0.22) transparent;"></div>
                             <p class="text-sm leading-snug pr-6 whitespace-pre-wrap line-clamp-3 font-normal"
                                x-text="note.content"></p>
-                            <p class="text-xs mt-1.5 opacity-80"
+                            <p class="text-xs mt-1.5 text-gray-500"
                                x-text="noteDate(note.updatedAt || note.createdAt)"></p>
                             {{-- Delete button (hover) --}}
                             <button @click.stop="deleteNote(note.id)"
@@ -397,7 +425,7 @@
                                     class="absolute inset-y-0 right-0 flex items-center pr-2 opacity-0 group-hover:opacity-100 transition"
                                     title="Delete note">
                                 <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
-                                     viewBox="0 0 24 24" class="text-base-100">
+                                     viewBox="0 0 24 24" class="text-gray-500">
                                     <path d="M18 6L6 18M6 6l12 12"/>
                                 </svg>
                             </button>
