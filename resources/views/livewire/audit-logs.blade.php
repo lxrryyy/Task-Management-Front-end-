@@ -140,15 +140,6 @@
             </select>
         </div>
         <div class="flex flex-col flex-1">
-            <span>Status</span>
-            <select x-model="filters.status" class="select select-bordered w-full bg-white text-gray-900">
-                <option value="">All statuses</option>
-                <template x-for="s in statusOptions" :key="s">
-                    <option :value="s" x-text="s"></option>
-                </template>
-            </select>
-        </div>
-        <div class="flex flex-col flex-1">
             <span>Date From</span>
             <input x-model="filters.from" type="date"
                 class="input input-sm input-bordered w-full bg-white text-gray-900" />
