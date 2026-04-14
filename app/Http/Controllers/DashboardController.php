@@ -104,11 +104,14 @@ class DashboardController extends Controller
 
     /**
      * Fetch admin dashboard stat cards.
-     * Endpoint: GET /api/Dashboard/GetDashboardStats
+     * Endpoint: GET /api/Dashboard/GetDashboardAdminStats
      */
-    public function getDashboardStats(int $requesterId = 0): array
+    public function getDashboardAdminStats(int $requesterId = 0): array
     {
         $candidates = [
+            ['/api/Dashboard/GetDashboardAdminStats', ['_no_cache' => 1]],
+            ['/api/Dashboard/GetDashboardAdminStats', ['requesterId' => $requesterId, '_no_cache' => 1]],
+            // Backward-compatible fallback
             ['/api/Dashboard/GetDashboardStats', ['_no_cache' => 1]],
             ['/api/Dashboard/GetDashboardStats', ['requesterId' => $requesterId, '_no_cache' => 1]],
         ];
@@ -130,4 +133,5 @@ class DashboardController extends Controller
 
         return [];
     }
+
 }
