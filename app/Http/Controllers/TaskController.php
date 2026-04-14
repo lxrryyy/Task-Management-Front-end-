@@ -30,7 +30,7 @@ class TaskController extends Controller
         // Check if current user is the project leader
         $isLeader = false;
         try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
             $createdById = $project['createdById'] ?? $project['createdBy'] ?? null;
             $isLeader = $createdById && (int) $createdById === (int) $accountId;
         } catch (\Exception $e) {
@@ -42,7 +42,7 @@ class TaskController extends Controller
             // API requires requesterId as a query parameter.
             $projectResponse = $this->api->get(
                 "/api/Task/GetTasksByProject/{$projectId}",
-                ['requesterId' => $accountId]
+                ['requesterId' => $accountId, '_no_cache' => 1]
             );
             $allTasks = is_array($projectResponse)
                 ? $projectResponse
@@ -52,7 +52,7 @@ class TaskController extends Controller
             $assignedIds = [];
             if ($accountId) {
                 try {
-                    $assignedResponse = $this->api->get("/api/Task/GetTasksByAssignee/{$accountId}");
+                    $assignedResponse = $this->api->get("/api/Task/GetTasksByAssignee/{$accountId}", ['_no_cache' => 1]);
                     $assignedTasks = is_array($assignedResponse)
                         ? $assignedResponse
                         : ($assignedResponse['data'] ?? $assignedResponse['tasks'] ?? []);
@@ -82,7 +82,7 @@ class TaskController extends Controller
         // Fetch all accounts then narrow down to project members for the assignee dropdown
         $accounts = [];
         try {
-            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
             $allAccounts = is_array($accountsRaw)
                 ? $accountsRaw
                 : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
@@ -112,7 +112,7 @@ class TaskController extends Controller
     public function getStatuses(): array
     {
         try {
-            $list = $this->api->get('/api/Task/GetAllTasksStatuses');
+            $list = $this->api->get('/api/Task/GetAllTasksStatuses', ['_no_cache' => 1]);
 
             $map = [];
             $names = [];
@@ -138,7 +138,7 @@ class TaskController extends Controller
     public function getPriorities(): array
     {
         try {
-            $raw = $this->api->get('/api/Task/GetAllTasksPriorities');
+            $raw = $this->api->get('/api/Task/GetAllTasksPriorities', ['_no_cache' => 1]);
 
             // Unwrap common API response shapes: wrapped object or raw array
             $list = $raw['data'] ?? $raw['Data']
@@ -223,7 +223,7 @@ class TaskController extends Controller
 
         // New API shape:
         // { projectedStartDate, projectedDueDate, storyPoints, warnings: [{message,...}] }
-        $result = $this->api->get('/api/Task/CheckAssigneeWorkload', $params);
+        $result = $this->api->get('/api/Task/CheckAssigneeWorkload', array_merge($params, ['_no_cache' => 1]));
 
         $due = null;
         if (is_array($result)) {
@@ -368,7 +368,7 @@ class TaskController extends Controller
                 try {
                     $projectResponse = $this->api->get(
                         "/api/Task/GetTasksByProject/{$projectId}",
-                        ['requesterId' => $creatorId]
+                        ['requesterId' => $creatorId, '_no_cache' => 1]
                     );
                     $allTasks = is_array($projectResponse)
                         ? $projectResponse
@@ -417,13 +417,13 @@ class TaskController extends Controller
     public function getAssignableAccountsForProject(int $projectId, int $requesterId): array
     {
         try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
         } catch (\Throwable) {
             $project = [];
         }
 
         try {
-            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
             $allAccounts = is_array($accountsRaw)
                 ? $accountsRaw
                 : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);

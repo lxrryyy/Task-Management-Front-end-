@@ -46,7 +46,7 @@ class Calendar extends Component
         // Build account profile lookup for assignee avatars/initials
         $accountMap = [];
         try {
-            $raw  = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
+            $raw  = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
             $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
             foreach ((array) $list as $acc) {
                 $id   = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
@@ -116,7 +116,7 @@ class Calendar extends Component
     {
         try {
             $api  = app(CsharpApiService::class);
-            $raw  = $api->get("/api/StickyNote/GetMyNotes/{$accountId}");
+            $raw  = $api->get("/api/StickyNote/GetMyNotes/{$accountId}", ['_no_cache' => 1]);
 
             // Unwrap common wrapper shapes
             $list = is_array($raw)

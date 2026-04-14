@@ -37,6 +37,7 @@ class DashboardController extends Controller
         try {
             $response = $this->api->get('/api/Dashboard/MyProjectsAndTasks', [
                 'requesterId' => $accountId,
+                '_no_cache' => 1,
             ]);
 
             return is_array($response) ? $response : [];
@@ -62,6 +63,7 @@ class DashboardController extends Controller
         try {
             $response = $this->api->get("/api/Dashboard/ProjectTaskSummary/{$projectId}", [
                 'requesterId' => $requesterId,
+                '_no_cache' => 1,
             ]);
             if (! is_array($response)) {
                 return ['totalTasks' => 0, 'breakdown' => []];
@@ -107,8 +109,8 @@ class DashboardController extends Controller
     public function getDashboardStats(int $requesterId = 0): array
     {
         $candidates = [
-            ['/api/Dashboard/GetDashboardStats', []],
-            ['/api/Dashboard/GetDashboardStats', ['requesterId' => $requesterId]],
+            ['/api/Dashboard/GetDashboardStats', ['_no_cache' => 1]],
+            ['/api/Dashboard/GetDashboardStats', ['requesterId' => $requesterId, '_no_cache' => 1]],
         ];
 
         foreach ($candidates as [$endpoint, $query]) {

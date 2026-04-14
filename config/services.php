@@ -19,6 +19,8 @@ return [
         'key' => env('API_KEY'),
         'timeout' => (int) env('API_HTTP_TIMEOUT', 90),
         'connect_timeout' => (int) env('API_HTTP_CONNECT_TIMEOUT', 15),
+        'cache_enabled' => (bool) env('API_HTTP_CACHE_ENABLED', true),
+        'cache_ttl' => (int) env('API_HTTP_CACHE_TTL', 30),
     ],
 
     'postmark' => [

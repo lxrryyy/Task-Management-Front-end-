@@ -244,7 +244,7 @@ class UserManagement extends Component
         $this->apiError = null;
 
         try {
-            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
+            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats', ['_no_cache' => 1]);
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
             $this->loading = false;
@@ -381,7 +381,7 @@ class UserManagement extends Component
         }
 
         try {
-            $full = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$id}");
+            $full = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$id}", ['_no_cache' => 1]);
         } catch (\Throwable) {
             return $user;
         }

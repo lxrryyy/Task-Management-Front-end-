@@ -27,7 +27,7 @@ class ProjectController extends Controller
 
         $projects = $isAdmin
             ? $this->fetchProjectsForAdmin((int) $accountId)
-            : $this->normalizeProjects($this->api->get("/api/Project/GetMyProjects/{$accountId}"));
+            : $this->normalizeProjects($this->api->get("/api/Project/GetMyProjects/{$accountId}", ['_no_cache' => 1]));
 
         // If we just updated a project, merge in fresh data from GetProjectById (members etc.)
         if (Session::has('refreshed_project')) {
@@ -63,7 +63,7 @@ class ProjectController extends Controller
             try {
                 $tasksResponse = $this->api->get(
                     "/api/Task/GetTasksByProject/{$projectId}",
-                    ['requesterId' => $pmId]
+                    ['requesterId' => $pmId, '_no_cache' => 1]
                 );
                 $tasks = is_array($tasksResponse)
                     ? $tasksResponse
@@ -108,7 +108,7 @@ class ProjectController extends Controller
             }
         }
 
-        $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
+        $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
         $accounts = $this->normalizeAccounts($accountsResponse);
         $accounts = app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing($projects, $accounts);
 
@@ -128,11 +128,11 @@ class ProjectController extends Controller
     private function fetchProjectsForAdmin(int $accountId): array
     {
         $candidates = [
-            ['/api/Project/GetAllProjects', []],
-            ['/api/Project/GetAllProject', []],
-            ['/api/Project/GetAllProjects', ['requesterId' => $accountId]],
-            ['/api/Project/GetAllProject', ['requesterId' => $accountId]],
-            ["/api/Project/GetMyProjects/{$accountId}", []], // fallback
+            ['/api/Project/GetAllProjects', ['_no_cache' => 1]],
+            ['/api/Project/GetAllProject', ['_no_cache' => 1]],
+            ['/api/Project/GetAllProjects', ['requesterId' => $accountId, '_no_cache' => 1]],
+            ['/api/Project/GetAllProject', ['requesterId' => $accountId, '_no_cache' => 1]],
+            ["/api/Project/GetMyProjects/{$accountId}", ['_no_cache' => 1]], // fallback
         ];
 
         foreach ($candidates as [$endpoint, $query]) {
@@ -161,7 +161,7 @@ class ProjectController extends Controller
 
         // Fetch deleted (archived) projects
         try {
-            $response = $this->api->get('/api/Project/GetDeletedProjects');
+            $response = $this->api->get('/api/Project/GetDeletedProjects', ['_no_cache' => 1]);
             $projects = $this->normalizeProjects($response);
         } catch (\Throwable) {
             $projects = [];
@@ -169,7 +169,7 @@ class ProjectController extends Controller
 
         // Accounts are useful for resolving member names when API returns assigneeIds
         try {
-            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
             $accounts = $this->normalizeAccounts($accountsResponse);
             $accounts = app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing($projects, $accounts);
         } catch (\Throwable) {
@@ -227,7 +227,7 @@ class ProjectController extends Controller
 
     public function show($id)
     {
-        $project = $this->api->get("/api/Project/GetProjectById/{$id}");
+        $project = $this->api->get("/api/Project/GetProjectById/{$id}", ['_no_cache' => 1]);
 
         return view('project', ['project' => $project]);
     }
@@ -293,7 +293,7 @@ class ProjectController extends Controller
         }
 
         // Re-fetch updated project (including members) via GetProjectById for the list
-        $updated = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+        $updated = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
         if (! empty($updated) && is_array($updated)) {
             Session::put('refreshed_project', $updated);
         }
@@ -456,7 +456,7 @@ class ProjectController extends Controller
     public function getProjectData(int $projectId): array
     {
         try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}");
+            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
 
             return is_array($project) ? $project : [];
         } catch (\Throwable) {
@@ -471,7 +471,7 @@ class ProjectController extends Controller
     public function getAccountsData(): array
     {
         try {
-            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount');
+            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
 
             return $this->normalizeAccounts($accountsResponse);
         } catch (\Throwable) {
