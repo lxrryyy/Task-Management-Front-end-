@@ -2,15 +2,19 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Session;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class Dashboard extends Component
 {
     public ?array $user = null;
+
     public bool $isAdmin = false;
+
     public array $projects = [];
+
     public int $currentUserId = 0;
 
     /** Selected project id for the "Task by Status" chart; default is first project. */
@@ -18,13 +22,16 @@ class Dashboard extends Component
 
     /** Task status summary from API: totalTasks, breakdown (statusName, count, percentage). */
     public array $taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
+
     public bool $loading = true;
+
     public array $summaryCards = [
         'projects' => 0,
         'tasks' => 0,
         'forReview' => 0,
         'completed' => 0,
     ];
+
     public array $adminSummaryCards = [];
 
     public function mount(): void
@@ -41,7 +48,7 @@ class Dashboard extends Component
         $this->dispatch('load-dashboard');
     }
 
-    #[\Livewire\Attributes\On('load-dashboard')]
+    #[On('load-dashboard')]
     public function loadDashboard(): void
     {
         if ($this->currentUserId <= 0) {
@@ -53,6 +60,7 @@ class Dashboard extends Component
                 'completed' => 0,
             ];
             $this->loading = false;
+
             return;
         }
 
@@ -62,7 +70,7 @@ class Dashboard extends Component
         $this->projects = is_array($data) ? $data : [];
         $this->summaryCards = $this->buildSummaryCards($this->projects);
         if ($this->isAdmin) {
-            $stats = $controller->getDashboardStats($this->currentUserId);
+            $stats = $controller->getDashboardAdminStats($this->currentUserId);
             $this->adminSummaryCards = [
                 [
                     'label' => 'Total Users',
@@ -117,6 +125,7 @@ class Dashboard extends Component
                         $completedCount++;
                     }
                 }
+
                 continue;
             }
 
@@ -157,6 +166,7 @@ class Dashboard extends Component
                 return $source->{$key};
             }
         }
+
         return $default;
     }
 
@@ -165,6 +175,7 @@ class Dashboard extends Component
     {
         if (empty($this->projects)) {
             $this->selectedProjectId = null;
+
             return;
         }
         $first = $this->projects[0];
@@ -177,6 +188,7 @@ class Dashboard extends Component
     {
         if ($this->currentUserId <= 0 || $this->selectedProjectId === null || $this->selectedProjectId <= 0) {
             $this->taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
+
             return;
         }
         $controller = app(DashboardController::class);
@@ -205,4 +217,3 @@ class Dashboard extends Component
         ]);
     }
 }
-
