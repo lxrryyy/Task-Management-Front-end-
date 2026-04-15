@@ -845,7 +845,7 @@
                         </div>
                     @endforeach
                 @else
-                    @forelse($filteredTasks as $task)
+                    @forelse($visibleFilteredTasks as $task)
                         @php
                             $taskId = (int) ($task['id'] ?? $task['Id'] ?? 0);
                             $taskName = (string) ($task['name'] ?? $task['title'] ?? 'Task');
@@ -995,6 +995,14 @@
                             No parent tasks yet.
                         </div>
                     @endforelse
+                    @if (count($filteredTasks ?? []) > count($visibleFilteredTasks ?? []))
+                        <div class="flex justify-center pt-2">
+                            <button type="button" class="btn btn-sm border border-gray-300 bg-white hover:bg-gray-50"
+                                wire:click="loadMoreList">
+                                Load more tasks
+                            </button>
+                        </div>
+                    @endif
                 @endif
             </div>
         @else
@@ -1183,7 +1191,7 @@
                     @endforeach
                 @else
                     @if (($currentParentTaskId ?? null) !== null)
-                        @forelse($listRows ?? [] as $row)
+                        @forelse($visibleListRows ?? [] as $row)
                             @php
                                 $rowType = (string) ($row['type'] ?? 'task');
                             @endphp
@@ -1459,6 +1467,17 @@
                                 </td>
                             </tr>
                         @endforelse
+                        @if (count($listRows ?? []) > count($visibleListRows ?? []))
+                            <tr>
+                                <td colspan="9" class="py-3 text-center">
+                                    <button type="button"
+                                        class="btn btn-sm border border-gray-300 bg-white hover:bg-gray-50"
+                                        wire:click="loadMoreList">
+                                        Load more rows
+                                    </button>
+                                </td>
+                            </tr>
+                        @endif
                     @endif
                 @endif
             </tbody>
@@ -1511,7 +1530,7 @@
                         <span class="badge badge-sm">{{ count($boardGrouped[$status] ?? []) }}</span>
                     </div>
                     <div class="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 min-h-[80vh]">
-                        @foreach ($boardGrouped[$status] ?? [] as $task)
+                        @foreach ($boardGroupedVisible[$status] ?? [] as $task)
                             @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
                             @php
                                 $boardChildCount = count(($childrenMap ?? [])[$boardTaskId] ?? []);
@@ -1667,6 +1686,15 @@
                         @endforeach
                         @if (empty($boardGrouped[$status]))
                             <div class="text-center text-xs text-gray-400 py-6">No tasks</div>
+                        @endif
+                        @if (!empty($boardHasMoreByStatus[$status]))
+                            <div class="pt-1">
+                                <button type="button"
+                                    class="btn btn-xs w-full border border-gray-300 bg-white hover:bg-gray-50"
+                                    wire:click='loadMoreBoard(@js($status))'>
+                                    Load more
+                                </button>
+                            </div>
                         @endif
                     </div>
                 </div>

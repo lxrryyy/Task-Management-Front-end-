@@ -4,6 +4,35 @@ import { registerNotifications } from "./notifications";
 
 window.Chart = Chart;
 
+const perfTracker = (() => {
+    const isEnabled = () =>
+        typeof window !== "undefined" &&
+        (window.localStorage?.getItem("tmPerf") === "1" ||
+            window.sessionStorage?.getItem("tmPerf") === "1");
+
+    const formatMs = (value) => `${Math.max(0, value).toFixed(1)}ms`;
+
+    return {
+        mark(label) {
+            if (!isEnabled()) return;
+            try {
+                performance.mark(label);
+            } catch (_) {}
+        },
+        measure(name, start, end) {
+            if (!isEnabled()) return;
+            try {
+                performance.measure(name, start, end);
+                const entries = performance.getEntriesByName(name, "measure");
+                const latest = entries[entries.length - 1];
+                if (latest) {
+                    console.info(`[tmPerf] ${name}: ${formatMs(latest.duration)}`);
+                }
+            } catch (_) {}
+        },
+    };
+})();
+
 const globalLoader = (() => {
     let activeCount = 0;
     let hideTimer = null;
@@ -125,14 +154,44 @@ window.countUpNumber = function countUpNumber(targetValue, durationMs) {
 };
 
 document.addEventListener("livewire:init", () => {
-    document.addEventListener("livewire:navigating", () => globalLoader.start());
-    document.addEventListener("livewire:navigated", () => globalLoader.stop());
+    document.addEventListener("livewire:navigating", () => {
+        perfTracker.mark("tm-livewire-nav-start");
+        globalLoader.start();
+    });
+    document.addEventListener("livewire:navigated", () => {
+        perfTracker.mark("tm-livewire-nav-end");
+        perfTracker.measure(
+            "livewire navigation",
+            "tm-livewire-nav-start",
+            "tm-livewire-nav-end",
+        );
+        globalLoader.stop();
+    });
 
     if (typeof Livewire !== "undefined" && typeof Livewire.hook === "function") {
         try {
-            Livewire.hook("message.sent", () => globalLoader.start());
-            Livewire.hook("message.processed", () => globalLoader.stop());
-            Livewire.hook("message.failed", () => globalLoader.stop());
+            Livewire.hook("message.sent", () => {
+                perfTracker.mark("tm-livewire-message-start");
+                globalLoader.start();
+            });
+            Livewire.hook("message.processed", () => {
+                perfTracker.mark("tm-livewire-message-end");
+                perfTracker.measure(
+                    "livewire message",
+                    "tm-livewire-message-start",
+                    "tm-livewire-message-end",
+                );
+                globalLoader.stop();
+            });
+            Livewire.hook("message.failed", () => {
+                perfTracker.mark("tm-livewire-message-failed");
+                perfTracker.measure(
+                    "livewire message (failed)",
+                    "tm-livewire-message-start",
+                    "tm-livewire-message-failed",
+                );
+                globalLoader.stop();
+            });
         } catch (_) {}
     }
 

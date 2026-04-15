@@ -86,6 +86,10 @@ class Tasks extends Component
     public ?string $pendingDeleteTaskName = null;
 
     public bool $loading = true;
+    public int $listVisibleLimit = 30;
+    public int $listVisibleStep = 30;
+    public int $boardVisibleStep = 25;
+    public array $boardVisibleByStatus = [];
 
     /** Current task-level context; null means root (parent tasks). */
     public ?int $currentParentTaskId = null;
@@ -131,6 +135,7 @@ class Tasks extends Component
             $this->statusMap = ['Not Started' => 1, 'In Progress' => 2, 'For Review' => 3, 'Completed' => 4];
             $this->taskStatuses = array_keys($this->statusMap);
         }
+        $this->resetVisibleWindows();
 
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->syncProjectStatusFromTasks();
@@ -191,6 +196,7 @@ class Tasks extends Component
     public function switchView(string $mode): void
     {
         $this->viewMode = $mode;
+        $this->resetVisibleWindows();
     }
 
     public function enterTaskLevel(int $taskId): void
@@ -205,11 +211,13 @@ class Tasks extends Component
         }
 
         $this->currentParentTaskId = $taskId;
+        $this->resetVisibleWindows();
     }
 
     public function goToTaskLevel(?int $taskId = null): void
     {
         $this->currentParentTaskId = $taskId && $taskId > 0 ? (int) $taskId : null;
+        $this->resetVisibleWindows();
     }
 
     public function clearTaskFilters(): void
@@ -218,6 +226,70 @@ class Tasks extends Component
         $this->filterPriority = '';
         $this->filterDateFrom = '';
         $this->filterDateTo = '';
+        $this->resetVisibleWindows();
+    }
+
+    public function loadMoreList(): void
+    {
+        $this->listVisibleLimit += $this->listVisibleStep;
+    }
+
+    public function loadMoreBoard(string $status): void
+    {
+        $current = (int) ($this->boardVisibleByStatus[$status] ?? $this->boardVisibleStep);
+        $this->boardVisibleByStatus[$status] = $current + $this->boardVisibleStep;
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterStatus(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterPriority(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterDateFrom(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterDateTo(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    private function resetVisibleWindows(): void
+    {
+        $this->listVisibleLimit = max(1, (int) $this->listVisibleStep);
+        $this->boardVisibleByStatus = [];
+        foreach ((array) $this->taskStatuses as $status) {
+            $name = trim((string) $status);
+            if ($name === '') {
+                continue;
+            }
+            $this->boardVisibleByStatus[$name] = max(1, (int) $this->boardVisibleStep);
+        }
+    }
+
+    private function ensureBoardVisibleWindows(array $statuses): void
+    {
+        $step = max(1, (int) $this->boardVisibleStep);
+        foreach ($statuses as $status) {
+            $name = trim((string) $status);
+            if ($name === '') {
+                continue;
+            }
+            if (! isset($this->boardVisibleByStatus[$name]) || (int) $this->boardVisibleByStatus[$name] <= 0) {
+                $this->boardVisibleByStatus[$name] = $step;
+            }
+        }
     }
 
     public function openTaskDetail(int $taskId, ?int $scrollToCommentId = null): void
@@ -1007,6 +1079,7 @@ class Tasks extends Component
         }
 
         $statuses = ! empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
+        $this->ensureBoardVisibleWindows($statuses);
 
         $grouped = array_fill_keys($statuses, []);
         foreach ($currentOnly as $task) {
@@ -1015,6 +1088,16 @@ class Tasks extends Component
                 $grouped[$s] = [];
             }
             $grouped[$s][] = $task;
+        }
+        $visibleListRows = array_slice($listRows, 0, max(1, (int) $this->listVisibleLimit));
+        $visibleFilteredTasks = array_slice($currentOnly, 0, max(1, (int) $this->listVisibleLimit));
+        $boardGroupedVisible = [];
+        $boardHasMoreByStatus = [];
+        foreach ($statuses as $status) {
+            $all = (array) ($grouped[$status] ?? []);
+            $limit = max(1, (int) ($this->boardVisibleByStatus[$status] ?? $this->boardVisibleStep));
+            $boardGroupedVisible[$status] = array_slice($all, 0, $limit);
+            $boardHasMoreByStatus[$status] = count($all) > count($boardGroupedVisible[$status]);
         }
 
         $accountMap = [];
@@ -1083,9 +1166,13 @@ class Tasks extends Component
         return view('livewire.tasks', [
             'filteredTasks' => $currentOnly,
             'listRows' => $listRows,
+            'visibleListRows' => $visibleListRows,
             'rootTasks' => $rootOnly,
+            'visibleFilteredTasks' => $visibleFilteredTasks,
             'boardStatuses' => $statuses,
             'boardGrouped' => $grouped,
+            'boardGroupedVisible' => $boardGroupedVisible,
+            'boardHasMoreByStatus' => $boardHasMoreByStatus,
             'childrenMap' => $childrenMap,
             'taskParentMap' => $parentOf,
             'tasksById' => $tasksById,
