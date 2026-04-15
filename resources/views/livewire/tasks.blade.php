@@ -128,10 +128,11 @@
     <dialog class="{{ $showAddTaskModal ? 'modal modal-open' : 'modal' }}"
         wire:key="add-task-modal-{{ count($taskPriorityMap ?? []) }}">
         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
-            <div class="modal-action mt-0 mb-2">
-                <button type="button" wire:click="closeAddTaskModal" class="btn btn-sm">✕</button>
+            <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-2xl">{{ $taskParentId ? 'Add New Subtask' : 'Add New Task' }}</h3>
+                <button type="button" wire:click="closeAddTaskModal"
+                    class="btn btn-ghost btn-sm btn-circle">✕</button>
             </div>
-            <h3 class="font-normal text-lg">{{ $taskParentId ? 'New Subtask' : 'New Task' }}</h3>
 
             @php
                 $liveErrs = $errors->any()
@@ -388,36 +389,34 @@
 
     {{-- Task detail modal --}}
     <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
-        <div class="modal-box w-11/12 max-w-3xl max-h-[90vh] rounded-2xl shadow-xl overflow-auto">
-            <div class="flex items-start justify-between gap-4 mb-6">
-                <div class="flex-1 min-w-0">
-                    @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
-                        <div class="text-lg text-gray-500 mb-1 truncate">
-                            @foreach ($detailBreadcrumb as $i => $bt)
-                                @php
-                                    $bName = $bt['name'] ?? ($bt['title'] ?? '—');
-                                    $bId = (int) ($bt['id'] ?? $bt['Id'] ?? 0);
-                                @endphp
-                                @if ($i > 0)
-                                    <span class="mx-1">/</span>
-                                @endif
-                                <button type="button" class="hover:underline"
-                                    wire:click="openTaskDetail({{ $bId }})">
-                                    {{ $bName }}
-                                </button>
-                            @endforeach
-                        </div>
-                    @endif
-                    <h2 class="font-normal text-2xl text-gray-900 leading-tight">
+        <div class="modal-box w-11/12 max-w-5xl overflow-y-auto relative">
+            <button type="button" wire:click="closeTaskDetail"
+                class="btn btn-sm btn-ghost absolute top-3 right-3">✕</button>
+            <div class="pr-10">
+                <h3 class="font-bold text-lg">Task Details</h3>
+                @if (!empty($detailBreadcrumb) && count($detailBreadcrumb) > 1)
+                    <div class="text-sm text-gray-500 mt-4 truncate">
+                        @foreach ($detailBreadcrumb as $i => $bt)
+                            @php
+                                $bName = $bt['name'] ?? ($bt['title'] ?? '—');
+                                $bId = (int) ($bt['id'] ?? $bt['Id'] ?? 0);
+                            @endphp
+                            @if ($i > 0)
+                                <span class="mx-1">/</span>
+                            @endif
+                            <button type="button" class="hover:underline" wire:click="openTaskDetail({{ $bId }})">
+                                {{ $bName }}
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+                <h2 class="font-semibold text-2xl text-gray-900 leading-tight my-4">
                     @if ($detailTask)
                         {{ $detailTask['name'] ?? ($detailTask['title'] ?? 'Task details') }}
                     @else
                         Task details
                     @endif
-                    </h2>
-                </div>
-                <button type="button" wire:click="closeTaskDetail"
-                    class="btn btn-ghost btn-sm btn-circle w-8 h-8 min-h-0 shrink-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full">✕</button>
+                </h2>
             </div>
             @if ($detailTask)
                 @php
