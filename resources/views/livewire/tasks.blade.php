@@ -67,30 +67,32 @@
                 <x-icons.board class="w-4 h-4 inline-block" /> Board View
             </button>
 
-            <script>
-                (function () {
-                    document.addEventListener('click', function (e) {
-                        var btn = e.target && e.target.closest ? e.target.closest('[data-viewmode-btn]') : null;
-                        if (!btn) return;
-                        var mode = btn.getAttribute('data-viewmode');
+            @once
+                <script>
+                    (function () {
+                        document.addEventListener('click', function (e) {
+                            var btn = e.target && e.target.closest ? e.target.closest('[data-viewmode-btn]') : null;
+                            if (!btn) return;
+                            var mode = btn.getAttribute('data-viewmode');
 
-                        try {
-                            var url = new URL(window.location.href);
-                            url.searchParams.set('view', mode);
-                            window.history.replaceState({}, '', url.toString());
-                        } catch (e2) {}
-                    });
-                })();
-            </script>
+                            try {
+                                var url = new URL(window.location.href);
+                                url.searchParams.set('view', mode);
+                                window.history.replaceState({}, '', url.toString());
+                            } catch (e2) {}
+                        });
+                    })();
+                </script>
+            @endonce
         </div>
         <div class="flex items-center gap-2">
-            <x-search-input wire:model.live.debounce.300ms="search" input-class="w-64 bg-transparent focus:outline-none rounded-lg" />
+            <x-search-input wire:model.live.debounce.500ms="search" input-class="w-64 bg-transparent focus:outline-none rounded-lg" />
             <x-filter-dropdown
                 button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
                 clear-action="clearTaskFilters">
                 <div class="flex flex-col gap-1">
                     <span class="text-gray-600">Status</span>
-                    <select wire:model.live="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
+                    <select wire:model.live.debounce.250ms="filterStatus" class="select select-bordered w-full bg-white text-gray-900">
                         <option value="">All statuses</option>
                         @foreach ($boardStatuses ?? [] as $statusOption)
                             <option value="{{ $statusOption }}">{{ $statusOption }}</option>
@@ -99,7 +101,7 @@
                 </div>
                 <div class="flex flex-col gap-1">
                     <span class="text-gray-600">Priority</span>
-                    <select wire:model.live="filterPriority"
+                    <select wire:model.live.debounce.250ms="filterPriority"
                         class="select select-bordered w-full bg-white text-gray-900">
                         <option value="">All priorities</option>
                         @foreach ($taskPriorityNames ?? [] as $priorityOption)
@@ -110,12 +112,12 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div class="flex flex-col gap-1">
                         <span class="text-gray-600">Date From</span>
-                        <input wire:model.live="filterDateFrom" type="date"
+                        <input wire:model.live.debounce.250ms="filterDateFrom" type="date"
                             class="input input-bordered w-full bg-white text-gray-900" />
                     </div>
                     <div class="flex flex-col gap-1">
                         <span class="text-gray-600">Date To</span>
-                        <input wire:model.live="filterDateTo" type="date"
+                        <input wire:model.live.debounce.250ms="filterDateTo" type="date"
                             class="input input-bordered w-full bg-white text-gray-900" />
                     </div>
                 </div>
@@ -124,9 +126,45 @@
         </div>
     </div>
 
-    {{-- Add Task Modal (wire:key forces re-render when priority count changes so dropdown gets fresh options) --}}
-    <dialog class="{{ $showAddTaskModal ? 'modal modal-open' : 'modal' }}"
-        wire:key="add-task-modal-{{ count($taskPriorityMap ?? []) }}">
+    @once
+        <script>
+            // Keep a fixed-height scroll container, but don't clip dropdowns.
+            (function() {
+                const enableOverflowVisible = () => {
+                    const wrap = document.querySelector('[data-tasks-table-scroll]');
+                    if (!wrap) return;
+                    wrap.classList.remove('overflow-y-auto');
+                    wrap.classList.add('overflow-visible');
+                };
+                const disableOverflowVisible = () => {
+                    const wrap = document.querySelector('[data-tasks-table-scroll]');
+                    if (!wrap) return;
+                    wrap.classList.remove('overflow-visible');
+                    wrap.classList.add('overflow-y-auto');
+                };
+
+                document.addEventListener('click', (e) => {
+                    const t = e.target;
+                    if (!(t instanceof Element)) return;
+
+                    if (t.closest('[data-action-dropdown-trigger]')) {
+                        enableOverflowVisible();
+                        return;
+                    }
+                    if (t.closest('[data-action-dropdown-menu]')) return;
+                    disableOverflowVisible();
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') disableOverflowVisible();
+                });
+            })();
+        </script>
+    @endonce
+
+    {{-- Add Task Modal (lazy-rendered to reduce Livewire payload while closed) --}}
+    @if ($showAddTaskModal || !empty($flashErrorMessages) || $errors->any())
+    <dialog class="modal modal-open" wire:key="add-task-modal-{{ count($taskPriorityMap ?? []) }}">
         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
             <div class="flex items-start justify-between mb-2">
                 <h3 class="font-semibold text-2xl">{{ $taskParentId ? 'Add New Subtask' : 'Add New Task' }}</h3>
@@ -386,9 +424,11 @@
             <button type="button" wire:click="closeAddTaskModal">close</button>
         </form>
     </dialog>
+    @endif
 
-    {{-- Task detail modal --}}
-    <dialog class="{{ $showTaskDetailModal ? 'modal modal-open' : 'modal' }}">
+    {{-- Task detail modal (lazy-rendered to reduce payload while closed) --}}
+    @if ($showTaskDetailModal)
+    <dialog class="modal modal-open">
         <div class="modal-box w-11/12 max-w-5xl overflow-y-auto relative">
             <button type="button" wire:click="closeTaskDetail"
                 class="btn btn-sm btn-ghost absolute top-3 right-3">✕</button>
@@ -762,45 +802,15 @@
             });
         </script>
 
-        <script>
-            // Keep a fixed-height scroll container, but don't clip dropdowns.
-            (function() {
-                const wrap = document.querySelector('[data-tasks-table-scroll]');
-                if (!wrap) return;
-
-                const enableOverflowVisible = () => {
-                    wrap.classList.remove('overflow-y-auto');
-                    wrap.classList.add('overflow-visible');
-                };
-                const disableOverflowVisible = () => {
-                    wrap.classList.remove('overflow-visible');
-                    wrap.classList.add('overflow-y-auto');
-                };
-
-                document.addEventListener('click', (e) => {
-                    const t = e.target;
-                    if (!(t instanceof Element)) return;
-
-                    if (t.closest('[data-action-dropdown-trigger]')) {
-                        enableOverflowVisible();
-                        return;
-                    }
-                    if (t.closest('[data-action-dropdown-menu]')) return;
-                    disableOverflowVisible();
-                });
-
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') disableOverflowVisible();
-                });
-            })();
-        </script>
         <form method="dialog" class="modal-backdrop">
             <button type="button" wire:click="closeTaskDetail">close</button>
         </form>
     </dialog>
+    @endif
 
-    {{-- Delete confirmation modal --}}
-    <dialog class="{{ $showDeleteConfirmModal ? 'modal modal-open' : 'modal' }}">
+    {{-- Delete confirmation modal (lazy-rendered to reduce payload while closed) --}}
+    @if ($showDeleteConfirmModal)
+    <dialog class="modal modal-open">
         <div class="modal-box max-w-sm">
             <h3 class="text-lg font-normal">Confirm Delete</h3>
             <p class="py-4 text-sm text-gray-700">
@@ -819,6 +829,7 @@
             <button type="button" wire:click="cancelDeleteTask">close</button>
         </form>
     </dialog>
+    @endif
 
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative overflow-y-auto"
         data-tasks-table-scroll>

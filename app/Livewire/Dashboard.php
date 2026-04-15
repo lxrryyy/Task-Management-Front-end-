@@ -24,6 +24,7 @@ class Dashboard extends Component
     public array $taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
 
     public bool $loading = true;
+    public bool $secondaryReady = false;
 
     public array $summaryCards = [
         'projects' => 0,
@@ -47,6 +48,7 @@ class Dashboard extends Component
         $this->currentUserId = $accountId;
 
         $this->loading = true;
+        $this->secondaryReady = false;
         $this->flashSuccess = session()->get('success') ?: null;
         $this->dispatch('load-dashboard');
     }
@@ -93,6 +95,7 @@ class Dashboard extends Component
         if ($this->currentUserId <= 0) {
             $this->adminSummaryCards = [];
             $this->taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
+            $this->secondaryReady = true;
             return;
         }
 
@@ -135,6 +138,7 @@ class Dashboard extends Component
             $this->setDefaultSelectedProject();
         }
         $this->loadTaskStatusSummary();
+        $this->secondaryReady = true;
     }
 
     private function buildSummaryCards(array $projects): array
@@ -238,14 +242,13 @@ class Dashboard extends Component
 
     public function render()
     {
-        $this->summaryCards = $this->buildSummaryCards($this->projects);
-
         return view('livewire.dashboard', [
             'projects' => $this->projects,
             'taskStatusSummary' => $this->taskStatusSummary,
             'summaryCards' => $this->summaryCards,
             'isAdmin' => $this->isAdmin,
             'adminSummaryCards' => $this->adminSummaryCards,
+            'secondaryReady' => $this->secondaryReady,
         ]);
     }
 }

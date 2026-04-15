@@ -36,7 +36,7 @@
         @endphp
         <span class="clr-txt-secondary text-xl font-bold">{{ Carbon::now()->format('l, F j, Y') }}</span>
         <div class="flex flex-row gap-4 w-full h-32">
-            @if($isAdmin)
+            @if($isAdmin && ($secondaryReady ?? false))
                 @foreach(($adminSummaryCards ?? []) as $idx => $card)
                     <div class="flex flex-1 border border-gray-200 rounded-lg bg-white h-24 px-4 py-3 items-center gap-3">
                         <div class="shrink-0">
@@ -55,7 +55,7 @@
                         </div>
                     </div>
                 @endforeach
-            @else
+            @elseif(! $isAdmin)
                 <div class="flex flex-col flex-start flex-1 border rounded-lg p-4">
                     <span class="text-lg font-medium">
                         My Projects
@@ -100,6 +100,17 @@
                         x-text="display"></h1>
                     <label for="">Active</label>
                 </div>
+            @else
+                @foreach(range(1, 4) as $i)
+                    <div class="flex flex-1 border border-gray-200 rounded-lg bg-white h-24 px-4 py-3 items-center gap-3">
+                        <div class="h-8 w-8 rounded bg-gray-200 animate-pulse"></div>
+                        <div class="min-w-0 flex-1 leading-tight">
+                            <div class="h-4 bg-gray-200 rounded animate-pulse w-24 mb-2"></div>
+                            <div class="h-8 bg-gray-200 rounded animate-pulse w-16 mb-2"></div>
+                            <div class="h-3 bg-gray-200 rounded animate-pulse w-20"></div>
+                        </div>
+                    </div>
+                @endforeach
             @endif
         </div>
     </div>
@@ -212,7 +223,7 @@
         <div class="flex flex-col w-1/2 border border-gray-200 rounded-lg p-4">
             <h1 class="text-xl font-bold pl-4">Task by Status</h1>
 
-            @if($loading)
+            @if($loading || !($secondaryReady ?? false))
             <div class="flex flex-col items-center gap-6 mt-4">
                 <div class="w-72 h-72 rounded-full bg-gray-200 animate-pulse"></div>
                 <div class="flex flex-row gap-4">
