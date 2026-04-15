@@ -752,6 +752,27 @@ class Projects extends Component
             return true;
         }));
 
+        // Display newest projects first.
+        usort($filtered, static function ($a, $b) {
+            $aCreatedRaw = (string) ($a['createdAt'] ?? $a['CreatedAt'] ?? '');
+            $bCreatedRaw = (string) ($b['createdAt'] ?? $b['CreatedAt'] ?? '');
+            $aTs = $aCreatedRaw !== '' ? strtotime($aCreatedRaw) : false;
+            $bTs = $bCreatedRaw !== '' ? strtotime($bCreatedRaw) : false;
+
+            if ($aTs !== false || $bTs !== false) {
+                $aSort = $aTs !== false ? (int) $aTs : PHP_INT_MIN;
+                $bSort = $bTs !== false ? (int) $bTs : PHP_INT_MIN;
+                if ($aSort !== $bSort) {
+                    return $bSort <=> $aSort; // desc
+                }
+            }
+
+            $aId = (int) ($a['id'] ?? $a['Id'] ?? 0);
+            $bId = (int) ($b['id'] ?? $b['Id'] ?? 0);
+
+            return $bId <=> $aId; // desc fallback
+        });
+
         $projectManagerOptions = [];
         foreach ($this->projects as $p) {
             $pm = trim((string) ($p['createdByName'] ?? ''));
