@@ -28,6 +28,19 @@
     </div>
     <hr class="border-2 clr-bg-primary">
 
+    @if (($currentParentTaskId ?? null) !== null)
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+            <button type="button" class="hover:underline" wire:click="goToTaskLevel(null)">Tasks</button>
+            @foreach (($currentBreadcrumb ?? []) as $crumb)
+                <span>/</span>
+                <button type="button" class="hover:underline"
+                    wire:click="goToTaskLevel({{ (int) ($crumb['id'] ?? 0) }})">
+                    {{ $crumb['name'] ?? 'Task' }}
+                </button>
+            @endforeach
+        </div>
+    @endif
+
     <div class="flex justify-between">
         <div class="flex gap-2">
             <button wire:click="switchView('list')" data-viewmode-btn data-viewmode="list"
@@ -812,16 +825,6 @@
             </thead>
             <tbody class="divide-y divide-gray-200">
                 @php
-                    // Group tasks by parentTaskId (null => parents)
-                    $byParent = [];
-                    foreach ($filteredTasks as $task) {
-                        $pid = $task['parentTaskId'] ?? ($task['parentId'] ?? ($task['parentID'] ?? null));
-                        $key = $pid ?? '__root__';
-                        $byParent[$key][] = $task;
-                    }
-
-                    $parents = $byParent['__root__'] ?? [];
-
                     $fmt = function (array $task) use ($accountMap, $accountProfiles, $taskPriorityMap) {
                         $taskName = $task['name'] ?? ($task['title'] ?? '');
 
@@ -981,536 +984,284 @@
                         </tr>
                     @endforeach
                 @else
-                    @forelse($parents as $parent)
-                        @php
-                            $p = $fmt($parent);
-                            $parentId = $parent['id'] ?? null;
-                            $children = $parentId !== null ? $byParent[$parentId] ?? [] : [];
-                            $hasChildren = !empty($children);
-                            $isExpanded = $parentId !== null && ($expanded[$parentId] ?? false);
-                        @endphp
-                        <!-- Parent task (depth 0) -->
-                        <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $p['id'] ?? 0 }})">
-                            <td colspan="3" class="py-2 pr-2 align-middle">
-                                <div class="flex min-w-0 items-center gap-2 pl-0">
-                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
-                                        @if ($parentId !== null)
-                                            <button type="button"
-                                                class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
-                                                wire:click.stop="toggle({{ $parentId }})"
-                                                title="{{ $isExpanded ? 'Collapse' : 'Expand' }}">
-                                                <svg class="h-3.5 w-3.5 text-gray-500"
-                                                    style="transition:transform 200ms ease;transform:rotate({{ $isExpanded ? '0' : '-90' }}deg);"
-                                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                        d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                    </div>
-                                    <div class="flex shrink-0 items-center pr-1" wire:click.stop>
-                                        <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <span class="font-normal">{{ $p['taskName'] }}</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
+                    @if (($currentParentTaskId ?? null) !== null)
+                        @forelse($listRows ?? [] as $row)
+                            @php
+                                $rowType = (string) ($row['type'] ?? 'task');
+                            @endphp
+                            @if ($rowType === 'add')
                                 @php
-                                    $profiles = is_array($p['assigneeProfiles'] ?? null)
-                                        ? $p['assigneeProfiles'] ?? []
-                                        : [];
+                                    $addParentId = (int) ($row['parentId'] ?? 0);
+                                    $addDepth = (int) ($row['depth'] ?? 0);
+                                    $addIndentPx = max(0, $addDepth) * 20;
+                                    $addLabelText = (string) ($row['label'] ?? 'Add subtask');
                                 @endphp
-                                @if (!empty($profiles))
-                                    <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
-                                @else
-                                    <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($p['dueDateRaw'])
-                                    {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
-                                @endif
-                            </td>
-                            <td>{{ $p['storyPoints'] ?? '' }}</td>
-                            <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
-                                <div x-data="{
-                                    status: '{{ addslashes($p['status']) }}',
-                                    styles: {
-                                        'Not Started': 'background:#fee2e2;color:#ef4444;',
-                                        'In Progress': 'background:#dbeafe;color:#3b82f6;',
-                                        'For Review': 'background:#e5e7eb;color:#374151;',
-                                        'Completed': 'background:#dcfce7;color:#22c55e;',
-                                    },
-                                    get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
-                                }"
-                                    class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-0 overflow-visible"
-                                    :style="pill">
-                                    <span
-                                        class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
-                                        <x-icons.circle />
-                                    </span>
-                                    <select x-model="status"
-                                        class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
-                                        style="border:none;box-shadow:none;"
-                                        @change="Livewire.dispatch('task-status-changed', { taskId: {{ $p['id'] ?? 0 }}, newStatus: status })">
-                                        @foreach ($boardStatuses as $s)
-                                            <option value="{{ $s }}">{{ $s }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </td>
-                            <td class="min-w-[5rem] pl-1">
-                                <span class="px-2 py-0.5 text-xs"
-                                    style="display:flex;align-items:center;justify-content:center;gap:0.5rem;height:2rem;width:6rem;{{ $p['priorityStyle'] }}"><span>•</span>
-                                    {{ $p['priority'] }}</span>
-                            </td>
-                            <td wire:click.stop>
-                                <div class="dropdown dropdown-end">
-                                    <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2"
-                                        data-action-dropdown-trigger>
-                                        <x-icons.three-dot classes="w-5 h-5" />
-                                    </button>
-                                    <ul tabindex="0"
-                                        class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
-                                        <li class="border-b border-gray-100">
-                                            <button type="button"
-                                                wire:click.stop="openTaskDetail({{ $p['id'] ?? 0 }})">
-                                                Details
-                                            </button>
-                                        </li>
-                                        @if ($parentId !== null)
-                                            <li class="border-b border-gray-100">
+                                <tr class="hover:bg-blue-50 cursor-pointer" wire:click="addSubtask({{ $addParentId }})">
+                                    <td colspan="3" class="py-2 pr-2 align-middle">
+                                        <div class="flex min-w-0 items-center gap-2 pl-0">
+                                            <span class="inline-block h-6 w-6 shrink-0"
+                                                style="margin-left: {{ $addIndentPx }}px" aria-hidden="true"></span>
+                                            <span class="text-sm font-medium clr-primary">{{ $addLabelText }}</span>
+                                        </div>
+                                    </td>
+                                    <td colspan="6"></td>
+                                </tr>
+                                @continue
+                            @endif
+                            @php
+                                $taskRow = (array) ($row['task'] ?? []);
+                                $p = $fmt($taskRow);
+                                $rowId = (int) ($row['id'] ?? 0);
+                                $depth = (int) ($row['depth'] ?? 0);
+                                $canToggle = (bool) ($row['canToggle'] ?? false);
+                                $hasChildren = (bool) ($row['hasChildren'] ?? false);
+                                $isExpanded = $rowId > 0 && ($expanded[$rowId] ?? false);
+                                $indentPx = max(0, $depth) * 20;
+                                $addChildLabel = match ($depth) {
+                                    0 => 'Add grandchild task',
+                                    1 => 'Add great grandchild task',
+                                    default => 'Add subtask',
+                                };
+                            @endphp
+                            <tr class="hover:bg-gray-50 cursor-pointer" wire:click="openTaskDetail({{ $rowId }})">
+                                <td colspan="3" class="py-2 pr-2 align-middle">
+                                    <div class="flex min-w-0 items-center gap-2 pl-0">
+                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center"
+                                            style="margin-left: {{ $indentPx }}px" wire:click.stop>
+                                            @if ($canToggle)
                                                 <button type="button"
-                                                    wire:click.stop="addSubtask({{ (int) ($parentId ?? 0) }})">
+                                                    class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
+                                                    wire:click.stop="toggle({{ $rowId }})"
+                                                    title="{{ $isExpanded ? 'Collapse' : 'Expand' }}">
+                                                    <svg class="h-3.5 w-3.5 text-gray-500" fill="none" stroke="currentColor"
+                                                        style="transition:transform 180ms ease;transform:rotate({{ $isExpanded ? '0' : '-90' }}deg);"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                            d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+                                            @endif
+                                        </div>
+                                        <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                            <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <span class="font-normal">{{ $p['taskName'] }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
+                                    @if (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
+                                            data-prefix="assignee" />
+                                    @else
+                                        <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($p['dueDateRaw'])
+                                        {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
+                                    @endif
+                                </td>
+                                <td>{{ $p['storyPoints'] ?? '' }}</td>
+                                <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
+                                    <div x-data="{
+                                        status: '{{ addslashes($p['status']) }}',
+                                        styles: {
+                                            'Not Started': 'background:#fee2e2;color:#ef4444;',
+                                            'In Progress': 'background:#dbeafe;color:#3b82f6;',
+                                            'For Review': 'background:#e5e7eb;color:#374151;',
+                                            'Completed': 'background:#dcfce7;color:#22c55e;',
+                                        },
+                                        get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
+                                    }"
+                                        class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-0 overflow-visible"
+                                        :style="pill">
+                                        <span
+                                            class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                            <x-icons.circle />
+                                        </span>
+                                        <select x-model="status"
+                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                            style="border:none;box-shadow:none;"
+                                            @change="Livewire.dispatch('task-status-changed', { taskId: {{ $rowId }}, newStatus: status })">
+                                            @foreach ($boardStatuses as $s)
+                                                <option value="{{ $s }}">{{ $s }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </td>
+                                <td class="min-w-[5rem] pl-1">
+                                    <span class="px-2 py-0.5 text-xs"
+                                        style="display:flex;align-items:center;justify-content:center;gap:0.5rem;height:2rem;width:6rem;{{ $p['priorityStyle'] }}"><span>•</span>
+                                        {{ $p['priority'] }}</span>
+                                </td>
+                                <td wire:click.stop>
+                                    <div class="dropdown dropdown-end">
+                                        <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2"
+                                            data-action-dropdown-trigger>
+                                            <x-icons.three-dot classes="w-5 h-5" />
+                                        </button>
+                                        <ul tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                            @if ($hasChildren)
+                                                <li class="border-b border-gray-100">
+                                                    <button type="button" wire:click.stop="toggle({{ $rowId }})">
+                                                        {{ $isExpanded ? 'Collapse' : 'Expand' }}
+                                                    </button>
+                                                </li>
+                                            @endif
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="openTaskDetail({{ $rowId }})">
+                                                    Details
+                                                </button>
+                                            </li>
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="addSubtask({{ $rowId }})">
+                                                    {{ $addChildLabel }}
+                                                </button>
+                                            </li>
+                                            @if (!empty($canDeleteTasks))
+                                                <li class="border-b border-gray-100">
+                                                    <button type="button" class="text-red-600 hover:text-red-700"
+                                                        wire:click.stop="confirmDeleteTask({{ $rowId }})">
+                                                        Delete
+                                                    </button>
+                                                </li>
+                                            @endif
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="text-center py-8 text-gray-500">
+                                    No tasks in this level yet.
+                                </td>
+                            </tr>
+                        @endforelse
+                    @else
+                        @forelse($filteredTasks as $taskRow)
+                            @php
+                                $p = $fmt($taskRow);
+                                $rowId = (int) ($p['id'] ?? 0);
+                                $childCount = count($childrenMap[$rowId] ?? []);
+                                $hasChildren = $childCount > 0;
+                            @endphp
+                            <tr class="hover:bg-gray-50 cursor-pointer"
+                                wire:click="{{ $hasChildren ? 'enterTaskLevel('.$rowId.')' : 'openTaskDetail('.$rowId.')' }}">
+                                <td colspan="3" class="py-2 pr-2 align-middle">
+                                    <div class="flex min-w-0 items-center gap-2 pl-0">
+                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center">
+                                            @if ($hasChildren)
+                                                <svg class="h-3.5 w-3.5 text-gray-500" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            @endif
+                                        </div>
+                                        <div class="flex shrink-0 items-center pr-1" wire:click.stop>
+                                            <x-checkbox :task-id="$p['id'] ?? 0" :initial-status="$p['status'] ?? ''" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <span class="font-normal">{{ $p['taskName'] }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
+                                    @if (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
+                                            data-prefix="assignee" />
+                                    @else
+                                        <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($p['dueDateRaw'])
+                                        {{ \Carbon\Carbon::parse($p['dueDateRaw'])->format('Y-m-d') }}
+                                    @endif
+                                </td>
+                                <td>{{ $p['storyPoints'] ?? '' }}</td>
+                                <td wire:click.stop class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
+                                    <div x-data="{
+                                        status: '{{ addslashes($p['status']) }}',
+                                        styles: {
+                                            'Not Started': 'background:#fee2e2;color:#ef4444;',
+                                            'In Progress': 'background:#dbeafe;color:#3b82f6;',
+                                            'For Review': 'background:#e5e7eb;color:#374151;',
+                                            'Completed': 'background:#dcfce7;color:#22c55e;',
+                                        },
+                                        get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
+                                    }"
+                                        class="relative inline-flex items-center rounded-none pl-6 pr-2 py-1 w-full min-w-0 overflow-visible"
+                                        :style="pill">
+                                        <span
+                                            class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
+                                            <x-icons.circle />
+                                        </span>
+                                        <select x-model="status"
+                                            class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
+                                            style="border:none;box-shadow:none;"
+                                            @change="Livewire.dispatch('task-status-changed', { taskId: {{ $rowId }}, newStatus: status })">
+                                            @foreach ($boardStatuses as $s)
+                                                <option value="{{ $s }}">{{ $s }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </td>
+                                <td class="min-w-[5rem] pl-1">
+                                    <span class="px-2 py-0.5 text-xs"
+                                        style="display:flex;align-items:center;justify-content:center;gap:0.5rem;height:2rem;width:6rem;{{ $p['priorityStyle'] }}"><span>•</span>
+                                        {{ $p['priority'] }}</span>
+                                </td>
+                                <td wire:click.stop>
+                                    <div class="dropdown dropdown-end">
+                                        <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2"
+                                            data-action-dropdown-trigger>
+                                            <x-icons.three-dot classes="w-5 h-5" />
+                                        </button>
+                                        <ul tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                            @if ($hasChildren)
+                                                <li class="border-b border-gray-100">
+                                                    <button type="button" wire:click.stop="enterTaskLevel({{ $rowId }})">
+                                                        Open
+                                                    </button>
+                                                </li>
+                                            @endif
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="openTaskDetail({{ $rowId }})">
+                                                    Details
+                                                </button>
+                                            </li>
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="addSubtask({{ $rowId }})">
                                                     Add subtask
                                                 </button>
                                             </li>
-                                        @endif
-                                        @if (!empty($canDeleteTasks))
-                                            <li class="border-b border-gray-100">
-                                                <button type="button" class="text-red-600 hover:text-red-700"
-                                                    wire:click.stop="confirmDeleteTask({{ (int) ($p['id'] ?? 0) }})">
-                                                    Delete
-                                                </button>
-                                            </li>
-                                        @endif
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-
-                        @if ($isExpanded && $parentId !== null)
-                            @foreach ($children as $child)
-                                @php
-                                    $c = $fmt($child);
-                                    $childId = $child['id'] ?? null;
-                                    $grandChildren = $childId !== null ? $byParent[$childId] ?? [] : [];
-                                    $childHasChildren = !empty($grandChildren);
-                                    $childExpanded = $childId !== null && ($expanded[$childId] ?? false);
-                                @endphp
-                                <!-- Subtask row (depth 1) -->
-                                <tr class="hover:bg-gray-50 cursor-pointer"
-                                    wire:click="openTaskDetail({{ $c['id'] ?? 0 }})">
-                                    <td colspan="3" class="py-2 pr-2 align-middle">
-                                        <div class="flex min-w-0 items-center gap-2 pl-5">
-                                            <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
-                                                @if ($childId !== null)
-                                                    <button type="button"
-                                                        class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
-                                                        wire:click.stop="toggle({{ $childId }})"
-                                                        title="{{ $childExpanded ? 'Collapse' : 'Expand' }}">
-                                                        <svg class="h-3.5 w-3.5 text-gray-400"
-                                                            style="transition:transform 200ms ease;transform:rotate({{ $childExpanded ? '0' : '-90' }}deg);"
-                                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                                stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    </button>
-                                                @endif
-                                            </div>
-                                            <div class="flex shrink-0 items-center pr-1" wire:click.stop>
-                                                <x-checkbox :task-id="$c['id'] ?? 0" :initial-status="$c['status'] ?? ''" />
-                                            </div>
-                                            <div class="min-w-0 flex-1">
-                                                <span class="font-normal">{{ $c['taskName'] }}</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        @php
-                                            $profiles = is_array($c['assigneeProfiles'] ?? null)
-                                                ? $c['assigneeProfiles'] ?? []
-                                                : [];
-                                            $assigneeCount = count($profiles);
-                                        @endphp
-                                        @if ($assigneeCount > 0)
-                                            <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
-                                        @else
-                                            <span class="text-sm">{{ $c['assignee'] ?: '—' }}</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if ($c['dueDateRaw'])
-                                            {{ \Carbon\Carbon::parse($c['dueDateRaw'])->format('Y-m-d') }}
-                                        @endif
-                                    </td>
-                                    <td>{{ $c['storyPoints'] ?? '' }}</td>
-                                    <td wire:click.stop
-                                        class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
-                                        <div x-data="{
-                                            status: '{{ addslashes($c['status']) }}',
-                                            styles: {
-                                                'Not Started': 'background:#fee2e2;color:#ef4444;',
-                                                'In Progress': 'background:#dbeafe;color:#3b82f6;',
-                                                'For Review': 'background:#e5e7eb;color:#374151;',
-                                                'Completed': 'background:#dcfce7;color:#22c55e;',
-                                            },
-                                            get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
-                                        }"
-                                            class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
-                                            :style="pill">
-                                            <span
-                                                class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
-                                                <x-icons.circle />
-                                            </span>
-                                            <select x-model="status"
-                                                class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
-                                                style="border:none;box-shadow:none;"
-                                                @change="Livewire.dispatch('task-status-changed', { taskId: {{ $c['id'] ?? 0 }}, newStatus: status })">
-                                                @foreach ($boardStatuses as $s)
-                                                    <option value="{{ $s }}">{{ $s }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </td>
-                                    <td class="min-w-[5rem] pl-1">
-                                        <span class="px-2 py-0.5 text-xs"
-                                            style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $c['priorityStyle'] }}">•
-                                            {{ $c['priority'] }}</span>
-                                    </td>
-                                    <td wire:click.stop>
-                                        <div class="dropdown dropdown-end">
-                                            <button tabindex="0" type="button"
-                                                class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
-                                                data-action-dropdown-trigger>
-                                                <x-icons.three-dot classes="w-5 h-5" />
-                                            </button>
-                                            <ul tabindex="0"
-                                                class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border"
-                                                data-action-dropdown-menu>
+                                            @if (!empty($canDeleteTasks))
                                                 <li class="border-b border-gray-100">
-                                                    <button type="button"
-                                                        wire:click.stop="openTaskDetail({{ $c['id'] ?? 0 }})">
-                                                        Details
+                                                    <button type="button" class="text-red-600 hover:text-red-700"
+                                                        wire:click.stop="confirmDeleteTask({{ $rowId }})">
+                                                        Delete
                                                     </button>
                                                 </li>
-
-                                                @if ($childId !== null)
-                                                    <li class="border-b border-gray-100">
-                                                        <button type="button"
-                                                            wire:click.stop="addSubtask({{ (int) ($childId ?? 0) }})">
-                                                            Add grandchild task
-                                                        </button>
-                                                    </li>
-                                                @endif
-
-                                                @if ($canDeleteTasks)
-                                                    <li class="border-b border-gray-100">
-                                                        <button type="button" class="text-red-600 hover:text-red-700"
-                                                            wire:click.stop="confirmDeleteTask({{ (int) ($c['id'] ?? 0) }})">
-                                                            Delete
-                                                        </button>
-                                                    </li>
-                                                @endif
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                @if ($childExpanded && $childId !== null)
-                                    @foreach ($grandChildren as $gc)
-                                        @php
-                                            $g = $fmt($gc);
-                                            $gcId = $gc['id'] ?? null;
-                                            $greatGrandChildren = $gcId !== null ? ($byParent[$gcId] ?? []) : [];
-                                            $gcExpanded = $gcId !== null && ($expanded[$gcId] ?? false);
-                                        @endphp
-                                        <!-- Grandchild task rows (depth 2) -->
-                                        <tr class="hover:bg-gray-50 cursor-pointer"
-                                            wire:click="openTaskDetail({{ $g['id'] ?? 0 }})">
-                                            <td colspan="3" class="py-2 pr-2 align-middle">
-                                                <div class="flex min-w-0 items-center gap-2 pl-10">
-                                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center" wire:click.stop>
-                                                        @if ($gcId !== null)
-                                                            <button type="button"
-                                                                class="btn btn-ghost btn-xs flex h-6 w-6 items-center justify-center p-0"
-                                                                wire:click.stop="toggle({{ $gcId }})"
-                                                                title="{{ $gcExpanded ? 'Collapse' : 'Expand' }}">
-                                                                <svg class="h-3.5 w-3.5 text-gray-400"
-                                                                    style="transition:transform 200ms ease;transform:rotate({{ $gcExpanded ? '0' : '-90' }}deg);"
-                                                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                                        stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                                </svg>
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="flex shrink-0 items-center pr-1" wire:click.stop>
-                                                        <x-checkbox :task-id="$g['id'] ?? 0" :initial-status="$g['status'] ?? ''" />
-                                                    </div>
-                                                    <div class="min-w-0 flex-1">
-                                                        <span class="font-normal">{{ $g['taskName'] }}</span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                @php
-                                                    $profiles = is_array($g['assigneeProfiles'] ?? null)
-                                                        ? $g['assigneeProfiles'] ?? []
-                                                        : [];
-                                                    $assigneeCount = count($profiles);
-                                                @endphp
-                                                @if ($assigneeCount > 0)
-                                                    <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
-                                                @else
-                                                    <span class="text-sm">{{ $g['assignee'] ?: '—' }}</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                @if ($g['dueDateRaw'])
-                                                    {{ \Carbon\Carbon::parse($g['dueDateRaw'])->format('Y-m-d') }}
-                                                @endif
-                                            </td>
-                                            <td>{{ $g['storyPoints'] ?? '' }}</td>
-                                            <td wire:click.stop
-                                                class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
-                                                <div x-data="{
-                                                    status: '{{ addslashes($g['status']) }}',
-                                                    styles: {
-                                                        'Not Started': 'background:#fee2e2;color:#ef4444;',
-                                                        'In Progress': 'background:#dbeafe;color:#3b82f6;',
-                                                        'For Review': 'background:#e5e7eb;color:#374151;',
-                                                        'Completed': 'background:#dcfce7;color:#22c55e;',
-                                                    },
-                                                    get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
-                                                }"
-                                                    class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
-                                                    :style="pill">
-                                                    <span
-                                                        class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
-                                                        <x-icons.circle />
-                                                    </span>
-                                                    <select x-model="status"
-                                                        class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
-                                                        style="border:none;box-shadow:none;"
-                                                        @change="Livewire.dispatch('task-status-changed', { taskId: {{ $g['id'] ?? 0 }}, newStatus: status })">
-                                                        @foreach ($boardStatuses as $s)
-                                                            <option value="{{ $s }}">{{ $s }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-                                            </td>
-                                            <td class="min-w-[5rem] pl-1">
-                                                <span class="px-2 py-0.5 text-xs"
-                                                    style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $g['priorityStyle'] }}">•
-                                                    {{ $g['priority'] }}</span>
-                                            </td>
-                                            <td wire:click.stop>
-                                                <div class="dropdown dropdown-end">
-                                                    <button tabindex="0" type="button"
-                                                        class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
-                                                        data-action-dropdown-trigger>
-                                                        <x-icons.three-dot classes="w-5 h-5" />
-                                                    </button>
-                                                    <ul tabindex="0"
-                                                        class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border"
-                                                        data-action-dropdown-menu>
-                                                        <li class="border-b border-gray-100">
-                                                            <button type="button"
-                                                                wire:click.stop="openTaskDetail({{ $g['id'] ?? 0 }})">
-                                                                Details
-                                                            </button>
-                                                        </li>
-                                                        @if ($gcId !== null)
-                                                            <li class="border-b border-gray-100">
-                                                                <button type="button"
-                                                                    wire:click.stop="addSubtask({{ (int) $gcId }})">
-                                                                    Add subtask
-                                                                </button>
-                                                            </li>
-                                                        @endif
-                                                        @if ($canDeleteTasks)
-                                                            <li class="border-b border-gray-100">
-                                                                <button type="button"
-                                                                    class="text-red-600 hover:text-red-700"
-                                                                    wire:click.stop="confirmDeleteTask({{ (int) ($g['id'] ?? 0) }})">
-                                                                    Delete
-                                                                </button>
-                                                            </li>
-                                                        @endif
-                                                    </ul>
-                                                </div>
-                                            </td>
-                                        </tr>
-
-                                        @if ($gcExpanded && $gcId !== null)
-                                            @foreach ($greatGrandChildren as $ggc)
-                                                @php $gg = $fmt($ggc); @endphp
-                                                {{-- Depth 3: use pl-16 (not arbitrary pl-[3.75rem]) so build purge keeps extra indent vs pl-10 grandchild --}}
-                                                <!-- Great-grandchild task rows (depth 3; chevron slot kept empty) -->
-                                                <tr class="hover:bg-gray-50 cursor-pointer"
-                                                    wire:click="openTaskDetail({{ $gg['id'] ?? 0 }})">
-                                                    <td colspan="3" class="py-2 pr-2 align-middle">
-                                                        <div class="flex min-w-0 items-center gap-2 pl-16">
-                                                            <div class="flex h-6 w-6 shrink-0 items-center justify-center"
-                                                                aria-hidden="true"></div>
-                                                            <div class="flex shrink-0 items-center pr-1" wire:click.stop>
-                                                                <x-checkbox :task-id="$gg['id'] ?? 0" :initial-status="$gg['status'] ?? ''" />
-                                                            </div>
-                                                            <div class="min-w-0 flex-1">
-                                                                <span class="font-normal">{{ $gg['taskName'] }}</span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        @php
-                                                            $profiles = is_array($gg['assigneeProfiles'] ?? null)
-                                                                ? $gg['assigneeProfiles'] ?? []
-                                                                : [];
-                                                            $assigneeCount = count($profiles);
-                                                        @endphp
-                                                        @if ($assigneeCount > 0)
-                                                            <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
-                                                        @else
-                                                            <span class="text-sm">{{ $gg['assignee'] ?: '—' }}</span>
-                                                        @endif
-                                                    </td>
-                                                    <td>
-                                                        @if ($gg['dueDateRaw'])
-                                                            {{ \Carbon\Carbon::parse($gg['dueDateRaw'])->format('Y-m-d') }}
-                                                        @endif
-                                                    </td>
-                                                    <td>{{ $gg['storyPoints'] ?? '' }}</td>
-                                                    <td wire:click.stop
-                                                        class="w-0 max-w-[11.5rem] min-w-[10rem] pr-2 overflow-visible">
-                                                        <div x-data="{
-                                                            status: '{{ addslashes($gg['status']) }}',
-                                                            styles: {
-                                                                'Not Started': 'background:#fee2e2;color:#ef4444;',
-                                                                'In Progress': 'background:#dbeafe;color:#3b82f6;',
-                                                                'For Review': 'background:#e5e7eb;color:#374151;',
-                                                                'Completed': 'background:#dcfce7;color:#22c55e;',
-                                                            },
-                                                            get pill() { return this.styles[this.status] || 'background:#f3f4f6;color:#374151;'; }
-                                                        }"
-                                                            class="relative inline-flex items-center rounded-none pl-6 pr-2 py-0.5 w-full min-w-0 overflow-visible"
-                                                            :style="pill">
-                                                            <span
-                                                                class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none flex items-center shrink-0 w-1.5 h-1.5">
-                                                                <x-icons.circle />
-                                                            </span>
-                                                            <select x-model="status"
-                                                                class="text-xs font-medium border-0 ring-0 shadow-none outline-none focus:ring-0 focus:outline-none cursor-pointer bg-transparent appearance-none pl-5 pr-1 py-1 w-full min-w-0"
-                                                                style="border:none;box-shadow:none;"
-                                                                @change="Livewire.dispatch('task-status-changed', { taskId: {{ $gg['id'] ?? 0 }}, newStatus: status })">
-                                                                @foreach ($boardStatuses as $s)
-                                                                    <option value="{{ $s }}">{{ $s }}
-                                                                    </option>
-                                                                @endforeach
-                                                            </select>
-                                                        </div>
-                                                    </td>
-                                                    <td class="min-w-[5rem] pl-1">
-                                                        <span class="px-2 py-0.5 text-xs"
-                                                            style="display:flex;align-items:center;justify-content:center;width:6rem;{{ $gg['priorityStyle'] }}">•
-                                                            {{ $gg['priority'] }}</span>
-                                                    </td>
-                                                    <td wire:click.stop>
-                                                        <div class="dropdown dropdown-end">
-                                                            <button tabindex="0" type="button"
-                                                                class="btn btn-ghost btn-sm px-2 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 hover:border-gray-300"
-                                                                data-action-dropdown-trigger>
-                                                                <x-icons.three-dot classes="w-5 h-5" />
-                                                            </button>
-                                                            <ul tabindex="0"
-                                                                class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border"
-                                                                data-action-dropdown-menu>
-                                                                <li class="border-b border-gray-100">
-                                                                    <button type="button"
-                                                                        wire:click.stop="openTaskDetail({{ $gg['id'] ?? 0 }})">
-                                                                        Details
-                                                                    </button>
-                                                                </li>
-                                                                @php $ggcId = $ggc['id'] ?? null; @endphp
-                                                                @if ($ggcId !== null)
-                                                                    <li class="border-b border-gray-100">
-                                                                        <button type="button"
-                                                                            wire:click.stop="addSubtask({{ (int) $ggcId }})">
-                                                                            Add subtask
-                                                                        </button>
-                                                                    </li>
-                                                                @endif
-                                                                @if ($canDeleteTasks)
-                                                                    <li class="border-b border-gray-100">
-                                                                        <button type="button"
-                                                                            class="text-red-600 hover:text-red-700"
-                                                                            wire:click.stop="confirmDeleteTask({{ (int) ($gg['id'] ?? 0) }})">
-                                                                            Delete
-                                                                        </button>
-                                                                    </li>
-                                                                @endif
-                                                            </ul>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                            <tr class="hover:bg-blue-50 cursor-pointer"
-                                                wire:click="addSubtask({{ $gcId }})">
-                                                <td colspan="3" class="py-2 pr-2 align-middle">
-                                                    <div class="flex min-w-0 items-center gap-2 pl-16">
-                                                        <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
-                                                        <span class="text-sm font-medium clr-primary">+ Add subtask</span>
-                                                    </div>
-                                                </td>
-                                                <td colspan="6"></td>
-                                            </tr>
-                                        @endif
-                                    @endforeach
-                                    {{-- Always show "+ Add subtask" at the bottom of expanded subtask --}}
-                                    <tr class="hover:bg-blue-50 cursor-pointer"
-                                        wire:click="addSubtask({{ $childId }})">
-                                        <td colspan="3" class="py-2 pr-2 align-middle">
-                                            <div class="flex min-w-0 items-center gap-2 pl-10">
-                                                <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
-                                                <span class="text-sm font-medium clr-primary">+ Add subtask</span>
-                                            </div>
-                                        </td>
-                                        <td colspan="6"></td>
-                                    </tr>
-                                @endif
-                            @endforeach
-                            {{-- Always show "+ Add subtask" at the bottom of expanded parent --}}
-                            <tr class="hover:bg-blue-50 cursor-pointer"
-                                wire:click="addSubtask({{ $parentId }})">
-                                <td colspan="3" class="py-2 pr-2 align-middle">
-                                    <div class="flex min-w-0 items-center gap-2 pl-5">
-                                        <span class="inline-block h-6 w-6 shrink-0" aria-hidden="true"></span>
-                                        <span class="text-sm font-medium clr-primary">+ Add subtask</span>
+                                            @endif
+                                        </ul>
                                     </div>
                                 </td>
-                                <td colspan="6"></td>
                             </tr>
-                        @endif
-                    @empty
-                        <tr>
-                            <td colspan="9" class="text-center py-8 text-gray-500">
-                                No tasks for this project yet.
-                            </td>
-                        </tr>
-                    @endforelse
+                        @empty
+                            <tr>
+                                <td colspan="9" class="text-center py-8 text-gray-500">
+                                    No tasks in this level yet.
+                                </td>
+                            </tr>
+                        @endforelse
+                    @endif
                 @endif
             </tbody>
         </table>
@@ -1563,6 +1314,10 @@
                     <div class="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 min-h-[80vh]">
                         @foreach ($boardGrouped[$status] ?? [] as $task)
                             @php $boardTaskId = (int)($task['id'] ?? $task['Id'] ?? 0); @endphp
+                            @php
+                                $boardChildCount = count(($childrenMap ?? [])[$boardTaskId] ?? []);
+                                $boardHasChildren = $boardChildCount > 0;
+                            @endphp
                             <div x-data="{ dragging: false, dragStarted: false, moved: false }"
                                 class="bg-white rounded-lg border-2 border-gray-200 shadow-sm overflow-visible hover:shadow-md transition-shadow cursor-pointer"
                                 draggable="true" :style="dragging ? 'opacity:0.4' : ''" @mousedown="moved = false"
@@ -1570,7 +1325,8 @@
                                 @dragstart="if (!moved || $event.target?.closest('.kanban-no-drag')) { $event.preventDefault(); return; } dragStarted = true; dragging = true; $event.dataTransfer.setData('text/plain', '{{ $boardTaskId }}'); $event.dataTransfer.effectAllowed = 'move'"
                                 @dragend="dragStarted = false; dragging = false; moved = false">
                                 <div
-                                    class="block p-4 flex flex-col gap-3 min-h-full no-underline text-inherit hover:bg-gray-50/50">
+                                    class="block p-4 flex flex-col gap-3 min-h-full no-underline text-inherit hover:bg-gray-50/50"
+                                    wire:click="{{ $boardHasChildren ? 'enterTaskLevel('.$boardTaskId.')' : 'openTaskDetail('.$boardTaskId.')' }}">
                                     @php
                                         $cardStatus = $task['statusName'] ?? ($task['status'] ?? '');
                                         $cardStatusStyle = match ($cardStatus) {
@@ -1685,7 +1441,7 @@
 
                                             // IDs are already unique because we key by id.
                                             $assigneeCount = count($profiles);
-                                            $subtaskCount = isset($byParent[$boardTaskId]) ? count($byParent[$boardTaskId]) : 0;
+                                            $subtaskCount = (int) ($boardChildCount ?? 0);
                                         @endphp
                                         <div class="flex flex-row border-b-2 py-2 items-center justify-between">
                                             <span class="block text-[11px] font-medium text-gray-500 mb-1">Assignees:</span>

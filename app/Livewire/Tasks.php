@@ -83,6 +83,9 @@ class Tasks extends Component
 
     public bool $loading = true;
 
+    /** Current task-level context; null means root (parent tasks). */
+    public ?int $currentParentTaskId = null;
+
     /** Session flash copied on first load so alerts survive Livewire re-renders (flash is one-request only). */
     public ?string $flashSuccess = null;
 
@@ -127,6 +130,11 @@ class Tasks extends Component
 
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->syncProjectStatusFromTasks();
+
+        $requestedParent = (int) request()->query('parentTaskId', 0);
+        if ($requestedParent > 0) {
+            $this->currentParentTaskId = $requestedParent;
+        }
 
         if ($openTaskId !== null && $openTaskId > 0) {
             $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
@@ -179,6 +187,25 @@ class Tasks extends Component
     public function switchView(string $mode): void
     {
         $this->viewMode = $mode;
+    }
+
+    public function enterTaskLevel(int $taskId): void
+    {
+        if ($taskId <= 0) {
+            return;
+        }
+
+        $exists = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
+        if (! $exists) {
+            return;
+        }
+
+        $this->currentParentTaskId = $taskId;
+    }
+
+    public function goToTaskLevel(?int $taskId = null): void
+    {
+        $this->currentParentTaskId = $taskId && $taskId > 0 ? (int) $taskId : null;
     }
 
     public function clearTaskFilters(): void
@@ -606,7 +633,8 @@ class Tasks extends Component
 
     public function openAddTaskModal(): void
     {
-        $this->taskParentId = null;
+        // At root, add a parent task. Inside a parent, add a child in current context.
+        $this->taskParentId = $this->currentParentTaskId;
         $this->description = '';
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
@@ -862,10 +890,107 @@ class Tasks extends Component
 
         $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
 
+        $parentOf = [];
+        $childrenMap = [];
+        $tasksById = [];
+        foreach ($this->tasks as $task) {
+            if (! is_array($task)) {
+                continue;
+            }
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $tasksById[$id] = $task;
+            $pidRaw = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
+            $pid = $pidRaw !== null && $pidRaw !== '' ? (int) $pidRaw : null;
+            $parentOf[$id] = $pid;
+            if ($pid !== null && $pid > 0) {
+                $childrenMap[$pid][] = $id;
+            }
+        }
+
+        $rootOnly = [];
+        $currentOnly = [];
+        foreach ($filtered as $task) {
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $pid = $parentOf[$id] ?? null;
+            if ($pid === null || $pid <= 0) {
+                $rootOnly[] = $task;
+            }
+            if ($this->currentParentTaskId === null) {
+                if ($pid === null || $pid <= 0) {
+                    $currentOnly[] = $task;
+                }
+            } elseif ((int) ($pid ?? 0) === (int) $this->currentParentTaskId) {
+                $currentOnly[] = $task;
+            }
+        }
+
+        $listRows = [];
+        $appendRow = function (array $task, int $depth) use (&$appendRow, &$listRows, $tasksById, $childrenMap) {
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                return;
+            }
+            $childIds = array_values(array_filter(array_map('intval', (array) ($childrenMap[$id] ?? [])), static fn ($v) => $v > 0));
+            // Inside-parent tree: child and grandchild rows are toggleable.
+            // Great-grandchild rows are terminal.
+            $canExpandInLevel = $depth < 2;
+            $listRows[] = [
+                'type' => 'task',
+                'task' => $task,
+                'id' => $id,
+                'depth' => max(0, $depth),
+                'canToggle' => $canExpandInLevel,
+                'hasChildren' => ! empty($childIds),
+            ];
+
+            if (! $canExpandInLevel || ! ($this->expanded[$id] ?? false)) {
+                return;
+            }
+
+            foreach ($childIds as $childId) {
+                if (! isset($tasksById[$childId]) || ! is_array($tasksById[$childId])) {
+                    continue;
+                }
+                $appendRow($tasksById[$childId], $depth + 1);
+            }
+
+            $addLabel = $depth === 0 ? 'Add grandchild task' : 'Add great grandchild task';
+            $listRows[] = [
+                'type' => 'add',
+                'parentId' => $id,
+                'depth' => max(0, $depth + 1),
+                'label' => $addLabel,
+            ];
+        };
+
+        foreach ($currentOnly as $task) {
+            if (! is_array($task)) {
+                continue;
+            }
+            $appendRow($task, 0);
+        }
+
+        $currentBreadcrumb = [];
+        if ($this->currentParentTaskId !== null && $this->currentParentTaskId > 0) {
+            $chain = $this->buildTaskBreadcrumb((int) $this->currentParentTaskId);
+            foreach ($chain as $item) {
+                $currentBreadcrumb[] = [
+                    'id' => (int) ($item['id'] ?? $item['Id'] ?? 0),
+                    'name' => (string) ($item['name'] ?? $item['title'] ?? 'Task'),
+                ];
+            }
+        }
+
         $statuses = ! empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
 
         $grouped = array_fill_keys($statuses, []);
-        foreach ($filtered as $task) {
+        foreach ($currentOnly as $task) {
             $s = $task['statusName'] ?? $task['status'] ?? 'Not Started';
             if (! array_key_exists($s, $grouped)) {
                 $grouped[$s] = [];
@@ -937,9 +1062,16 @@ class Tasks extends Component
         $currentUserId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
         return view('livewire.tasks', [
-            'filteredTasks' => $filtered,
+            'filteredTasks' => $currentOnly,
+            'listRows' => $listRows,
+            'rootTasks' => $rootOnly,
             'boardStatuses' => $statuses,
             'boardGrouped' => $grouped,
+            'childrenMap' => $childrenMap,
+            'taskParentMap' => $parentOf,
+            'tasksById' => $tasksById,
+            'currentBreadcrumb' => $currentBreadcrumb,
+            'currentParentTaskId' => $this->currentParentTaskId,
             'accountMap' => $accountMap,
             'accountProfiles' => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,
