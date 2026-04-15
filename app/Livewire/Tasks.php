@@ -74,6 +74,10 @@ class Tasks extends Component
 
     public ?string $commentError = null;
 
+    public ?string $commentToastMessage = null;
+
+    public string $commentToastType = 'success';
+
     // Delete confirmation modal state
     public bool $showDeleteConfirmModal = false;
 
@@ -243,6 +247,13 @@ class Tasks extends Component
         $this->editingCommentId = null;
         $this->editingCommentContent = '';
         $this->commentError = null;
+        $this->commentToastMessage = null;
+        $this->commentToastType = 'success';
+    }
+
+    public function dismissCommentToast(): void
+    {
+        $this->commentToastMessage = null;
     }
 
     private function buildTaskBreadcrumb(int $taskId): array
@@ -288,7 +299,10 @@ class Tasks extends Component
     {
         $this->commentError = null;
         try {
-            $raw = app(CsharpApiService::class)->get("/api/TaskComment/GetCommentsByTask/{$taskId}");
+            $raw = app(CsharpApiService::class)->get(
+                "/api/TaskComment/GetCommentsByTask/{$taskId}",
+                ['_no_cache' => 1]
+            );
             $list = is_array($raw)
                 ? ($raw['data'] ?? $raw['comments'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
                 : [];
@@ -317,23 +331,23 @@ class Tasks extends Component
 
     public function addComment(): void
     {
-        logger('addComment called', [
-            'newComment' => $this->newComment,
-            'detailTask' => $this->detailTask['id'] ?? null,
-        ]);
-
-        if (empty($this->newComment)) {
-            $this->newComment = request()->input('newComment', '');
-        }
-
         $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
         $accountId = $this->currentAccountId();
         $content = trim($this->newComment);
+        $plain = trim((string) preg_replace('/\x{00A0}|&nbsp;/u', ' ', strip_tags($content)));
 
         if ($taskId <= 0 || $accountId <= 0) {
+            $this->commentError = 'Unable to add comment right now.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
             return;
         }
-        if ($content === '') {
+        if ($content === '' || $plain === '') {
+            $this->commentError = 'Comment cannot be empty.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
             return;
         }
 
@@ -348,9 +362,14 @@ class Tasks extends Component
             );
             $this->newComment = '';
             $this->loadTaskComments($taskId);
+            $this->commentToastType = 'success';
+            $this->commentToastMessage = 'Comment added successfully.';
+            $this->dispatch('clear-rich-editor', field: 'newComment');
             $this->dispatch('app-toast', type: 'success', message: 'Comment added successfully.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->commentError = 'Failed to add comment.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
             $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
         }
     }

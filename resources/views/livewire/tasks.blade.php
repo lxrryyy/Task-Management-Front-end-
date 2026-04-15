@@ -569,6 +569,14 @@
                                 <x-rich-text-editor name="newComment" :value="''"
                                     placeholder="Write a comment..." />
                             </div>
+                            @if ($commentToastMessage)
+                                <div x-data="{ show: true }"
+                                    x-init="setTimeout(() => { show = false; $wire.dismissCommentToast() }, 3200)"
+                                    x-show="show" x-transition.opacity.duration.250ms
+                                    class="rounded-md border px-3 py-2 text-xs {{ $commentToastType === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700' }}">
+                                    {{ $commentToastMessage }}
+                                </div>
+                            @endif
                             <div class="flex justify-end">
                                 <button type="button" wire:click="addComment"
                                     wire:target="addComment" wire:loading.attr="disabled"
@@ -815,6 +823,171 @@
 
     <div class="{{ $viewMode !== 'list' ? 'hidden' : '' }} h-[80vh] relative overflow-y-auto"
         data-tasks-table-scroll>
+        @if (($currentParentTaskId ?? null) === null)
+            <div class="flex flex-col gap-3">
+                @if ($loading)
+                    @foreach (range(1, 4) as $i)
+                        <div class="border border-gray-200 rounded bg-white p-4 animate-pulse">
+                            <div class="h-5 w-44 bg-gray-200 rounded mb-3"></div>
+                            <div class="h-4 w-72 bg-gray-200 rounded mb-2"></div>
+                            <div class="h-4 w-60 bg-gray-200 rounded mb-2"></div>
+                            <div class="h-4 w-52 bg-gray-200 rounded"></div>
+                        </div>
+                    @endforeach
+                @else
+                    @forelse($filteredTasks as $task)
+                        @php
+                            $taskId = (int) ($task['id'] ?? $task['Id'] ?? 0);
+                            $taskName = (string) ($task['name'] ?? $task['title'] ?? 'Task');
+                            $descRaw = (string) ($task['description'] ?? '');
+                            $descText = trim(preg_replace('/\s+/', ' ', strip_tags($descRaw)));
+                            if (mb_strlen($descText) > 180) {
+                                $descText = mb_substr($descText, 0, 180) . '...';
+                            }
+
+                            $priority = (string) ($task['priorityName'] ?? $task['priority'] ?? '');
+                            if ($priority === '' && isset($task['priorityId'])) {
+                                $priority = (string) (($taskPriorityMap ?? [])[(int) ($task['priorityId'] ?? ($task['PriorityId'] ?? 0))] ?? '');
+                            }
+                            $priorityStyle = match ($priority) {
+                                'Urgent' => 'background:#fee2e2;color:#ef4444;',
+                                'Important' => 'background:#fce7f3;color:#ec4899;',
+                                'Medium' => 'background:#dbeafe;color:#3b82f6;',
+                                'Low' => 'background:#e5e7eb;color:#374151;',
+                                default => 'background:#f3f4f6;color:#6b7280;',
+                            };
+
+                            $rawIds =
+                                $task['assigneeIds']
+                                ?? ($task['assigneeIDs'] ?? null)
+                                ?? ($task['AssigneeIds'] ?? null)
+                                ?? ($task['assigneeId'] ?? null)
+                                ?? ($task['AssigneeId'] ?? null)
+                                ?? [];
+                            if (is_string($rawIds)) {
+                                $rawIds = preg_split('/[,\s;]+/', $rawIds);
+                                $rawIds = array_filter(array_map('trim', $rawIds));
+                            } elseif (!is_array($rawIds)) {
+                                $rawIds = [$rawIds];
+                            }
+                            $ids = [];
+                            foreach ($rawIds as $aid) {
+                                if (is_array($aid)) {
+                                    $aid = $aid['id'] ?? $aid['Id'] ?? $aid['accountId'] ?? $aid['userId'] ?? null;
+                                }
+                                if ($aid === null || $aid === '') {
+                                    continue;
+                                }
+                                $ids[] = (int) $aid;
+                            }
+                            $ids = array_values(array_unique(array_filter($ids, fn($v) => $v > 0)));
+
+                            $profilesById = [];
+                            foreach ($ids as $aidInt) {
+                                if (isset($accountProfiles[$aidInt])) {
+                                    $profilesById[$aidInt] = array_merge(['id' => $aidInt], $accountProfiles[$aidInt]);
+                                    continue;
+                                }
+                                $fallbackName = $accountMap[$aidInt] ?? null;
+                                $parts = preg_split('/\s+/', trim((string) ($fallbackName ?? '')));
+                                $parts = array_values(array_filter($parts, fn($p) => is_string($p) && trim($p) !== ''));
+                                $first = (string) ($parts[0] ?? '');
+                                $last = (string) (!empty($parts) ? implode(' ', array_slice($parts, 1)) : '');
+                                $a0 = mb_substr(trim($first), 0, 1);
+                                $b0 = mb_substr(trim($last), 0, 1);
+                                if ($a0 !== '' && $b0 !== '') {
+                                    $initials = mb_strtoupper($a0 . $b0);
+                                } elseif ($a0 !== '') {
+                                    $initials = mb_strtoupper($a0);
+                                } else {
+                                    $initials = '?';
+                                }
+                                $profilesById[$aidInt] = [
+                                    'id' => $aidInt,
+                                    'profilePicture' => null,
+                                    'initials' => $initials,
+                                    'name' => $fallbackName,
+                                ];
+                            }
+                            $profiles = array_values($profilesById);
+                            $childCount = count(($childrenMap ?? [])[$taskId] ?? []);
+                            $hasChildren = $childCount > 0;
+                            $dueRaw = $task['dueDate'] ?? ($task['dueAt'] ?? null);
+                            $dueText = $dueRaw ? \Carbon\Carbon::parse($dueRaw)->format('M j, Y') : '';
+                        @endphp
+                        <div class="border border-gray-200 rounded bg-white hover:shadow-sm transition-shadow cursor-pointer"
+                            wire:click="{{ $hasChildren ? 'enterTaskLevel('.$taskId.')' : 'openTaskDetail('.$taskId.')' }}">
+                            <div class="p-4 flex items-start justify-between gap-3">
+                                <h3 class="font-semibold text-xl text-gray-900">{{ $taskName }}</h3>
+                                <div class="flex items-center gap-2" wire:click.stop>
+                                    @if ($priority !== '')
+                                        <span class="px-2 py-0.5 text-xs rounded-full" style="{{ $priorityStyle }}">
+                                            • {{ $priority }}
+                                        </span>
+                                    @endif
+                                    <div class="dropdown dropdown-end">
+                                        <button tabindex="0" type="button" class="btn btn-ghost btn-sm px-2"
+                                            data-action-dropdown-trigger>
+                                            <x-icons.three-dot classes="w-5 h-5" />
+                                        </button>
+                                        <ul tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-50 w-40 p-2 shadow-lg border">
+                                            @if ($hasChildren)
+                                                <li class="border-b border-gray-100">
+                                                    <button type="button" wire:click.stop="enterTaskLevel({{ $taskId }})">
+                                                        Open
+                                                    </button>
+                                                </li>
+                                            @endif
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="openTaskDetail({{ $taskId }})">
+                                                    Details
+                                                </button>
+                                            </li>
+                                            <li class="border-b border-gray-100">
+                                                <button type="button" wire:click.stop="addSubtask({{ $taskId }})">
+                                                    Add subtask
+                                                </button>
+                                            </li>
+                                            @if (!empty($canDeleteTasks))
+                                                <li>
+                                                    <button type="button" class="text-red-600 hover:text-red-700"
+                                                        wire:click.stop="confirmDeleteTask({{ $taskId }})">
+                                                        Delete
+                                                    </button>
+                                                </li>
+                                            @endif
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-4 pb-2 text-sm text-gray-700 min-h-[3.5rem]">
+                                {{ $descText !== '' ? $descText : 'No description provided.' }}
+                            </div>
+                            <div class="px-4 pb-3 flex items-end justify-between border-t border-gray-200 pt-2">
+                                <div class="text-sm text-gray-700">
+                                    <p class="font-medium">Assignees:</p>
+                                    <p class="text-xs text-gray-500">{{ $childCount }} subtask{{ $childCount === 1 ? '' : 's' }}</p>
+                                </div>
+                                <div class="flex items-end gap-3">
+                                    @if (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
+                                            data-prefix="assignee" />
+                                    @endif
+                                    @if ($dueText !== '')
+                                        <span class="text-xs text-gray-500">{{ $dueText }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-8 text-gray-500 border border-gray-200 rounded bg-white">
+                            No parent tasks yet.
+                        </div>
+                    @endforelse
+                @endif
+            </div>
+        @else
         <table class="table w-full table-fixed border-collapse">
             <colgroup>
                 <col class="w-8"><!-- logical col 1 of 3 (tree cell uses colspan) -->
@@ -1280,6 +1453,7 @@
                 @endif
             </tbody>
         </table>
+        @endif
     </div>
 
     {{-- Board / Kanban View --}}
