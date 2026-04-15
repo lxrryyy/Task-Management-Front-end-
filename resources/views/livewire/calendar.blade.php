@@ -134,6 +134,10 @@
             noteDate(iso) {
                 return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
             },
+            priorityLabel(priority) {
+                const raw = String(priority ?? '').trim();
+                return raw.replace(/^[\u2022\u00b7\-\*]\s*/, '');
+            },
             noteBorderClass(note) {
                 const palette = ['border-pink-500', 'border-blue-500', 'border-emerald-500', 'border-amber-500'];
                 const seed = Number(note?.id || 0);
@@ -285,31 +289,52 @@
                         <div class="border-r border-gray-100 last:border-r-0 px-2 flex flex-col gap-3 min-h-[24rem]">
                             <template x-for="task in tasksForDay(day.ymd)" :key="task.id">
                                 <div
-                                    :class="['rounded-xl border-l-4 p-3 shadow-sm flex flex-col gap-3 cursor-pointer transition-all duration-300 hover:shadow-lg hover:!bg-gray-200', colorClasses(task.color).border, colorClasses(task.color).bg]"
-                                    style="min-height:10rem;"
+                                    class="relative rounded-xl border border-gray-200 bg-white shadow-sm cursor-pointer transition-all duration-300 hover:shadow-lg overflow-hidden"
+                                    style="min-height:12rem;"
                                     @click="goToTask(task)">
-                                    {{-- Title --}}
-                                    <div>
-                                        <p class="text-lg font-normal leading-snug" :class="colorClasses(task.color).title" x-text="task.title"></p>
-                                        <p class="text-xs mt-1" :class="colorClasses(task.color).sub"
-                                            x-text="task.subtasks + ' Subtask' + (task.subtasks!==1?'s':'')"></p>
-                                        <p class="text-sm mt-1" :class="colorClasses(task.color).sub" x-text="task.project"></p>
-                                    </div>
-                                    {{-- Bottom: avatars --}}
-                                    <div class="flex items-center justify-between mt-auto">
-                                        <div class="flex -space-x-2">
-                                            <template x-for="(assignee,i) in (task.assignees || []).slice(0,3)" :key="i">
-                                                <div class="w-6 h-6 rounded-full border-2 border-white overflow-hidden flex items-center justify-center text-white text-xs"
-                                                    :style="'background:'+avatarBg(assignee.name)"
-                                                    :title="assignee.name">
-                                                    <template x-if="assignee.profilePicture">
-                                                        <img :src="assignee.profilePicture" alt=""
-                                                            class="w-full h-full object-cover"
-                                                            x-on:error="$el.style.display='none'; const s = $el.parentElement?.querySelector('[data-avatar-initials]'); if (s) s.classList.remove('hidden');" />
-                                                    </template>
-                                                    <span data-avatar-initials :class="assignee.profilePicture ? 'hidden' : ''" x-text="initials(assignee.name)"></span>
-                                                </div>
-                                            </template>
+                                    {{-- Left color bar --}}
+                                    <div
+                                        class="absolute left-0 top-0 bottom-0 w-1.5"
+                                        :class="{
+                                            'bg-red-500': task.color === 'red',
+                                            'bg-pink-500': task.color === 'pink',
+                                            'bg-blue-600': task.color === 'blue',
+                                            'bg-gray-400': task.color === 'gray',
+                                            'bg-blue-600': !['red','pink','blue','gray'].includes(task.color),
+                                        }"
+                                    ></div>
+
+                                    <div class="flex flex-col h-full pl-5 pr-4 py-4">
+                                        {{-- Title + priority pill --}}
+                                        <div>
+                                            <p class="text-lg font-medium text-gray-900 leading-snug" x-text="task.title"></p>
+                                            <div class="mt-2 inline-flex h-5 items-center gap-2 px-2 py-1 rounded-md"
+                                                :class="{
+                                                    'bg-red-100 text-red-700': task.color === 'red',
+                                                    'bg-pink-100 text-pink-700': task.color === 'pink',
+                                                    'bg-blue-100 text-blue-800': task.color === 'blue',
+                                                    'bg-gray-200 text-gray-700': task.color === 'gray',
+                                                    'bg-blue-100 text-blue-800': !['red','pink','blue','gray'].includes(task.color),
+                                                }">
+                                                <span class="w-1 h-1 rounded-full"
+                                                    :class="{
+                                                        'bg-red-600': task.color === 'red',
+                                                        'bg-pink-600': task.color === 'pink',
+                                                        'bg-blue-700': task.color === 'blue',
+                                                        'bg-gray-600': task.color === 'gray',
+                                                        'bg-blue-700': !['red','pink','blue','gray'].includes(task.color),
+                                                    }"></span>
+                                                <span class="text-xs font-medium" x-text="priorityLabel(task.priority)"></span>
+                                            </div>
+                                        </div>
+
+                                        {{-- Subtasks --}}
+                                        <p class="mt-3 text-xs text-gray-700"
+                                            x-text="(task.subtasks ?? 0) + ' subtasks'"></p>
+
+                                        {{-- Bottom row --}}
+                                        <div class="mt-auto flex items-end justify-between gap-2">
+                                            <p class="text-xs text-gray-500 leading-tight" x-text="task.project"></p>
                                         </div>
                                     </div>
                                 </div>
