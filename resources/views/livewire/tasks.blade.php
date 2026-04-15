@@ -19,27 +19,42 @@
         </div>
     @endif
 
-    <div class="flex w-full items-center clr-primary ">
-        <a href="/projects"
-            class="flex items-center gap-4 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
-            <x-icons.back-btn classes="w-6 h-6" />
-        </a>
-        <span class="group-hover:block text-xl">Tasks</span>
+    <div class="flex w-full items-center clr-primary gap-2">
+        @php
+            $crumbs = $currentBreadcrumb ?? [];
+            $crumbCount = is_array($crumbs) ? count($crumbs) : 0;
+            $prevCrumbId = null;
+            if (($currentParentTaskId ?? null) !== null) {
+                if ($crumbCount >= 2) {
+                    $prevCrumbId = (int) ($crumbs[$crumbCount - 2]['id'] ?? 0);
+                }
+            }
+        @endphp
+        @if (($currentParentTaskId ?? null) !== null)
+            <button type="button" wire:click="goToTaskLevel({{ $prevCrumbId > 0 ? $prevCrumbId : 'null' }})"
+                class="flex items-center gap-2 px-3 py-3 rounded-lg whitespace-nowrap hover-clr-accent">
+                <x-icons.back-btn classes="w-6 h-6" />
+            </button>
+        @else
+            <a href="/projects"
+                class="flex items-center gap-2 px-3 py-3 rounded-lg whitespace-nowrap {{ request()->is('projects') ? 'clr-primary' : '' }} hover-clr-accent">
+                <x-icons.back-btn classes="w-6 h-6" />
+            </a>
+        @endif
+        <div class="flex items-center gap-2 text-xl">
+            <span class="group-hover:block">Tasks</span>
+            @if (($currentParentTaskId ?? null) !== null)
+                @foreach (($currentBreadcrumb ?? []) as $crumb)
+                    <span>/</span>
+                    <button type="button" class="hover:underline"
+                        wire:click="goToTaskLevel({{ (int) ($crumb['id'] ?? 0) }})">
+                        {{ $crumb['name'] ?? 'Task' }}
+                    </button>
+                @endforeach
+            @endif
+        </div>
     </div>
     <hr class="border-2 clr-bg-primary">
-
-    @if (($currentParentTaskId ?? null) !== null)
-        <div class="flex items-center gap-2 text-sm text-gray-600">
-            <button type="button" class="hover:underline" wire:click="goToTaskLevel(null)">Tasks</button>
-            @foreach (($currentBreadcrumb ?? []) as $crumb)
-                <span>/</span>
-                <button type="button" class="hover:underline"
-                    wire:click="goToTaskLevel({{ (int) ($crumb['id'] ?? 0) }})">
-                    {{ $crumb['name'] ?? 'Task' }}
-                </button>
-            @endforeach
-        </div>
-    @endif
 
     <div class="flex justify-between">
         <div class="flex gap-2">
