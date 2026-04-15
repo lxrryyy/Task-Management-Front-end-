@@ -128,7 +128,7 @@
             @endif
 
             <div class="flex flex-col gap-4 mt-4">
-                <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
+                <div class="border border-gray-300 rounded-lg p-2 flex items-center gap-3">
                     <div class="avatar" data-user-mgmt-edit-avatar>
                         @php
                             $ef = trim((string) ($editFirstName ?? ''));
@@ -156,18 +156,18 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">First Name</label>
-                        <input type="text" wire:model.defer="editFirstName" class="input input-bordered rounded-none h-9 w-full" />
+                        <input type="text" wire:model.defer="editFirstName" class="input input-bordered rounded-lg h-9 w-full" />
                     </div>
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">Last Name</label>
-                        <input type="text" wire:model.defer="editLastName" class="input input-bordered rounded-none h-9 w-full" />
+                        <input type="text" wire:model.defer="editLastName" class="input input-bordered rounded-lg h-9 w-full" />
                     </div>
                 </div>
 
                 <div class="flex flex-col">
                     <label>Email</label>
                     <input type="text" value="{{ $editEmail }}"
-                        class="input input-bordered rounded-none h-9 w-full bg-gray-100" disabled />
+                        class="input input-bordered rounded-lg h-9 w-full bg-gray-100" disabled />
                 </div>
                 <hr class="border-gray-200">
 
@@ -175,17 +175,17 @@
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">Bio / Specialization (optional)</label>
                         <input type="text" wire:model.defer="editSpecialization"
-                            class="input input-bordered rounded-none h-9 w-full" />
+                            class="input input-bordered rounded-lg h-9 w-full" />
                     </div>
                     <label class="inline-flex items-center gap-2 mb-1">
                         <span class="text-base font-medium text-gray-800">Active</span>
-                        <input type="checkbox" wire:model.defer="editIsActive" class="checkbox checkbox-sm rounded-none" />
+                        <input type="checkbox" wire:model.defer="editIsActive" class="checkbox checkbox-sm rounded-lg" />
                     </label>
                 </div>
 
                 <div class="flex flex-col">
                     <label class="text-xs font-medium">Role</label>
-                    <select wire:model.defer="editRole" class="select select-bordered rounded-none h-9 w-full">
+                    <select wire:model.defer="editRole" class="select select-bordered rounded-lg h-9 w-full">
                         <option value="">...</option>
                         <option value="User">User</option>
                         <option value="Admin">Admin</option>
@@ -340,7 +340,7 @@
             @endphp
 
             <div class="flex flex-col gap-4 mt-4">
-                <div class="border border-gray-300 rounded-sm p-2 flex items-center gap-3">
+                <div class="border border-gray-300 rounded-lg p-2 flex items-center gap-3">
                     <div class="avatar" data-user-mgmt-detail-avatar>
                         <div
                             class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium {{ $detailPic !== '' ? 'hidden' : '' }}"
@@ -362,19 +362,19 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">First Name</label>
-                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                        <input type="text" class="input input-bordered rounded-lg h-9 w-full bg-gray-100"
                             value="{{ $detailFirst ?: '—' }}" readonly />
                     </div>
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">Last Name</label>
-                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                        <input type="text" class="input input-bordered rounded-lg h-9 w-full bg-gray-100"
                             value="{{ $detailLast ?: '—' }}" readonly />
                     </div>
                 </div>
 
                 <div class="flex flex-col">
                     <label>Email</label>
-                    <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                    <input type="text" class="input input-bordered rounded-lg h-9 w-full bg-gray-100"
                         value="{{ $su['email'] ?? '—' }}" readonly />
                 </div>
                 <hr class="border-gray-200">
@@ -382,18 +382,18 @@
                 <div class="grid grid-cols-[1fr_auto] gap-4 items-end">
                     <div class="flex flex-col">
                         <label class="text-xs font-medium">Bio / Specialization (optional)</label>
-                        <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                        <input type="text" class="input input-bordered rounded-lg h-9 w-full bg-gray-100"
                             value="{{ ($su['specialization'] ?? '—') === '—' ? '' : ($su['specialization'] ?? '') }}" readonly />
                     </div>
                     <label class="inline-flex items-center gap-2 mb-1">
                         <span class="text-base font-medium text-gray-800">Active</span>
-                        <input type="checkbox" class="checkbox checkbox-sm rounded-none" {{ $detailStatus ? 'checked' : '' }} disabled />
+                        <input type="checkbox" class="checkbox checkbox-sm rounded-lg" {{ $detailStatus ? 'checked' : '' }} disabled />
                     </label>
                 </div>
 
                 <div class="flex flex-col">
                     <label class="text-xs font-medium">Role</label>
-                    <input type="text" class="input input-bordered rounded-none h-9 w-full bg-gray-100"
+                    <input type="text" class="input input-bordered rounded-lg h-9 w-full bg-gray-100"
                         value="{{ $su['status'] ?? '—' }}" readonly />
                 </div>
             </div>
