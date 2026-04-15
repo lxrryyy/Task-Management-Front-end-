@@ -1,13 +1,5 @@
 <div>
-    {{-- Success banner --}}
-    @if (session('success'))
-        <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3500)" x-show="show" x-transition.opacity.duration.300ms
-            class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg mb-4">
-            <span>{{ session('success') }}</span>
-        </div>
-    @endif
-
-    {{-- Warning is shown under Due Date in the modal (not here) --}}
+    {{-- Success toast: parent Dashboard shows session flash (avoid double mount consuming flash). --}}
 
     @php
         // Keep modal heights consistent between "select project" and "create task".
@@ -58,19 +50,19 @@
             </div>
             <h3 class="font-bold text-lg">New Task</h3>
 
-            @if ($errors->any())
-                @php
-                    $errorMessages = array_filter(array_map('trim', array_unique($errors->all())));
-                @endphp
+            @php
+                $liveErrs = $errors->any()
+                    ? array_values(array_filter(array_unique(array_map('trim', $errors->all()))))
+                    : [];
+                $modalErrorMessages = array_values(array_unique(array_merge($flashErrorMessages, $liveErrs)));
+            @endphp
+            @if (!empty($modalErrorMessages))
                 <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mt-3 text-sm text-red-700">
                     <p class="font-semibold mb-1">Please fix the following:</p>
                     <ul class="list-disc list-inside space-y-0.5">
-                        @foreach ($errorMessages as $msg)
+                        @foreach ($modalErrorMessages as $msg)
                             <li>{{ $msg }}</li>
                         @endforeach
-                        @if (empty($errorMessages))
-                            <li>An error occurred. Please check your input and try again.</li>
-                        @endif
                     </ul>
                 </div>
             @endif

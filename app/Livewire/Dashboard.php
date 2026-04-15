@@ -34,6 +34,8 @@ class Dashboard extends Component
 
     public array $adminSummaryCards = [];
 
+    public ?string $flashSuccess = null;
+
     public function mount(): void
     {
         $user = Session::get('user', null);
@@ -45,7 +47,13 @@ class Dashboard extends Component
         $this->currentUserId = $accountId;
 
         $this->loading = true;
+        $this->flashSuccess = session()->get('success') ?: null;
         $this->dispatch('load-dashboard');
+    }
+
+    public function dismissFlashSuccess(): void
+    {
+        $this->flashSuccess = null;
     }
 
     #[On('load-dashboard')]
@@ -69,6 +77,28 @@ class Dashboard extends Component
         $data = $controller->getMyProjectsAndTasks($this->currentUserId);
         $this->projects = is_array($data) ? $data : [];
         $this->summaryCards = $this->buildSummaryCards($this->projects);
+
+        $this->setDefaultSelectedProject();
+
+        // End the primary loading state as soon as the main projects list is ready.
+        // Secondary widgets (admin cards + charts) can be fetched in a follow-up request.
+        $this->loading = false;
+
+        $this->dispatch('load-dashboard-secondary');
+    }
+
+    #[On('load-dashboard-secondary')]
+    public function loadDashboardSecondary(): void
+    {
+        if ($this->currentUserId <= 0) {
+            $this->adminSummaryCards = [];
+            $this->taskStatusSummary = ['totalTasks' => 0, 'breakdown' => []];
+            return;
+        }
+
+        /** @var DashboardController $controller */
+        $controller = app(DashboardController::class);
+
         if ($this->isAdmin) {
             $stats = $controller->getDashboardAdminStats($this->currentUserId);
             $this->adminSummaryCards = [
@@ -100,9 +130,11 @@ class Dashboard extends Component
             ];
         }
 
-        $this->setDefaultSelectedProject();
+        // Keep selected project stable; only set a default if not already chosen.
+        if ($this->selectedProjectId === null) {
+            $this->setDefaultSelectedProject();
+        }
         $this->loadTaskStatusSummary();
-        $this->loading = false;
     }
 
     private function buildSummaryCards(array $projects): array

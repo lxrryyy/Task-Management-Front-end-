@@ -1,9 +1,14 @@
-<div class="">
+<div class="" x-data="projectCreateOptimistic({
+    actionUrl: @js(route('projects.store')),
+    csrfToken: @js(csrf_token()),
+    currentUserName: @js((string) ($currentUserName ?? 'You')),
+})">
     <div class="w-full">
-        @if (session('success'))
-            <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3500)" x-show="show" x-transition.opacity.duration.300ms
+        @if ($flashSuccess)
+            <div x-data="{ show: true }" x-init="setTimeout(() => { show = false; $wire.dismissFlashSuccess() }, 6500)" x-show="show"
+                x-transition.opacity.duration.300ms
                 class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg mb-3">
-                <span>{{ session('success') }}</span>
+                <span>{{ $flashSuccess }}</span>
             </div>
         @endif
         <div class="flex w-full items-center clr-primary ">
@@ -88,14 +93,19 @@
                                     <button type="button" wire:click="closeAddModal"
                                         class="btn btn-ghost btn-sm btn-circle">✕</button>
                                 </div>
-                                <form method="POST" action="{{ route('projects.store') }}" class="mt-0">
+                                <form method="POST" action="{{ route('projects.store') }}" class="mt-0"
+                                    data-no-global-loader x-on:submit.prevent="submit($event, $wire)">
                                     @csrf
                                     @include('livewire.partials.project-form-fields', [
                                         'formContext' => 'add',
                                     ])
                                     <div class="modal-action">
-                                        <button type="submit" class="btn clr-bg-primary text-base-100 px-2">Add
-                                            Project</button>
+                                        <button type="submit" class="btn clr-bg-primary text-base-100 px-2"
+                                            x-bind:disabled="isSubmitting"
+                                            x-bind:class="{ 'opacity-70 cursor-wait': isSubmitting }">
+                                            <span x-show="!isSubmitting">Add Project</span>
+                                            <span x-show="isSubmitting">Adding...</span>
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -282,6 +292,75 @@
                 </tr>
             </thead>
             <tbody class="[&>tr>td]:border-b [&>tr>td]:border-gray-200 [&>tr>th]:border-b [&>tr>th]:border-gray-200">
+                <template x-for="project in optimisticProjects" :key="project.tempId">
+                    <tr class="border-b border-gray-200"
+                        x-bind:class="project.state === 'pending' ? 'bg-blue-50/30' : 'bg-green-50/20 cursor-pointer hover:bg-gray-50'"
+                        @click="if (project.state === 'created' && project.id) { window.location = `/projects/${project.id}/tasks`; }">
+                        <td><span class="underline-offset-2" x-text="project.name"></span></td>
+                        <td x-text="project.createdByName"></td>
+                        <td>
+                            <div class="flex items-center gap-1 -space-x-3" x-show="(project.members || []).length > 0">
+                                <template x-for="(member, idx) in (project.members || []).slice(0, 3)"
+                                    :key="project.tempId + '-m-' + idx">
+                                    <div class="avatar" :title="member.name" data-member-avatar>
+                                        <div
+                                            class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center relative overflow-hidden">
+                                            <span class="text-xs font-semibold leading-none"
+                                                x-show="!member.profilePicture"
+                                                x-text="member.initials || '?'"></span>
+                                            <img x-show="member.profilePicture" x-bind:src="member.profilePicture"
+                                                alt=""
+                                                class="absolute inset-0 w-full h-full rounded-full object-cover"
+                                                loading="lazy" referrerpolicy="no-referrer" />
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="(project.members || []).length > 3">
+                                    <div class="avatar avatar-placeholder">
+                                        <div
+                                            class="bg-neutral text-neutral-content w-8 h-8 rounded-full flex items-center justify-center">
+                                            <span class="text-xs font-semibold leading-none"
+                                                x-text="'+' + ((project.members || []).length - 3)"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <span class="text-sm text-gray-400" x-show="(project.members || []).length === 0">
+                                No members
+                            </span>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-2 w-32">
+                                <progress class="progress flex-1" value="0" max="100"></progress>
+                                <span class="text-xs text-gray-600">0%</span>
+                            </div>
+                        </td>
+                        <th>
+                            <div class="inline-flex items-center gap-2 rounded-none px-2 py-1 w-[9.5rem] overflow-hidden"
+                                x-bind:style="project.state === 'pending' ? 'background:#fef3c7;color:#92400e;' : 'background:#f3f4f6;color:#374151;'">
+                                <span class="shrink-0 text-current">
+                                    <x-icons.circle />
+                                </span>
+                                <span class="text-xs font-medium whitespace-nowrap truncate"
+                                    x-text="project.state === 'pending' ? 'Creating...' : (project.status || 'Not Started')"></span>
+                            </div>
+                        </th>
+                        <th>
+                            <span class="!font-normal text-sm" x-text="project.createdAt || '—'"></span>
+                        </th>
+                        <th>
+                            <span class="!font-normal text-sm" x-text="project.endDate || '—'"></span>
+                        </th>
+                        <th>
+                            <span class="text-gray-400" x-show="!(project.state === 'created' && project.id)">—</span>
+                            <button type="button" class="btn btn-ghost btn-sm px-2"
+                                x-show="project.state === 'created' && project.id"
+                                @click.stop="window.location = `/projects/${project.id}/tasks`">
+                                <x-icons.three-dot classes="w-5 h-5" />
+                            </button>
+                        </th>
+                    </tr>
+                </template>
                 @if ($loading)
                     @foreach (range(1, 8) as $i)
                         <tr>
@@ -630,3 +709,144 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
         </table>
     </div>
 </div>
+
+@once
+    <script>
+        function projectCreateOptimistic(config) {
+            return {
+                isSubmitting: false,
+                optimisticProjects: [],
+                showSuccessToast(message) {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+                    const toast = document.createElement('div');
+                    toast.className =
+                        'pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow border-green-200 bg-green-50 text-green-700';
+                    toast.textContent = message;
+                    container.appendChild(toast);
+                    window.setTimeout(() => toast.remove(), 4200);
+                },
+                toInitials(name) {
+                    const parts = (name || '').toString().trim().split(/\s+/).filter(Boolean);
+                    if (!parts.length) return '?';
+                    if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+                    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+                },
+                collectSelectedMembers(form) {
+                    const members = [];
+                    const rows = form.querySelectorAll('.overflow-x-auto table tbody tr');
+                    rows.forEach((row) => {
+                        const nameCell = row.querySelector('td:first-child span');
+                        if (!nameCell) return;
+                        const name = (nameCell.textContent || '').toString().trim();
+                        if (!name || name.toLowerCase().includes('no members selected')) return;
+                        const imageEl = row.querySelector('td:first-child img');
+                        const profilePicture = imageEl
+                            ? (imageEl.getAttribute('src') || '').toString().trim()
+                            : '';
+                        members.push({
+                            name,
+                            initials: this.toInitials(name),
+                            profilePicture: profilePicture || null,
+                        });
+                    });
+                    return members;
+                },
+                showErrorToast(message) {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+                    const toast = document.createElement('div');
+                    toast.className =
+                        'pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow border-red-200 bg-red-50 text-red-700';
+                    toast.textContent = message;
+                    container.appendChild(toast);
+                    window.setTimeout(() => toast.remove(), 5500);
+                },
+                async submit(event, wire) {
+                    if (this.isSubmitting) return;
+
+                    const form = event.target;
+                    if (!(form instanceof HTMLFormElement)) return;
+
+                    const formData = new FormData(form);
+                    const projectName = (formData.get('name') || '').toString().trim() || 'Project';
+                    const endDate = (formData.get('endDate') || '').toString().trim();
+                    const members = this.collectSelectedMembers(form);
+                    const tempId = `tmp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+                    const optimisticRow = {
+                        tempId,
+                        state: 'pending',
+                        name: projectName,
+                        createdByName: (config?.currentUserName || 'You').toString().trim() || 'You',
+                        createdAt: new Date().toISOString().slice(0, 10),
+                        endDate: endDate || '—',
+                        status: 'Not Started',
+                        members,
+                    };
+
+                    this.optimisticProjects.unshift(optimisticRow);
+                    this.isSubmitting = true;
+
+                    // Optimistic UX: close modal immediately while create runs in background.
+                    try {
+                        if (wire) {
+                            wire.closeAddModal();
+                        }
+                    } catch (_) {}
+
+                    try {
+                        const response = await fetch(config.actionUrl, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                Accept: 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': config.csrfToken,
+                            },
+                            body: formData,
+                        });
+
+                        const payload = await response.json().catch(() => null);
+                        if (!response.ok || !payload?.ok) {
+                            throw new Error(payload?.message || 'Failed to add project. Please try again.');
+                        }
+
+                        const idx = this.optimisticProjects.findIndex((p) => p.tempId === tempId);
+                        if (idx >= 0) {
+                            const normalized = payload?.project || {};
+                            this.optimisticProjects[idx] = {
+                                ...this.optimisticProjects[idx],
+                                state: 'created',
+                                id: normalized.id || null,
+                                name: (normalized.name || this.optimisticProjects[idx].name || 'Project').toString(),
+                                status: (normalized.status || 'Not Started').toString(),
+                                createdAt: (normalized.createdAt || this.optimisticProjects[idx].createdAt || '—').toString(),
+                                endDate: (normalized.endDate || this.optimisticProjects[idx].endDate || '—').toString(),
+                            };
+                            // If backend doesn't provide a usable id, refresh list so created project becomes navigable.
+                            if (!this.optimisticProjects[idx].id) {
+                                window.setTimeout(() => {
+                                    window.location.reload();
+                                }, 700);
+                            }
+                        }
+                        this.showSuccessToast((payload?.message || 'Project created successfully.').toString());
+
+                        form.reset();
+                    } catch (error) {
+                        this.optimisticProjects = this.optimisticProjects.filter((p) => p.tempId !== tempId);
+                        this.showErrorToast(error?.message || 'Failed to add project. Please try again.');
+                        // Reopen modal on failure so user can correct and retry quickly.
+                        try {
+                            if (wire) {
+                                wire.openModal();
+                            }
+                        } catch (_) {}
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                },
+            };
+        }
+    </script>
+@endonce

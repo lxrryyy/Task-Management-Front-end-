@@ -7,6 +7,7 @@ use App\Http\Controllers\TaskController;
 use App\Services\CsharpApiService;
 use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\ViewErrorBag;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -82,6 +83,12 @@ class Tasks extends Component
 
     public bool $loading = true;
 
+    /** Session flash copied on first load so alerts survive Livewire re-renders (flash is one-request only). */
+    public ?string $flashSuccess = null;
+
+    /** @var list<string> */
+    public array $flashErrorMessages = [];
+
     public function mount(
         ?int $projectId = null,
         array $tasks = [],
@@ -106,6 +113,9 @@ class Tasks extends Component
 
         $this->taskWarnings = array_values(array_filter((array) Session::get('task_warnings', [])));
 
+        $this->flashSuccess = session()->get('success') ?: null;
+        $this->flashErrorMessages = $this->captureFlashedErrors();
+
         $statusData = app(TaskController::class)->getStatuses();
         $this->statusMap = $statusData['map'] ?? [];
         $this->taskStatuses = $statusData['names'] ?? [];
@@ -124,6 +134,40 @@ class Tasks extends Component
         }
 
         $this->dispatch('tasks-loaded');
+    }
+
+    public function dismissFlashSuccess(): void
+    {
+        $this->flashSuccess = null;
+    }
+
+    public function dismissFlashErrors(): void
+    {
+        $this->flashErrorMessages = [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function captureFlashedErrors(): array
+    {
+        $bag = session()->get('errors');
+        if (! $bag instanceof ViewErrorBag) {
+            return [];
+        }
+        $out = [];
+        foreach ($bag->getBags() as $namedBag) {
+            foreach ($namedBag->getMessages() as $msgs) {
+                foreach ((array) $msgs as $m) {
+                    $t = trim((string) $m);
+                    if ($t !== '') {
+                        $out[] = $t;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     #[On('tasks-loaded')]
@@ -574,6 +618,7 @@ class Tasks extends Component
         $this->taskParentId = null;
         $this->description = '';
         $this->taskWarnings = [];
+        $this->dismissFlashErrors();
     }
 
     public function addSubtask(int $parentTaskId): void

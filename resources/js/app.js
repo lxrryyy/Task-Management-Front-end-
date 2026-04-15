@@ -72,11 +72,17 @@ const isInternalNavigationLink = (anchor, event) => {
     }
 };
 
+const shouldSkipGlobalLoader = (element) => {
+    if (!(element instanceof Element)) return false;
+    return element.closest("[data-no-global-loader]") !== null;
+};
+
 document.addEventListener(
     "click",
     (event) => {
         const anchor = event.target.closest("a[href]");
         if (!isInternalNavigationLink(anchor, event)) return;
+        if (shouldSkipGlobalLoader(anchor)) return;
         globalLoader.showForNavigation();
     },
     true,
@@ -87,6 +93,7 @@ document.addEventListener(
     (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+        if (shouldSkipGlobalLoader(form)) return;
         globalLoader.showForNavigation();
     },
     true,

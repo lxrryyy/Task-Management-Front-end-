@@ -45,10 +45,31 @@ class ProjectController extends Controller
             }
         }
 
-        // Derive task-based progress and status for each project using GetTasksByProject.
+        // Derive task-based progress/status only when missing.
+        // Calling GetTasksByProject for every row is expensive on large lists.
         foreach ($projects as $i => $project) {
             $projectId = $project['id'] ?? $project['Id'] ?? null;
             if (! $projectId) {
+                continue;
+            }
+
+            $existingProgress = $project['completionPercentage'] ?? $project['progress'] ?? null;
+            $hasProgress = is_numeric($existingProgress);
+            $existingStatus = trim((string) ($project['_derivedStatus'] ?? $project['statusName'] ?? $project['status'] ?? ''));
+            $hasStatus = $existingStatus !== '';
+
+            // If list payload already includes progress + status, keep it and skip per-project task fetch.
+            if ($hasProgress && $hasStatus) {
+                $progressInt = (int) $existingProgress;
+                if ($progressInt < 0) {
+                    $progressInt = 0;
+                }
+                if ($progressInt > 100) {
+                    $progressInt = 100;
+                }
+                $projects[$i]['completionPercentage'] = $progressInt;
+                $projects[$i]['_derivedStatus'] = $existingStatus;
+
                 continue;
             }
 
@@ -430,16 +451,70 @@ class ProjectController extends Controller
             $payload['status'] = $status;
         }
 
+        $createdResponse = [];
         try {
-            $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
+            $createdResponse = $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
             Log::warning('Project create failed', ['errors' => $fieldErrors]);
 
-            return back()->withInput()->withErrors($fieldErrors);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Failed to add project. Please check the form and try again.',
+                    'errors' => $fieldErrors,
+                ], 422);
+            }
+
+            return back()
+                ->withInput()
+                ->withErrors($fieldErrors)
+                ->with('error_toast', 'Failed to add project. Please check the form and try again.');
         }
 
         $successMessage = __('Project created successfully.');
+        if ($request->expectsJson()) {
+            $createdId = 0;
+            $idCandidates = [
+                $createdResponse['id'] ?? null,
+                $createdResponse['Id'] ?? null,
+                $createdResponse['projectId'] ?? null,
+                $createdResponse['ProjectId'] ?? null,
+                $createdResponse['data']['id'] ?? null,
+                $createdResponse['data']['Id'] ?? null,
+                $createdResponse['data']['projectId'] ?? null,
+                $createdResponse['data']['ProjectId'] ?? null,
+                $createdResponse['project']['id'] ?? null,
+                $createdResponse['project']['Id'] ?? null,
+                $createdResponse['project']['projectId'] ?? null,
+                $createdResponse['project']['ProjectId'] ?? null,
+                $createdResponse['result']['id'] ?? null,
+                $createdResponse['result']['Id'] ?? null,
+                $createdResponse['result']['projectId'] ?? null,
+                $createdResponse['result']['ProjectId'] ?? null,
+            ];
+            foreach ($idCandidates as $candidate) {
+                $value = (int) $candidate;
+                if ($value > 0) {
+                    $createdId = $value;
+                    break;
+                }
+            }
+
+            return response()->json([
+                'ok' => true,
+                'message' => $successMessage,
+                'project' => [
+                    'id' => $createdId > 0 ? $createdId : null,
+                    'name' => (string) ($payload['name'] ?? 'Project'),
+                    'createdByName' => (string) ($user['name'] ?? $user['Name'] ?? 'You'),
+                    'status' => (string) ($payload['status'] ?? 'Not Started'),
+                    'completionPercentage' => 0,
+                    'createdAt' => now()->toDateString(),
+                    'endDate' => (string) ($payload['endDate'] ?? ''),
+                ],
+            ]);
+        }
 
         $redirect = (string) $request->input('redirect_to', '');
         if ($redirect === 'dashboard') {

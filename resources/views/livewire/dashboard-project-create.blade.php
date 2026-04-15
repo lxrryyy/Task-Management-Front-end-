@@ -7,7 +7,7 @@
                     <button type="button" wire:click="close" class="btn btn-ghost btn-sm btn-circle">✕</button>
                 </div>
 
-                <form method="POST" action="{{ route('projects.store') }}" class="mt-4">
+                <form method="POST" action="{{ route('projects.store') }}" class="mt-4" data-no-global-loader>
                     @csrf
                     <input type="hidden" name="redirect_to" value="dashboard" />
                     @include('livewire.partials.project-form-fields', ['formContext' => 'add'])
