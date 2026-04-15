@@ -597,9 +597,11 @@
                                     </div>
 
                                     @if ($isEditing)
-                                        <div class="mt-2 flex items-start gap-2">
-                                            <textarea wire:model.defer="editingCommentContent" class="textarea textarea-bordered w-full min-h-[56px]"></textarea>
-                                            <div class="flex flex-col gap-1">
+                                        <div class="mt-2 flex flex-col gap-2 w-full"
+                                            wire:key="task-cmt-edit-{{ (int) ($cmt['id'] ?? 0) }}">
+                                            <x-rich-text-editor name="editingCommentContent"
+                                                :value="$editingCommentContent" placeholder="Edit comment..." />
+                                            <div class="flex flex-wrap items-center gap-2 justify-end">
                                                 <button type="button"
                                                     wire:click="updateComment({{ (int) ($cmt['id'] ?? 0) }})"
                                                     wire:target="updateComment({{ (int) ($cmt['id'] ?? 0) }})"

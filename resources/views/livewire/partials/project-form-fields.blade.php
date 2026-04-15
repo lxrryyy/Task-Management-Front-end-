@@ -20,7 +20,6 @@
 @endif
 
 @php
-    $descriptionContent = $isEdit ? '' : (string) ($descValue ?? '');
     $creatorIdInt = (int) ($creatorId ?? 0);
     $scrumMasterIdInt = (int) ($selectedScrumMasterId ?? 0);
     $effectiveScrumMasterId = $scrumMasterIdInt > 0 ? $scrumMasterIdInt : $creatorIdInt;
@@ -88,9 +87,9 @@
 <div class="flex flex-col gap-4 my-4">
     <span class="{{ $isEdit ? '' : 'text-xs font-semibold uppercase tracking-wide text-gray-700' }}">Description</span>
     @if ($isEdit)
-        <textarea name="description" class="textarea textarea-bordered border-gray-300 focus:border-gray-300 rounded-lg w-full min-h-24"
-            placeholder="Project Description"
-            wire:model.lazy="formDescription">{{ $descriptionContent }}</textarea>
+        <div wire:key="project-desc-editor-{{ (int) ($editingProjectId ?? 0) }}">
+            <x-rich-text-editor name="formDescription" :value="$descValue" placeholder="Project Description" />
+        </div>
     @else
         <div wire:ignore>
             <x-rich-text-editor name="description" :value="old('description', '')" placeholder="Description here..." />
