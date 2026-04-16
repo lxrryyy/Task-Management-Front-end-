@@ -244,7 +244,7 @@
                         if (idx >= 0) this.selectedIds.splice(idx, 1);
                         else this.selectedIds.push(id);
                         // Trigger due-date recalculation + overload precheck
-                        queueMicrotask(() => window.__tasksDueCalc?.recalc?.());
+                        queueMicrotask(() => window.__tasksDueCalc?.recalc?.(this.$root?.closest('form')));
                     }
                 }">
                     <label class="font-medium text-sm">Assignees</label>
@@ -333,6 +333,7 @@
                         <label class="font-medium text-sm">Story Point</label>
                         @php $storyPointOptions = [1,2,3,5,8,13,21]; @endphp
                         <select name="storyPoints"
+                            onchange="window.__tasksDueCalc?.recalc?.(this.form)"
                             class="select select-bordered rounded-lg w-full text-gray-900 bg-white">
                             <option value="">Select</option>
                             @foreach ($storyPointOptions as $sp)
@@ -356,6 +357,8 @@
                             }
                         @endphp
                         <input name="startDate" type="datetime-local"
+                            onchange="window.__tasksDueCalc?.recalc?.(this.form)"
+                            oninput="window.__tasksDueCalc?.recalc?.(this.form)"
                             class="input input-bordered rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
                             value="{{ $oldStartVal }}" />
                         @foreach ($errors->get('startDate') as $msg)
@@ -392,7 +395,7 @@
                         <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 hidden"
                             data-overload-warnings>
                             <p class="font-semibold mb-1">Task created with warnings:</p>
-                            <ul class="list-disc list-inside space-y-0.5" data-overload-warnings-list></ul>
+                            <div class="space-y-2" data-overload-warnings-list></div>
                         </div>
 
                         @if (!empty($taskWarnings))
@@ -425,6 +428,152 @@
         </form>
     </dialog>
     @endif
+
+    @once
+        <script>
+            (function() {
+            const toDateOnly = (v) => (v || '').toString().trim().substring(0, 10);
+            const toDateTimeLocal = (v) => (v || '').toString().trim().substring(0, 16); // YYYY-MM-DDTHH:MM
+
+            function setOverloadWarnings(form, warnings) {
+                const box = form?.querySelector('[data-overload-warnings]');
+                const list = form?.querySelector('[data-overload-warnings-list]');
+                if (!box || !list) return;
+
+                const msgs = Array.isArray(warnings) ? warnings.filter(Boolean).map(String) : [];
+                list.innerHTML = msgs.map(m =>
+                    `<div class="rounded border border-yellow-300 bg-yellow-100 px-2 py-1">${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</div>`
+                ).join('');
+                box.classList.toggle('hidden', msgs.length === 0);
+            }
+
+            function setDueCalcState(form, isCalculating) {
+                const hint = form?.querySelector('[data-due-calc-hint]');
+                if (!hint) return;
+                hint.classList.toggle('hidden', !isCalculating);
+                hint.classList.toggle('flex', isCalculating);
+            }
+
+            async function recalcDueAndWarnings(form) {
+                if (!form) return;
+                const startInput = form.querySelector('input[name="startDate"]');
+                const spSelect = form.querySelector('select[name="storyPoints"]');
+                const dueInput = form.querySelector('input[name="dueDate"]');
+                const assignees = form.querySelector('input[name="assigneeIds"]');
+                const projectId = form.querySelector('input[name="projectId"]');
+                if (!startInput || !spSelect || !dueInput) return;
+
+                const start = startInput.value;
+                const sp = spSelect.value;
+                console.debug('[due-calc-debug][tasks] recalc:start', {
+                    startDate: start,
+                    storyPoints: sp,
+                    assigneeIdsRaw: assignees?.value ?? '',
+                    projectId: projectId?.value ?? ''
+                });
+                if (!start || !sp) {
+                    dueInput.min = '';
+                    dueInput.max = '';
+                    setOverloadWarnings(form, []);
+                    setDueCalcState(form, false);
+                    console.debug('[due-calc-debug][tasks] recalc:skipped-missing-input', {
+                        hasStartDate: Boolean(start),
+                        hasStoryPoints: Boolean(sp)
+                    });
+                    return;
+                }
+
+                try {
+                    setDueCalcState(form, true);
+                    // Keep original datetime-local shape that worked in app flow.
+                    const startDateParam = toDateTimeLocal(start);
+                    const aidRaw = assignees?.value ? String(assignees.value) : '';
+                    const pid = projectId?.value ? String(projectId.value) : '';
+                    const params = new URLSearchParams();
+                    params.set('startDate', startDateParam);
+                    params.set('storyPoints', String(sp));
+                    if (pid) params.set('projectId', pid);
+                    aidRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => {
+                        params.append('assigneeIds[]', id);
+                    });
+                    const url = `/tasks/calculate-due-date?${params.toString()}`;
+                    console.debug('[due-calc-debug][tasks] request', {
+                        url,
+                        assigneeIds: aidRaw.split(',').map(s => s.trim()).filter(Boolean)
+                    });
+                    const r = await fetch(url, {
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    console.debug('[due-calc-debug][tasks] response-meta', {
+                        ok: r.ok,
+                        status: r.status
+                    });
+                    if (!r.ok) {
+                        let errData = null;
+                        try { errData = await r.json(); } catch (_) {}
+                        console.debug('[due-calc-debug][tasks] response-error-body', errData);
+                        setOverloadWarnings(form, errData?.warnings || []);
+                        return;
+                    }
+                    const data = await r.json();
+                    console.debug('[due-calc-debug][tasks] response-body', data);
+
+                    if (data?.dueDate) {
+                        const dueRaw = String(data.dueDate);
+                        const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+
+                        let current = dueInput.value || maxDue;
+                        if (current < start) current = start;
+                        if (current > maxDue) current = maxDue;
+                        dueInput.value = current;
+                        dueInput.min = start;
+                        dueInput.max = maxDue;
+                    }
+
+                    setOverloadWarnings(form, data?.warnings || []);
+                } catch (err) {
+                    console.error('[due-calc-debug][tasks] recalc:error', err);
+                } finally {
+                    setDueCalcState(form, false);
+                }
+            }
+
+            // Expose helper so assignee toggles can trigger recalculation too.
+            window.__tasksDueCalc = {
+                recalc(formEl = null) {
+                    const form = formEl && formEl.matches?.('form[data-due-calc="true"]')
+                        ? formEl
+                        : document.querySelector('form[data-due-calc="true"]');
+                    recalcDueAndWarnings(form);
+                }
+            };
+
+            document.addEventListener('change', async function(e) {
+                const target = e.target;
+                if (!target) return;
+                const name = target.getAttribute('name');
+                if (name !== 'startDate' && name !== 'storyPoints') return;
+                const form = target.closest('form[data-due-calc="true"]');
+                recalcDueAndWarnings(form);
+            });
+
+            document.addEventListener('input', function(e) {
+                const target = e.target;
+                if (!target) return;
+                const name = target.getAttribute('name');
+                if (name !== 'startDate') return;
+                const form = target.closest('form[data-due-calc="true"]');
+                recalcDueAndWarnings(form);
+            });
+
+            // Run once on load so prefilled values auto-compute due date.
+            queueMicrotask(() => window.__tasksDueCalc?.recalc?.());
+            })();
+        </script>
+    @endonce
 
     {{-- Task detail modal (lazy-rendered to reduce payload while closed) --}}
     @if ($showTaskDetailModal)
@@ -706,101 +855,6 @@
                 </div>
             @endif
         </div>
-
-        <script>
-            const toDateOnly = (v) => (v || '').toString().trim().substring(0, 10);
-            const toDateTimeLocal = (v) => (v || '').toString().trim().substring(0, 16); // YYYY-MM-DDTHH:MM
-
-            function setOverloadWarnings(form, warnings) {
-                const box = form?.querySelector('[data-overload-warnings]');
-                const list = form?.querySelector('[data-overload-warnings-list]');
-                if (!box || !list) return;
-
-                const msgs = Array.isArray(warnings) ? warnings.filter(Boolean).map(String) : [];
-                list.innerHTML = msgs.map(m => `<li>${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</li>`).join('');
-                box.classList.toggle('hidden', msgs.length === 0);
-            }
-
-            function setDueCalcState(form, isCalculating) {
-                const hint = form?.querySelector('[data-due-calc-hint]');
-                if (!hint) return;
-                hint.classList.toggle('hidden', !isCalculating);
-                hint.classList.toggle('flex', isCalculating);
-            }
-
-            async function recalcDueAndWarnings(form) {
-                if (!form) return;
-                const startInput = form.querySelector('input[name="startDate"]');
-                const spSelect = form.querySelector('select[name="storyPoints"]');
-                const dueInput = form.querySelector('input[name="dueDate"]');
-                const assignees = form.querySelector('input[name="assigneeIds"]');
-                const projectId = form.querySelector('input[name="projectId"]');
-                if (!startInput || !spSelect || !dueInput) return;
-
-                const start = startInput.value;
-                const sp = spSelect.value;
-                if (!start || !sp) {
-                    dueInput.min = '';
-                    dueInput.max = '';
-                    setOverloadWarnings(form, []);
-                    setDueCalcState(form, false);
-                    return;
-                }
-
-                try {
-                    setDueCalcState(form, true);
-                    // Use the full datetime-local value so the API can calculate correctly.
-                    const startDateParam = toDateTimeLocal(start);
-                    const aid = assignees?.value ? String(assignees.value) : '';
-                    const pid = projectId?.value ? String(projectId.value) : '';
-                    const url =
-                        `/tasks/calculate-due-date?startDate=${encodeURIComponent(startDateParam)}&storyPoints=${encodeURIComponent(sp)}&assigneeIds=${encodeURIComponent(aid)}&projectId=${encodeURIComponent(pid)}`;
-                    const r = await fetch(url, {
-                        headers: {
-                            'Accept': 'application/json'
-                        },
-                        credentials: 'same-origin'
-                    });
-                    if (!r.ok) return;
-                    const data = await r.json();
-
-                    if (data?.dueDate) {
-                        const dueRaw = String(data.dueDate);
-                        const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
-
-                        let current = dueInput.value || maxDue;
-                        if (current < start) current = start;
-                        if (current > maxDue) current = maxDue;
-                        dueInput.value = current;
-                        dueInput.min = start;
-                        dueInput.max = maxDue;
-                    }
-
-                    setOverloadWarnings(form, data?.warnings || []);
-                } catch {
-                    // ignore
-                } finally {
-                    setDueCalcState(form, false);
-                }
-            }
-
-            // Expose helper so assignee toggles can trigger recalculation too.
-            window.__tasksDueCalc = {
-                recalc() {
-                    const form = document.querySelector('form[data-due-calc="true"]');
-                    recalcDueAndWarnings(form);
-                }
-            };
-
-            document.addEventListener('change', async function(e) {
-                const target = e.target;
-                if (!target) return;
-                const name = target.getAttribute('name');
-                if (name !== 'startDate' && name !== 'storyPoints') return;
-                const form = target.closest('form[data-due-calc="true"]');
-                recalcDueAndWarnings(form);
-            });
-        </script>
 
         <form method="dialog" class="modal-backdrop">
             <button type="button" wire:click="closeTaskDetail">close</button>

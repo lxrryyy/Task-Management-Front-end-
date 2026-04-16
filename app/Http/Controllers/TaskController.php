@@ -206,38 +206,121 @@ class TaskController extends Controller
         $data = $request->validate([
             'startDate' => 'required|date',
             'storyPoints' => 'required|integer|min:0',
-            'assigneeIds' => 'nullable|string',
+            'assigneeIds' => 'nullable',
+            'assigneeIds.*' => 'integer|min:1',
             'projectId' => 'nullable|integer|min:1',
         ]);
 
-        $params = [
-            'startDate' => $data['startDate'],
-            'storyPoints' => $data['storyPoints'],
-        ];
-        if (! empty($data['assigneeIds'])) {
-            $params['assigneeIds'] = $data['assigneeIds'];
+        $storyPoints = (int) $data['storyPoints'];
+        $allowedStoryPoints = [1, 2, 3, 5, 8, 13, 21];
+        if (! in_array($storyPoints, $allowedStoryPoints, true)) {
+            return response()->json([
+                'dueDate' => null,
+                'warnings' => ['Story points must be a Fibonacci number (1, 2, 3, 5, 8, 13, 21).'],
+            ], 422);
         }
+        $params = [
+            // Keep original shape that worked for single-assignee flow.
+            'startDate' => (string) $data['startDate'],
+            'storyPoints' => $storyPoints,
+        ];
+        $rawAssigneeIds = $request->input('assigneeIds');
+        $assigneeIds = is_array($rawAssigneeIds)
+            ? array_values(array_filter(array_map('intval', $rawAssigneeIds)))
+            : array_values(array_filter(array_map('intval', array_filter(explode(',', (string) $rawAssigneeIds)))));
         if (! empty($data['projectId'])) {
             $params['projectId'] = (int) $data['projectId'];
         }
 
+        Log::info('[due-calc-debug] incoming calculate-due-date', [
+            'request_query' => $request->query(),
+            'validated' => $data,
+            'raw_assignee_ids' => $rawAssigneeIds,
+            'normalized_assignee_ids' => $assigneeIds,
+            'proxy_base_params' => $params,
+        ]);
+
         // New API shape:
         // { projectedStartDate, projectedDueDate, storyPoints, warnings: [{message,...}] }
-        $result = $this->api->get('/api/Task/CheckAssigneeWorkload', array_merge($params, ['_no_cache' => 1]));
+        $resultItems = [];
+        $errorMessages = [];
 
-        $due = null;
-        if (is_array($result)) {
-            $due = $result['projectedDueDate']
-                ?? $result['ProjectedDueDate']
-                ?? $result['dueDate']
-                ?? $result['DueDate']
-                ?? $result['dueAt']
-                ?? null;
+        $callWorkload = function (?int $assigneeId, string $label) use ($params, &$resultItems, &$errorMessages): void {
+            $queryParams = $params;
+            if ($assigneeId !== null && $assigneeId > 0) {
+                // Single-assignee calls are stable; we'll aggregate for multi-assignee.
+                $queryParams['assigneeIds'] = (string) $assigneeId;
+            }
+            try {
+                Log::info('[due-calc-debug] trying upstream request', ['params' => $queryParams, 'label' => $label]);
+                $result = $this->api->get('/api/Task/CheckAssigneeWorkload', array_merge($queryParams, ['_no_cache' => 1]));
+                Log::info('[due-calc-debug] upstream request succeeded', ['label' => $label]);
+                if (is_array($result)) {
+                    $resultItems[] = $result;
+                }
+            } catch (RequestException $e) {
+                Log::warning('[due-calc-debug] upstream request failed', [
+                    'label' => $label,
+                    'status' => $e->response?->status(),
+                    'body' => $e->response?->body(),
+                ]);
+                $message = trim((string) ($e->response?->body() ?? ''));
+                if ($message === '') {
+                    $message = 'Unable to auto-compute due date right now.';
+                }
+                if ($label !== 'single') {
+                    $message = "Assignee {$label}: {$message}";
+                }
+                $errorMessages[] = $message;
+            }
+        };
+
+        if (count($assigneeIds) <= 1) {
+            $callWorkload(! empty($assigneeIds) ? (int) $assigneeIds[0] : null, 'single');
+        } else {
+            foreach ($assigneeIds as $aid) {
+                $callWorkload((int) $aid, (string) $aid);
+            }
         }
 
-        $warningsRaw = is_array($result)
-            ? ($result['warnings'] ?? $result['Warnings'] ?? [])
-            : [];
+        if (empty($resultItems)) {
+            return response()->json([
+                'dueDate' => null,
+                'warnings' => array_values(array_unique($errorMessages ?: ['Unable to auto-compute due date right now.'])),
+            ], 422);
+        }
+
+        $due = null;
+        $maxDueTs = null;
+        $warningsRaw = [];
+        foreach ($resultItems as $item) {
+            Log::info('[due-calc-debug] upstream response', [
+                'result_keys' => array_keys($item),
+                'projected_due_date' => $item['projectedDueDate'] ?? $item['ProjectedDueDate'] ?? null,
+                'warnings_count' => count((array) ($item['warnings'] ?? $item['Warnings'] ?? [])),
+            ]);
+
+            $candidateDue = $item['projectedDueDate']
+                ?? $item['ProjectedDueDate']
+                ?? $item['dueDate']
+                ?? $item['DueDate']
+                ?? $item['dueAt']
+                ?? null;
+            if ($candidateDue) {
+                try {
+                    $ts = Carbon::parse((string) $candidateDue)->getTimestamp();
+                    if ($maxDueTs === null || $ts > $maxDueTs) {
+                        $maxDueTs = $ts;
+                        $due = (string) $candidateDue;
+                    }
+                } catch (\Throwable) {
+                    // ignore malformed due values from upstream
+                }
+            }
+
+            $warningsRaw = array_merge($warningsRaw, (array) ($item['warnings'] ?? $item['Warnings'] ?? []));
+        }
+
         $warningMessages = [];
         foreach ((array) $warningsRaw as $w) {
             if (is_array($w) && ! empty($w['message'])) {
@@ -246,8 +329,12 @@ class TaskController extends Controller
                 $warningMessages[] = trim($w);
             }
         }
+        $warningMessages = array_values(array_unique(array_merge($warningMessages, $errorMessages)));
 
-        return response()->json(['dueDate' => $due, 'warnings' => array_values(array_unique($warningMessages))]);
+        $responsePayload = ['dueDate' => $due, 'warnings' => $warningMessages];
+        Log::info('[due-calc-debug] outgoing frontend response', $responsePayload);
+
+        return response()->json($responsePayload);
     }
 
     public function store(int $projectId, Request $request)

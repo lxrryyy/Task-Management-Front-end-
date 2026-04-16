@@ -120,7 +120,7 @@
                             const idx = this.selectedIds.indexOf(id);
                             if (idx >= 0) this.selectedIds.splice(idx, 1);
                             else this.selectedIds.push(id);
-                            queueMicrotask(() => window.__dashDueCalc?.recalc?.());
+                            queueMicrotask(() => window.__dashDueCalc?.recalc?.(this.$root?.closest('form')));
                         }
                     }">
                         <label class="font-medium text-sm">Assignees</label>
@@ -217,6 +217,7 @@
                             <label class="font-medium text-sm">Story Point</label>
                             @php $storyPointOptions = [1,2,3,5,8,13,21]; @endphp
                             <select name="storyPoints"
+                                onchange="window.__dashDueCalc?.recalc?.(this.form)"
                                 class="select select-bordered !rounded-lg w-full text-gray-900 bg-white"
                                 style="border-radius:0.5rem;">
                                 <option value="">Select</option>
@@ -241,6 +242,8 @@
                                 }
                             @endphp
                             <input name="startDate" type="datetime-local"
+                                onchange="window.__dashDueCalc?.recalc?.(this.form)"
+                                oninput="window.__dashDueCalc?.recalc?.(this.form)"
                                 class="input input-bordered !rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
                                 style="border-radius:0.5rem;" value="{{ $oldStartVal }}" />
                             @foreach ($errors->get('startDate') as $msg)
@@ -277,7 +280,7 @@
                             <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 hidden"
                                 data-overload-warnings>
                                 <p class="font-semibold mb-1">Task created with warnings:</p>
-                                <ul class="list-disc list-inside space-y-0.5" data-overload-warnings-list></ul>
+                                <div class="space-y-2" data-overload-warnings-list></div>
                             </div>
 
                             @if (!empty($taskWarnings))
@@ -316,6 +319,7 @@
 </div>
 
 <script>
+    (function() {
     const toDateOnly = (v) => (v || '').toString().trim().substring(0, 10);
     const toDateTimeLocal = (v) => (v || '').toString().trim().substring(0, 16); // YYYY-MM-DDTHH:MM
 
@@ -325,7 +329,9 @@
         if (!box || !list) return;
 
         const msgs = Array.isArray(warnings) ? warnings.filter(Boolean).map(String) : [];
-        list.innerHTML = msgs.map(m => `<li>${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</li>`).join('');
+        list.innerHTML = msgs.map(m =>
+            `<div class="rounded border border-yellow-300 bg-yellow-100 px-2 py-1">${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</div>`
+        ).join('');
         box.classList.toggle('hidden', msgs.length === 0);
     }
 
@@ -348,30 +354,61 @@
 
         const start = startInput.value;
         const sp = spSelect.value;
+        console.debug('[due-calc-debug][dashboard] recalc:start', {
+            startDate: start,
+            storyPoints: sp,
+            assigneeIdsRaw: assignees?.value ?? '',
+            projectId: projectId?.value ?? ''
+        });
         if (!start || !sp) {
             dueInput.min = '';
             dueInput.max = '';
             setOverloadWarnings(form, []);
             setDueCalcState(form, false);
+            console.debug('[due-calc-debug][dashboard] recalc:skipped-missing-input', {
+                hasStartDate: Boolean(start),
+                hasStoryPoints: Boolean(sp)
+            });
             return;
         }
 
         try {
             setDueCalcState(form, true);
-            // Use the full datetime-local value so the API can calculate correctly.
+            // Keep original datetime-local shape that worked in app flow.
             const startDateParam = toDateTimeLocal(start);
-            const aid = assignees?.value ? String(assignees.value) : '';
+            const aidRaw = assignees?.value ? String(assignees.value) : '';
             const pid = projectId?.value ? String(projectId.value) : '';
-            const url =
-                `/tasks/calculate-due-date?startDate=${encodeURIComponent(startDateParam)}&storyPoints=${encodeURIComponent(sp)}&assigneeIds=${encodeURIComponent(aid)}&projectId=${encodeURIComponent(pid)}`;
+            const params = new URLSearchParams();
+            params.set('startDate', startDateParam);
+            params.set('storyPoints', String(sp));
+            if (pid) params.set('projectId', pid);
+            aidRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => {
+                params.append('assigneeIds[]', id);
+            });
+            const url = `/tasks/calculate-due-date?${params.toString()}`;
+            console.debug('[due-calc-debug][dashboard] request', {
+                url,
+                assigneeIds: aidRaw.split(',').map(s => s.trim()).filter(Boolean)
+            });
             const r = await fetch(url, {
                 headers: {
                     'Accept': 'application/json'
                 },
                 credentials: 'same-origin'
             });
-            if (!r.ok) return;
+            console.debug('[due-calc-debug][dashboard] response-meta', {
+                ok: r.ok,
+                status: r.status
+            });
+            if (!r.ok) {
+                let errData = null;
+                try { errData = await r.json(); } catch (_) {}
+                console.debug('[due-calc-debug][dashboard] response-error-body', errData);
+                setOverloadWarnings(form, errData?.warnings || []);
+                return;
+            }
             const data = await r.json();
+            console.debug('[due-calc-debug][dashboard] response-body', data);
 
             if (data?.dueDate) {
                 const dueRaw = String(data.dueDate);
@@ -386,16 +423,19 @@
             }
 
             setOverloadWarnings(form, data?.warnings || []);
-        } catch {
-            // ignore
+        } catch (err) {
+            console.error('[due-calc-debug][dashboard] recalc:error', err);
         } finally {
             setDueCalcState(form, false);
         }
     }
 
     window.__dashDueCalc = {
-        recalc() {
-            const form = document.querySelector('form[data-due-calc="true"]');
+        __init: true,
+        recalc(formEl = null) {
+            const form = formEl && formEl.matches?.('form[data-due-calc="true"]')
+                ? formEl
+                : document.querySelector('form[data-due-calc="true"]');
             recalcDueAndWarnings(form);
         }
     };
@@ -408,4 +448,5 @@
         const form = target.closest('form[data-due-calc="true"]');
         recalcDueAndWarnings(form);
     });
+    })();
 </script>
