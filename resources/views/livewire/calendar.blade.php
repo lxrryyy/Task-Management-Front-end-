@@ -88,6 +88,19 @@
             },
             prevMiniMonth() { const d=new Date(this.miniDate); d.setMonth(d.getMonth()-1); this.miniDate=d; },
             nextMiniMonth() { const d=new Date(this.miniDate); d.setMonth(d.getMonth()+1); this.miniDate=d; },
+            setMiniYear(year) {
+                const y = parseInt(year, 10);
+                if (!Number.isFinite(y)) return;
+                const d = new Date(this.miniDate);
+                d.setFullYear(y);
+                this.miniDate = d;
+            },
+            get miniYears() {
+                const current = new Date().getFullYear();
+                const out = [];
+                for (let y = current - 5; y <= current + 5; y++) out.push(y);
+                return out;
+            },
             get miniDays() {
                 const y=this.miniDate.getFullYear(), m=this.miniDate.getMonth();
                 const first=new Date(y,m,1).getDay();
@@ -352,7 +365,16 @@
 
                 {{-- Month header --}}
                 <div class="px-2 flex items-center justify-between mb-8">
-                    <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
+                        <select class="select select-bordered select-xs text-xs min-h-0 h-7"
+                                :value="miniDate.getFullYear()"
+                                @change="setMiniYear($event.target.value)">
+                            <template x-for="yy in miniYears" :key="yy">
+                                <option :value="yy" x-text="yy"></option>
+                            </template>
+                        </select>
+                    </div>
                     <div class="flex items-center gap-2">
                         <button @click="prevMiniMonth()" class="hover:text-gray-400 text-gray-800 transition">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
