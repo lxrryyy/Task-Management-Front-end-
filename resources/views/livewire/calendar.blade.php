@@ -86,8 +86,16 @@
             get miniMonthLabel() {
                 return this.miniDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
             },
-            prevMiniMonth() { const d=new Date(this.miniDate); d.setMonth(d.getMonth()-1); this.miniDate=d; },
-            nextMiniMonth() { const d=new Date(this.miniDate); d.setMonth(d.getMonth()+1); this.miniDate=d; },
+            prevMiniMonth() {
+                const d = new Date(this.miniDate);
+                d.setMonth(d.getMonth()-1);
+                this.miniDate = d;
+            },
+            nextMiniMonth() {
+                const d = new Date(this.miniDate);
+                d.setMonth(d.getMonth()+1);
+                this.miniDate = d;
+            },
             setMiniYear(year) {
                 const y = parseInt(year, 10);
                 if (!Number.isFinite(y)) return;
@@ -103,9 +111,8 @@
                 this.miniDate = d;
             },
             get miniYears() {
-                const current = new Date().getFullYear();
                 const out = [];
-                for (let y = current - 5; y <= current + 5; y++) out.push(y);
+                for (let y = 2000; y < 2070; y++) out.push(y);
                 return out;
             },
             get miniDays() {
@@ -129,6 +136,7 @@
             selectDay(ymd) {
                 this.currentDate = new Date(ymd+'T00:00:00');
                 this.view = 'Day';
+                this.miniDate = new Date(this.currentDate);
             },
             isToday(ymd) { return ymd===this.toYMD(new Date()); },
             isSelected(ymd) { return ymd===this.toYMD(this.currentDate); },
@@ -195,6 +203,8 @@
             },
 
             init() {
+                // Keep mini-calendar controls synced with the active date on first load.
+                this.miniDate = new Date(this.currentDate);
                 window.addEventListener('cal-notes-refresh', () => this.refreshNotes());
                 if (typeof window._calInit === 'function') window._calInit(this);
             },
@@ -370,31 +380,30 @@
             {{-- ── Mini Calendar (white top) ── --}}
             <div class="bg-white p-6 rounded-t">
 
-                {{-- Month header --}}
-                <div class="px-2 flex items-center justify-between mb-8">
-                    <div class="flex items-center gap-2">
-                    <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
-
-                    <!-- Year -->
-                    <div class="flex flex-col justify-center items-center w-28 gap-1">
-                        <select class="select select-bordered select-xs text-xs min-h-0 h-9"
-                                x-effect="$el.value = miniDate.getFullYear()"
-                                @change="setMiniYear($event.target.value)">
+                {{-- Year + Month selectors (top controls) --}}
+                <div class="px-2 mb-4">
+                    <div class="grid grid-cols-2 gap-2">
+                        <select
+                            class="w-full h-10 rounded-xl border-2 border-blue-300 bg-white px-3 text-sm font-medium text-gray-700 outline-none focus:border-blue-500"
+                            @change="setMiniYear($event.target.value)">
                             <template x-for="yy in miniYears" :key="yy">
-                                <option :value="yy" x-text="yy"></option>
+                                <option :value="yy" :selected="yy === miniDate.getFullYear()" x-text="yy"></option>
                             </template>
                         </select>
 
-                        <!-- Month -->
-                        <select class="select select-bordered select-xs text-xs min-h-0 h-9"
-                                x-effect="$el.value = miniDate.getMonth()"
-                                @change="setMiniMonth($event.target.value)">
+                        <select
+                            class="w-full h-10 rounded-xl border-2 border-blue-300 bg-white px-3 text-sm font-medium text-gray-700 outline-none focus:border-blue-500"
+                            @change="setMiniMonth($event.target.value)">
                             <template x-for="(mm, index) in ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']" :key="index">
-                                <option :value="index" x-text="mm"></option>
+                                <option :value="index" :selected="index === miniDate.getMonth()" x-text="mm"></option>
                             </template>
                         </select>
                     </div>
                 </div>
+
+                {{-- Month label + arrows --}}
+                <div class="px-2 flex items-center justify-between mb-8">
+                    <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
                     <div class="flex items-center gap-2">
                         <button @click="prevMiniMonth()" class="hover:text-gray-400 text-gray-800 transition">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
