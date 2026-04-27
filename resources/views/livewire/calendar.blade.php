@@ -95,6 +95,13 @@
                 d.setFullYear(y);
                 this.miniDate = d;
             },
+            setMiniMonth(month) {
+                const m = parseInt(month, 10);
+                if (!Number.isFinite(m)) return;
+                const d = new Date(this.miniDate);
+                d.setMonth(m);
+                this.miniDate = d;
+            },
             get miniYears() {
                 const current = new Date().getFullYear();
                 const out = [];
@@ -366,15 +373,28 @@
                 {{-- Month header --}}
                 <div class="px-2 flex items-center justify-between mb-8">
                     <div class="flex items-center gap-2">
-                        <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
-                        <select class="select select-bordered select-xs text-xs min-h-0 h-7"
-                                :value="miniDate.getFullYear()"
+                    <span class="text-base font-normal text-gray-800" x-text="miniMonthLabel"></span>
+
+                    <!-- Year -->
+                    <div class="flex flex-col justify-center items-center w-28 gap-1">
+                        <select class="select select-bordered select-xs text-xs min-h-0 h-9"
+                                x-effect="$el.value = miniDate.getFullYear()"
                                 @change="setMiniYear($event.target.value)">
                             <template x-for="yy in miniYears" :key="yy">
                                 <option :value="yy" x-text="yy"></option>
                             </template>
                         </select>
+
+                        <!-- Month -->
+                        <select class="select select-bordered select-xs text-xs min-h-0 h-9"
+                                x-effect="$el.value = miniDate.getMonth()"
+                                @change="setMiniMonth($event.target.value)">
+                            <template x-for="(mm, index) in ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']" :key="index">
+                                <option :value="index" x-text="mm"></option>
+                            </template>
+                        </select>
                     </div>
+                </div>
                     <div class="flex items-center gap-2">
                         <button @click="prevMiniMonth()" class="hover:text-gray-400 text-gray-800 transition">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
