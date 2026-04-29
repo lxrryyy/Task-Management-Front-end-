@@ -210,7 +210,7 @@
         <span class="group-hover:block text-xl">User Management</span>
     </div>
     <hr class="border-2 clr-bg-primary">
-    <div class="flex flex-row justify-between mt-4">
+    <div class="flex flex-wrap gap-2 justify-between mt-4">
         <div class="flex flex-row justify-center items-center gap-2">
             <x-search-input wire:model.live.debounce.300ms="search" />
         </div>

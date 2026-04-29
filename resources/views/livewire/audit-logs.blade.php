@@ -32,8 +32,8 @@
         </button>
     </div>
 
-    <div class="flex flex-row justify-between mt-4">
-        <div class="flex flex-row gap-4">
+    <div class="flex flex-wrap justify-between mt-4 flex-shrink-0 gap-2">
+        <div class="flex flex-wrap gap-4">
             <button @click="open = !open"
                 class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
