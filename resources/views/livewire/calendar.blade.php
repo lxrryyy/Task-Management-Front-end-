@@ -210,11 +210,11 @@
             },
         }"
         x-init="init()"
-        class="flex w-full h-full overflow-hidden"
+        class="flex w-full h-full overflow-hidden" id="cal-shell"
         style="height: calc(100vh - 4rem);"
     >
         {{-- ══════════════════ LEFT SIDE ══════════════════ --}}
-        <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-100">
+        <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-100" id="cal-left">
 
             {{-- Header (fixed, no scroll) --}}
             <div class="flex items-center justify-between p-6 pb-4 shrink-0">
@@ -375,7 +375,7 @@
         </div>
 
         {{-- ══════════════════ RIGHT SIDE ══════════════════ --}}
-        <div class="w-80 shrink-0 flex flex-col overflow-hidden shadow-lg">
+        <div class="w-80 shrink-0 flex flex-col overflow-hidden shadow-lg" id="cal-right">
 
             {{-- ── Mini Calendar (white top) ── --}}
             <div class="bg-white p-6 rounded-t">
@@ -512,3 +512,11 @@
     </div>
 
 </div>
+
+<style>
+    @media (max-width: 639px) {
+        #cal-shell { flex-direction: column !important; }
+        #cal-left  { max-height: 55vh !important; border-right: none !important; }
+        #cal-right { width: 100% !important; }
+    }
+</style>

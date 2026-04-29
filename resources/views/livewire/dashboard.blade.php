@@ -42,7 +42,7 @@
                 @endphp
                 @foreach($kpiMap as $i => $k)
                     <div class="px-3 py-2 {{ $i < 4 ? 'border-r border-dashed border-gray-300' : '' }}">
-                        <div class="flex items-center gap-1 text-[23px] text-gray-500 leading-none">
+                        <div class="flex items-center gap-1 text-md text-gray-500 leading-none">
                             <span>{{ $k['label'] }}</span>
                             <span class="{{ $k['trend'] }}">▲ {{ $k['delta'] }}</span>
                         </div>
@@ -58,7 +58,7 @@
             <div class="dash-panel-row">
                 <section class="dash-card p-3 dash-assigned flex flex-col">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-[28px] font-semibold text-gray-900 leading-none">Assigned Tasks</h2>
+                        <h2 class="text-lg font-semibold text-gray-900 leading-none">Assigned Tasks</h2>
                         <span class="text-xs text-orange-700 border border-orange-200 rounded-md px-2 py-1 bg-orange-50">Nearest Due Date</span>
                     </div>
                     <div class="border-t border-dashed border-gray-300 my-2"></div>
@@ -66,7 +66,7 @@
                         @forelse($assignedTaskList as $task)
                             <a href="{{ route('projects.tasks', $task['projectId']) }}" class="block border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
                                 <div class="flex items-center justify-between">
-                                    <p class="text-[27px] font-semibold text-gray-900 leading-none">{{ $task['name'] }}</p>
+                                    <p class="text-lg font-semibold text-gray-900 leading-none">{{ $task['name'] }}</p>
                                     <span class="text-gray-400">◎</span>
                                 </div>
                                 <p class="dash-muted mt-1">{{ $task['projectName'] }} · {{ $task['dueLabel'] }}</p>
@@ -75,12 +75,12 @@
                             <div class="text-sm text-gray-400 py-10 text-center">No assigned tasks yet.</div>
                         @endforelse
                     </div>
-                    <a href="/tasks" class="block text-center text-[22px] font-medium text-[#587f75] mt-2">Show All</a>
+                    <a href="/tasks" class="block text-center text-md font-medium text-[#587f75] mt-2">Show All</a>
                 </section>
 
                 <section class="dash-card p-3 dash-projects flex flex-col">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-[28px] font-semibold text-gray-900 leading-none">Projects</h2>
+                        <h2 class="text-lg font-semibold text-gray-900 leading-none">Projects</h2>
                         <span class="text-gray-400">⋯</span>
                     </div>
                     <div class="border-t border-dashed border-gray-300 my-2"></div>
@@ -89,7 +89,7 @@
                                 class="border border-gray-200 rounded-lg px-3 py-3 text-left hover:bg-gray-50">
                             <div class="flex items-center gap-2">
                                 <span class="inline-flex w-8 h-8 rounded-full bg-gray-100 items-center justify-center text-xl text-gray-500">+</span>
-                                <span class="text-[25px] font-medium text-gray-900">New Project</span>
+                                <span class="text-md font-medium text-gray-900">New Project</span>
                             </div>
                         </button>
                         @foreach($projectOverviewList as $proj)
@@ -98,7 +98,7 @@
                                 <div class="flex items-center gap-2">
                                     <span class="inline-flex w-8 h-8 rounded-md bg-blue-100 text-blue-700 items-center justify-center font-semibold">{{ $initial }}</span>
                                     <div class="min-w-0">
-                                        <p class="text-[23px] font-semibold text-gray-900 truncate leading-none">{{ $proj['name'] }}</p>
+                                        <p class="text-md font-semibold text-gray-900 truncate leading-none">{{ $proj['name'] }}</p>
                                         <p class="dash-muted mt-1">{{ $proj['dueSoon'] }} task due soon</p>
                                     </div>
                                 </div>
@@ -111,7 +111,7 @@
             <div class="dash-panel-row">
                 <section class="dash-card p-3 dash-people">
                     <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-[28px] font-semibold text-gray-900 leading-none">People ({{ count($peopleList ?? []) }})</h2>
+                        <h2 class="text-xl font-semibold text-gray-900 leading-none">People ({{ count($peopleList ?? []) }})</h2>
                         <div class="flex items-center gap-1">
                             <span class="text-xs text-gray-500 border rounded-md px-2 py-1 bg-gray-50">Frequent Collaborators</span>
                             @if($isAdmin)
@@ -141,7 +141,7 @@
                                         {{ $initials }}
                                     @endif
                                 </div>
-                                <p class="text-[23px] font-medium text-gray-900 truncate mt-2 leading-none">{{ $person['name'] }}</p>
+                                <p class="text-md font-medium text-gray-900 truncate mt-2 leading-none">{{ $person['name'] }}</p>
                                 <div x-show="open" x-transition class="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-[9999]">
                                     <x-profile-hover-card
                                         :name="$person['name'] ?? ''"
@@ -206,7 +206,7 @@
                          }"
                          x-init="init()">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-[28px] font-semibold text-gray-900 leading-none mb-2">To-do</h2>
+                        <h2 class="text-lg font-semibold text-gray-900 leading-none mb-2">To-do</h2>
                         <button @click="openNewNote()"
                                 class="w-7 h-7 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100 text-xl leading-none transition"
                                 title="New sticky note">+</button>
