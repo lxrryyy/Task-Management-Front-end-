@@ -56,7 +56,7 @@
     </div>
     <hr class="border-2 clr-bg-primary">
 
-    <div class="flex justify-between">
+    <div class="flex flex-wrap justify-between gap-2">
         <div class="flex gap-2">
             <button wire:click="switchView('list')" data-viewmode-btn data-viewmode="list"
                 class="btn p-4 {{ $viewMode === 'list' ? 'clr-bg-primary text-base-100' : 'border-2 border-gray-400 clr-primary hover-clr-bg-primary hover:text-base-100 hover:border-none' }}">
@@ -85,7 +85,7 @@
                 </script>
             @endonce
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <x-search-input wire:model.live.debounce.500ms="search" input-class="w-64 bg-transparent focus:outline-none rounded-lg" />
             <x-filter-dropdown
                 button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"

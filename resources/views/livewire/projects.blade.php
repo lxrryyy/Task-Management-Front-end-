@@ -20,7 +20,7 @@
         </div>
         <hr class="border-2 clr-bg-primary">
         <div>
-            <div class="flex items-center justify-between p-2 flex-shrink-0">
+            <div class="flex flex-wrap items-center justify-between p-2 gap-2 flex-shrink-0">
                 <div>
                     <button type="button"
                         class="btn w-36 border-2 border-gray clr-bg-primary text-base-100 rounded-xl m-1"
@@ -28,7 +28,7 @@
                         <x-icons.archive classes="w-4 h-4 inline-block" /> Archive
                     </button>
                 </div>
-                <div class="flex items-center gap-4">
+                <div class="flex flex-wrap items-center gap-2">
                     <x-search-input wire:model.live.debounce.300ms="search" />
                     <x-filter-dropdown
                         button-class="btn border-2 border-gray rounded-lg clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100"
@@ -81,7 +81,7 @@
 
                     <div>
                         <button type="button" wire:click="openModal"
-                            class="btn w-36 border-2 clr-bg-primary rounded-lg text-base-100">+ Add Project</button>
+    class="btn border-2 clr-bg-primary rounded-lg text-base-100 w-full p-4 sm:w-36">+ Add Project</button>
                     </div>
 
                     {{-- Add Project modal (create only) --}}
