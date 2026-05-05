@@ -254,6 +254,28 @@ export function registerNotifications() {
         } catch (e) {}
       },
 
+      async markUnread(n) {
+        if (!n || !n.id || !n.isRead) return;
+        try {
+          await fetch(`/notifications/${n.id}/unread`, {
+            method: 'PUT',
+            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+            credentials: 'same-origin',
+          });
+          n.isRead = false;
+          this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);
+        } catch (e) {}
+      },
+
+      async toggleReadState(n) {
+        if (!n || !n.id) return;
+        if (n.isRead) {
+          await this.markUnread(n);
+        } else {
+          await this.markRead(n);
+        }
+      },
+
       isSelected(id) {
         const nid = parseInt(id, 10) || 0;
         return this.selectedIds.includes(nid);

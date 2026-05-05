@@ -34,6 +34,7 @@
 </head>
 
 <body class="font-sans antialiased">
+    <x-global-loader />
     <!-- UPDATED, THIS IS THE ONE THAT HAS NO RICH TEXT YET (WORKING) -->
     <div class="flex h-screen relative">
 
@@ -125,8 +126,7 @@
 
         <div class="flex-1 flex flex-col overflow-hidden bg-gray-100 ml-16">
 
-            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-between">
-                <h1 class="text-xl font-semibold">{{ $header ?? '' }}</h1>
+            <div class="clr-bg-primary shadow px-6 py-4 h-16 flex items-center justify-end">
                 <div class="flex items-center gap-3">
                     <div class="relative" x-data="notifDropdown()" x-init="init()">
                         {{-- Wrapper div owns the relative context so badge bleeds outside the button --}}
@@ -202,10 +202,11 @@
                                                 <p class="text-xs text-gray-500 mt-1" x-text="n.createdAtLabel"></p>
                                             </div>
                                             <div class="flex items-center gap-2 shrink-0">
-                                                <span x-show="!n.isRead"
-                                                    class="text-[10px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
-                                                    Unread
-                                                </span>
+                                                <button type="button"
+                                                    class="text-xs text-blue-600 hover:underline"
+                                                    @click.stop="if (n.isRead) { (async () => { try { await fetch(`/notifications/${n.id}/unread`, { method: 'PUT', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '' }, credentials: 'same-origin' }); n.isRead = false; unreadCount = Math.max(0, items.filter((x) => !x.isRead).length); } catch (e) {} })(); } else { markRead(n); }"
+                                                    x-text="n.isRead ? 'Unread' : 'Read'">
+                                                </button>
                                                 <button type="button" class="text-xs text-red-600 hover:text-red-700"
                                                     @click.stop="remove(n)">
                                                     Delete
@@ -243,28 +244,61 @@
                         $bg = $bgColors[(int) (abs(crc32($seed)) % count($bgColors))];
                         $initialsTextClass = $bg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
                     @endphp
-                    <a href="/settings" aria-label="Open settings">
-                        <div id="header-avatar"
-                            class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
-                            style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
-                            data-avatar-bg="{{ $bg }}"
-                            data-avatar-initials-text-class="{{ $initialsTextClass }}">
-                            {{-- Always render initials; hide it only when the image loads --}}
-                            <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
-                                style="{{ $avatarHasImage ? 'display:none;' : '' }}">
-                                {{ $initials }}
-                            </span>
-                            <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
-                                class="h-full w-full object-cover"
-                                onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
-                                onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
-                                style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                    @php
+                        $headerName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? 'User'));
+                        $specialization = (string) ($navUser['specialization'] ?? ($navUser['Specialization'] ?? ''));
+                        $headerEmail = (string) ($navUser['email'] ?? ($navUser['Email'] ?? ''));
+                        $headerRoleRaw = (string) ($navUser['role'] ?? ($navUser['Role'] ?? ($navUser['roleName'] ?? ($navUser['RoleName'] ?? ''))));
+                        $headerRole = $headerRoleRaw !== '' ? ucwords(str_replace('_', ' ', mb_strtolower($headerRoleRaw))) : '';
+                    @endphp
+                    <div class="relative flex items-center gap-3" x-data="{ open:false }" @mouseenter="open=true" @mouseleave="open=false">
+                        <a href="/settings" aria-label="Open settings">
+                            <div id="header-avatar"
+                                class="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center"
+                                style="background-color: {{ $avatarHasImage ? 'transparent' : $bg }};"
+                                data-avatar-bg="{{ $bg }}"
+                                data-avatar-initials-text-class="{{ $initialsTextClass }}">
+                                {{-- Always render initials; hide it only when the image loads --}}
+                                <span id="header-avatar-initials" class="font-semibold {{ $initialsTextClass }}"
+                                    style="{{ $avatarHasImage ? 'display:none;' : '' }}">
+                                    {{ $initials }}
+                                </span>
+                                <img id="header-avatar-img" src="{{ $avatarSrc ?? '' }}" alt="Profile"
+                                    class="h-full w-full object-cover"
+                                    onload="var wrap=this.closest('#header-avatar'); if(wrap){var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='none';}}"
+                                    onerror="var wrap=this.closest('#header-avatar'); if(wrap){this.style.display='none'; wrap.style.backgroundColor = wrap.dataset.avatarBg || 'transparent'; var span=wrap.querySelector('#header-avatar-initials'); if(span){span.style.display='flex';}}"
+                                    style="{{ empty($avatarSrc) ? 'display:none;' : '' }}" />
+                            </div>
+                        </a>
+                        <div class="flex flex-col leading-tight">
+                            <div class="text-sm font-semibold text-white truncate max-w-[220px]">{{ $headerName }}</div>
+                            @if ($specialization !== '')
+                                <div class="text-xs text-base-100 truncate max-w-[220px]">{{ $specialization }}</div>
+                            @endif
                         </div>
-                    </a>
+                        <div x-show="open" x-transition class="absolute right-0 top-full mt-2 z-[9999]">
+                            <x-profile-hover-card
+                                :name="$headerName"
+                                :email="$headerEmail"
+                                :specialization="$specialization"
+                                :role="$headerRole"
+                                :avatar-url="$avatarSrc"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <main class="flex-1 overflow-auto p-6">
+            <main
+                class="flex-1 overflow-auto p-6"
+                x-data="{ pageReady: false }"
+                x-init="requestAnimationFrame(() => { pageReady = true })"
+                x-show="pageReady"
+                x-cloak
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-1"
+                x-transition:enter-end="opacity-100 translate-y-0"
+            >
                 {{ $slot }}
             </main>
 
@@ -279,35 +313,96 @@
     @livewireScripts
 
     <script>
-        document.addEventListener('livewire:load', () => {
-            if (typeof Livewire === 'undefined') return;
-            Livewire.on('avatar-updated', (payload) => {
-                const wrap = document.getElementById('header-avatar');
-                const img = document.getElementById('header-avatar-img');
-                const span = document.getElementById('header-avatar-initials');
-                if (!wrap || !img || !span) return;
+        (function () {
+            const registerLivewireUi = () => {
+                if (typeof Livewire === 'undefined' || window.__appLivewireUiRegistered) return;
+                window.__appLivewireUiRegistered = true;
 
-                const pic = payload?.profilePicture;
-                const initialsTextClass = payload?.initialsTextClass || 'text-white';
-                const avatarBg = payload?.avatarBg || wrap.dataset.avatarBg || '#102B3C';
+                const toastContainer = document.getElementById('toast-container');
+                const showToast = (payload = {}) => {
+                    if (!toastContainer) return;
+                    const type = (payload?.type || 'success').toString().toLowerCase();
+                    const message = (payload?.message || '').toString().trim();
+                    const timeout = Number(payload?.timeout || 5500);
+                    if (!message) return;
 
-                if (pic) {
-                    wrap.style.backgroundColor = 'transparent';
-                    img.src = pic;
-                    img.style.display = '';
-                    span.style.display = 'none';
-                } else {
-                    img.style.display = 'none';
-                    span.style.display = 'flex';
-                    span.className = 'font-semibold ' + initialsTextClass;
+                    const toast = document.createElement('div');
+                    const tone = type === 'error'
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-green-200 bg-green-50 text-green-700';
+                    toast.className = `pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow ${tone}`;
+                    toast.textContent = message;
+                    toastContainer.appendChild(toast);
 
-                    wrap.style.backgroundColor = avatarBg;
-                }
+                    window.setTimeout(() => {
+                        toast.remove();
+                    }, timeout > 0 ? timeout : 5500);
+                };
 
-                if (payload?.initials) span.textContent = payload.initials;
-            });
-        });
+                Livewire.on('avatar-updated', (payload) => {
+                    const wrap = document.getElementById('header-avatar');
+                    const img = document.getElementById('header-avatar-img');
+                    const span = document.getElementById('header-avatar-initials');
+                    if (!wrap || !img || !span) return;
+
+                    const pic = payload?.profilePicture;
+                    const initialsTextClass = payload?.initialsTextClass || 'text-white';
+                    const avatarBg = payload?.avatarBg || wrap.dataset.avatarBg || '#102B3C';
+
+                    if (pic) {
+                        wrap.style.backgroundColor = 'transparent';
+                        img.src = pic;
+                        img.style.display = '';
+                        span.style.display = 'none';
+                    } else {
+                        img.style.display = 'none';
+                        span.style.display = 'flex';
+                        span.className = 'font-semibold ' + initialsTextClass;
+
+                        wrap.style.backgroundColor = avatarBg;
+                    }
+
+                    if (payload?.initials) span.textContent = payload.initials;
+                });
+                Livewire.on('app-toast', showToast);
+            };
+
+            document.addEventListener('livewire:init', registerLivewireUi);
+            document.addEventListener('livewire:load', registerLivewireUi);
+        })();
     </script>
+
+    @if (session('error_toast'))
+        <script>
+            (function () {
+                const message = @json((string) session('error_toast'));
+                if (!message) return;
+
+                const showErrorToast = () => {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+
+                    const toast = document.createElement('div');
+                    toast.className =
+                        'pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow border-red-200 bg-red-50 text-red-700';
+                    toast.textContent = message;
+                    container.appendChild(toast);
+
+                    window.setTimeout(() => {
+                        toast.remove();
+                    }, 5500);
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', showErrorToast, {
+                        once: true
+                    });
+                } else {
+                    showErrorToast();
+                }
+            })();
+        </script>
+    @endif
 </body>
 
 </html>

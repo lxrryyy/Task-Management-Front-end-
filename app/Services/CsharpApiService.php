@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response as HttpResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Session;
 
@@ -35,7 +36,15 @@ class CsharpApiService
             }
         }
 
-        return Http::withHeaders($headers)->baseUrl($this->baseUrl);
+        return $this->withTimeouts(Http::withHeaders($headers)->baseUrl($this->baseUrl));
+    }
+
+    private function withTimeouts(PendingRequest $request): PendingRequest
+    {
+        $timeout = max(1, (int) config('services.csharp_api.timeout', 90));
+        $connectTimeout = max(1, (int) config('services.csharp_api.connect_timeout', 15));
+
+        return $request->timeout($timeout)->connectTimeout($connectTimeout);
     }
 
     /**
@@ -58,13 +67,78 @@ class CsharpApiService
             }
         }
 
-        return Http::withHeaders($headers)->baseUrl($this->baseUrl);
+        return $this->withTimeouts(Http::withHeaders($headers)->baseUrl($this->baseUrl));
     }
 
     public function get(string $endpoint, array $query = []): array
     {
-        $result = $this->client()->get($endpoint, $query)->throw()->json();
-        return is_array($result) ? $result : [];
+        $requestQuery = $query;
+        $noCache = (bool) ($requestQuery['_no_cache'] ?? false);
+        unset($requestQuery['_no_cache']);
+
+        if (!$this->shouldCacheGet($endpoint, $noCache)) {
+            $result = $this->client()->get($endpoint, $requestQuery)->throw()->json();
+            return is_array($result) ? $result : [];
+        }
+
+        $ttl = max(1, (int) config('services.csharp_api.cache_ttl', 30));
+        $key = $this->buildGetCacheKey($endpoint, $requestQuery);
+
+        return Cache::remember($key, now()->addSeconds($ttl), function () use ($endpoint, $requestQuery) {
+            $result = $this->client()->get($endpoint, $requestQuery)->throw()->json();
+            return is_array($result) ? $result : [];
+        });
+    }
+
+    private function shouldCacheGet(string $endpoint, bool $noCache): bool
+    {
+        if (!(bool) config('services.csharp_api.cache_enabled', true)) {
+            return false;
+        }
+
+        // Allow per-request cache bypass for sensitive/real-time reads.
+        if ($noCache) {
+            return false;
+        }
+
+        // Never cache auth/session-like endpoints.
+        $ep = mb_strtolower($endpoint);
+        if (str_contains($ep, '/auth/') || str_contains($ep, '/login') || str_contains($ep, '/token')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function buildGetCacheKey(string $endpoint, array $query): string
+    {
+        $user = Session::get('user', []);
+        $userId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+        $token = (string) Session::get('api_token', '');
+
+        $payload = [
+            'baseUrl' => (string) $this->baseUrl,
+            'endpoint' => $endpoint,
+            'query' => $this->normalizeForCache($query),
+            'userId' => $userId,
+            'tokenHash' => sha1($token),
+        ];
+
+        return 'csharp_api:get:' . sha1((string) json_encode($payload));
+    }
+
+    private function normalizeForCache(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $k => $v) {
+            $value[$k] = $this->normalizeForCache($v);
+        }
+        ksort($value);
+
+        return $value;
     }
 
     /**

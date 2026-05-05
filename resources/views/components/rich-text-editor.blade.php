@@ -5,6 +5,7 @@
 ])
 
 <div wire:ignore x-data="richEditor('{{ $name }}', @js($value))" x-init="init()"
+    x-on:clear-rich-editor.window="if (($event.detail?.field || '') === fieldName) { clearEditor() }"
     class="w-full rounded-xl border border-base-300 bg-base-100 shadow-sm overflow-hidden">
     {{-- Toolbar --}}
     <div class="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-base-300 bg-base-50">

@@ -1,13 +1,13 @@
 <div>
-    @if($showAddModal)
+    @if ($showAddModal)
         <dialog class="modal modal-open">
             <div class="modal-box w-11/12 max-w-5xl overflow-y-auto">
-                <div class="modal-action">
-                    <button type="button" wire:click="close" class="btn">X</button>
+                <div class="flex items-start justify-between mb-2">
+                    <h3 class="font-bold text-lg">New Project</h3>
+                    <button type="button" wire:click="close" class="btn btn-ghost btn-sm btn-circle">✕</button>
                 </div>
-                <h3 class="font-bold text-lg">New Project</h3>
 
-                <form method="POST" action="{{ route('projects.store') }}" class="mt-4">
+                <form method="POST" action="{{ route('projects.store') }}" class="mt-4" data-no-global-loader>
                     @csrf
                     <input type="hidden" name="redirect_to" value="dashboard" />
                     @include('livewire.partials.project-form-fields', ['formContext' => 'add'])
@@ -22,4 +22,3 @@
         </dialog>
     @endif
 </div>
-

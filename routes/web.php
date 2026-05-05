@@ -93,17 +93,18 @@ Route::middleware(['api.auth'])->group(function () {
 });
 
 // Logout: no auth middleware so API-only users (session api_token) can hit it and get token_forgotten redirect
-Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 require __DIR__.'/auth.php';
 
-Route::post('/login', [LoginController::class, 'login'])->name('login');
+Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
 
 // Notifications (proxied to C# backend)
 Route::middleware(['api.auth'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::put('/notifications/{id}/unread', [NotificationController::class, 'markUnread'])->name('notifications.unreadOne');
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     Route::get('/notifications/resolve-task-project', [NotificationController::class, 'resolveTaskProject'])->name('notifications.resolveTaskProject');

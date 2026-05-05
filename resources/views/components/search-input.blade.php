@@ -1,7 +1,7 @@
 @props([
     'placeholder' => 'Search',
-    'inputClass' => 'w-40 bg-transparent focus:outline-none rounded-lg',
-    'containerClass' => 'input focus-within:outline-none bg-transparent focus-within:border-base-300 flex-1',
+    'inputClass' => 'w-64 bg-transparent focus:outline-none rounded-lg',
+    'containerClass' => 'input focus-within:outline-none bg-transparent focus-within:border-base-300 rounded-lg flex-1',
 ])
 
 <label {{ $attributes->only('id')->class($containerClass) }}>

@@ -2,54 +2,164 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
+use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 class UserManagement extends Component
 {
     public string $search = '';
+
     public array $users = [];
+
     public ?array $filteredUsers = null;
 
     public bool $showUserDetailModal = false;
+
     public ?array $selectedUser = null;
 
     public ?string $apiError = null;
 
     // Search filter toggles
     public bool $filterUser = true;
+
     public bool $filterStatus = true;
+
     public bool $filterSpecialization = true;
 
     // Add user modal state
     public string $newFirstName = '';
+
     public string $newLastName = '';
+
     public string $newEmail = '';
+
     public string $newTemporaryPassword = '';
+
     public string $newSpecialization = '';
+
     public string $newRole = 'User';
 
     public bool $creatingAccount = false;
+
     public ?string $createAccountError = null;
+
     public ?string $createAccountSuccess = null;
+
     public array $createAccountErrors = [];
 
+    public bool $showEditUserModal = false;
+
+    public int $editUserId = 0;
+
+    public string $editName = '';
+
+    public string $editFirstName = '';
+
+    public string $editLastName = '';
+
+    public string $editEmail = '';
+
+    public string $editSpecialization = '';
+
+    public string $editRole = 'User';
+
+    public bool $editIsActive = true;
+
+    public ?string $editUserError = null;
+
+    public ?string $editUserSuccess = null;
+
+    /** Profile image URL for edit modal (from list API or GetAccountById). */
+    public ?string $editProfilePicture = null;
+
+    public bool $showAddUserModal = false;
+
+    public bool $showPassword = false;
+
+    public bool $loading = true;
+
+    protected array $rules = [
+        'newFirstName' => ['required', 'string', 'max:100'],
+        'newLastName' => ['required', 'string', 'max:100'],
+        'newEmail' => ['required', 'email', 'max:255'],
+        'newTemporaryPassword' => ['required', 'string', 'min:8'],
+        'newSpecialization' => ['nullable', 'string', 'max:255'],
+    ];
+
+    protected array $validationAttributes = [
+        'newFirstName' => 'first name',
+        'newLastName' => 'last name',
+        'newEmail' => 'email',
+        'newTemporaryPassword' => 'temporary password',
+        'newSpecialization' => 'bio/specialization',
+    ];
+
     public function mount(): void
+    {
+        $this->loading = true;
+        $this->dispatch('load-users');
+    }
+
+    #[On('load-users')]
+    public function loadUsers(): void
     {
         $this->reloadUsersFromApi();
     }
 
+    public function openAddUserModal(): void
+    {
+        $this->createAccountError = null;
+        $this->createAccountErrors = [];
+        $this->resetErrorBag();
+
+        $this->showAddUserModal = true;
+    }
+
+    public function closeAddUserModal(): void
+    {
+        $this->showAddUserModal = false;
+        $this->newFirstName = '';
+        $this->newLastName = '';
+        $this->newEmail = '';
+        $this->newTemporaryPassword = '';
+        $this->newSpecialization = '';
+        $this->newRole = 'User';
+        $this->createAccountError = null;
+        $this->createAccountErrors = [];
+        $this->resetErrorBag();
+    }
+
     public function generateTemporaryPassword(): void
     {
-        // Simple strong password generator for demo UX.
-        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-        $bytes = random_bytes(18);
-        $chars = [];
-        $len = strlen($alphabet);
-        foreach (unpack('C*', $bytes) as $b) {
-            $chars[] = $alphabet[$b % $len];
+        $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $numbers = '0123456789';
+        $special = '!@#$%^&*';
+        $all = $letters.$numbers.$special;
+
+        // Guarantee at least one of each required type
+        $password = '';
+        $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+        $password .= $special[random_int(0, strlen($special) - 1)];
+
+        // Fill remaining 10 characters from all chars
+        for ($i = 0; $i < 10; $i++) {
+            $password .= $all[random_int(0, strlen($all) - 1)];
         }
-        $this->newTemporaryPassword = implode('', $chars);
+
+        // Shuffle so the number and special char aren't always first
+        $password = str_split($password);
+        shuffle($password);
+        $password = implode('', $password);
+
+        $this->newTemporaryPassword = $password;
+        $this->dispatch('password-generated', password: $password);
+    }
+
+    public function toggleShowPassword(): void
+    {
+        $this->showPassword = ! $this->showPassword;
     }
 
     public function createAccount(): void
@@ -57,95 +167,88 @@ class UserManagement extends Component
         $this->createAccountError = null;
         $this->createAccountSuccess = null;
         $this->createAccountErrors = [];
+        $this->resetErrorBag();
 
-        $first = trim($this->newFirstName);
-        $last = trim($this->newLastName);
-        $email = trim($this->newEmail);
-        $tempPassword = (string) $this->newTemporaryPassword;
-        $specRaw = trim($this->newSpecialization);
-        $spec = $specRaw !== '' ? $specRaw : null;
+        $this->newFirstName = trim($this->newFirstName);
+        $this->newLastName = trim($this->newLastName);
+        $this->newEmail = trim($this->newEmail);
+        $this->newTemporaryPassword = trim($this->newTemporaryPassword);
+        $this->newSpecialization = trim($this->newSpecialization);
 
-        $fullName = trim(($first !== '' ? $first : '') . ' ' . ($last !== '' ? $last : ''));
-        $fullName = trim($fullName);
+        $validated = $this->validate();
 
-        if ($fullName === '' || $email === '' || $tempPassword === '') {
-            $this->createAccountError = 'Please fill First Name, Last Name, Email, and Temporary Password.';
-            return;
-        }
+        $first = trim((string) ($validated['newFirstName'] ?? ''));
+        $last = trim((string) ($validated['newLastName'] ?? ''));
+        $email = trim((string) ($validated['newEmail'] ?? ''));
+        $tempPassword = trim((string) ($validated['newTemporaryPassword'] ?? ''));
+        $spec = trim((string) ($validated['newSpecialization'] ?? '')) !== '' ? trim((string) ($validated['newSpecialization'] ?? '')) : null;
+        $fullName = trim($first.' '.$last);
 
         $this->creatingAccount = true;
         try {
-            $user = \Illuminate\Support\Facades\Session::get('user', []);
+            $user = session('user', []);
             $adminId = (int) ($user['id'] ?? $user['Id'] ?? $user['accountId'] ?? $user['AccountId'] ?? 0);
-            // Swagger shows this endpoint requires `adminId` as a query parameter.
+
             if ($adminId <= 0) {
                 $this->creatingAccount = false;
-                $this->createAccountError = 'Admin ID is required to create an account. Please log out and log in again as an admin.';
+                $this->createAccountError = 'Admin ID is required. Please log out and log in again as an admin.';
+                $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
+
                 return;
             }
-            $adminQuery = '?adminid=' . $adminId;
 
             $payload = [
-                // Match Swagger request body exactly.
                 'name' => $fullName,
                 'email' => $email,
                 'password' => $tempPassword,
                 'passwordHash' => $tempPassword,
-                'specialization' => $spec,
-                'role' => trim((string) $this->newRole) !== '' ? $this->newRole : 'User',
+                // Backend may expect this key to exist even when optional.
+                'specialization' => $spec ?? '',
+                'role' => 'User',
                 'isActive' => true,
             ];
 
-            app(\App\Services\CsharpApiService::class)->post('/api/Account/CreateAccount' . $adminQuery, $payload);
+            app(CsharpApiService::class)->post('/api/Account/CreateAccount?adminid='.$adminId, $payload);
 
             $this->createAccountSuccess = 'User created successfully.';
+            $this->dispatch('app-toast', type: 'success', message: $this->createAccountSuccess, timeout: 2000);
             $this->creatingAccount = false;
-
-            // Reset form fields
-            $this->newFirstName = '';
-            $this->newLastName = '';
-            $this->newEmail = '';
-            $this->newTemporaryPassword = '';
-            $this->newSpecialization = '';
-            $this->newRole = 'User';
-
-            // Refresh list
             $this->reloadUsersFromApi();
-
-            // Close the dialog on success so the rest of the page is clickable.
-            $this->dispatch('closeAddUserModal');
+            $this->closeAddUserModal();
         } catch (RequestException $e) {
             $this->creatingAccount = false;
-
-            $api = app(\App\Services\CsharpApiService::class);
+            $api = app(CsharpApiService::class);
             $fieldErrors = $api->extractFieldErrors($e->response);
-
-            // Flatten to a simple array of readable messages.
             $flat = [];
             foreach ($fieldErrors as $msgs) {
                 foreach ((array) $msgs as $m) {
-                    if (is_string($m) && trim($m) !== '') $flat[] = $m;
+                    if (is_string($m) && trim($m) !== '') {
+                        $flat[] = $m;
+                    }
                 }
             }
-
             $this->createAccountErrors = array_values(array_unique($flat));
-            $this->createAccountError = !empty($this->createAccountErrors)
-                ? null
-                : 'Failed to create user. Please try again.';
+            $this->createAccountError = ! empty($this->createAccountErrors) ? null : 'Failed to create user. Please try again.';
+            $msg = !empty($this->createAccountErrors) ? implode(' ', $this->createAccountErrors) : ((string) $this->createAccountError);
+            $this->dispatch('app-toast', type: 'error', message: $msg !== '' ? $msg : 'Failed to create user. Please try again.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->creatingAccount = false;
             $this->createAccountError = $e->getMessage() ?: 'Failed to create user. Please try again.';
+            $this->dispatch('app-toast', type: 'error', message: $this->createAccountError, timeout: 2000);
         }
     }
 
     private function reloadUsersFromApi(): void
     {
+        $this->loading = true;
         $this->apiError = null;
 
         try {
-            $raw = app(\App\Services\CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
+            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats', ['_no_cache' => 1]);
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
+            $this->loading = false;
+
             return;
         }
 
@@ -163,12 +266,17 @@ class UserManagement extends Component
             }
         }
 
-        if (!is_array($list)) $list = [];
+        if (! is_array($list)) {
+            $list = [];
+        }
 
         $this->users = array_values(array_map(function ($u) {
             $u = is_array($u) ? $u : [];
+
             return $this->normalizeUser($u);
         }, $list));
+
+        $this->loading = false;
     }
 
     private function normalizeUser(array $u): array
@@ -176,11 +284,11 @@ class UserManagement extends Component
         $id = (int) ($u['id'] ?? $u['Id'] ?? $u['accountId'] ?? $u['AccountId'] ?? 0);
 
         $first = trim((string) ($u['firstName'] ?? $u['FirstName'] ?? $u['First'] ?? ''));
-        $last  = trim((string) ($u['lastName'] ?? $u['LastName'] ?? $u['Last'] ?? ''));
+        $last = trim((string) ($u['lastName'] ?? $u['LastName'] ?? $u['Last'] ?? ''));
 
         $fullName = trim((string) ($u['fullName'] ?? $u['FullName'] ?? $u['name'] ?? $u['Name'] ?? ''));
         if ($fullName === '' && ($first !== '' || $last !== '')) {
-            $fullName = trim($first . ' ' . $last);
+            $fullName = trim($first.' '.$last);
         }
         if ($fullName === '') {
             $fullName = trim((string) ($u['userName'] ?? $u['username'] ?? $u['UserName'] ?? ''));
@@ -213,12 +321,14 @@ class UserManagement extends Component
             ?? 0;
 
         $projectsCount = is_array($projectsVal) ? count($projectsVal) : (int) $projectsVal;
-        $tasksCount    = is_array($tasksVal) ? count($tasksVal) : (int) $tasksVal;
+        $tasksCount = is_array($tasksVal) ? count($tasksVal) : (int) $tasksVal;
 
         $status = trim((string) (
             $u['status'] ?? $u['Status'] ?? $u['statusName'] ?? $u['StatusName']
             ?? $u['roleName'] ?? $u['RoleName'] ?? $u['role'] ?? $u['Role'] ?? ''
         ));
+
+        $profilePicture = $this->extractProfilePictureString($u);
 
         return [
             'id' => $id,
@@ -228,16 +338,79 @@ class UserManagement extends Component
             'projectsCount' => max(0, $projectsCount),
             'tasksCount' => max(0, $tasksCount),
             'status' => $status ?: '—',
+            'isActive' => (bool) ($u['isActive'] ?? $u['IsActive'] ?? true),
+            'profilePicture' => $profilePicture,
             'raw' => $u,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function extractProfilePictureString(array $payload): ?string
+    {
+        $pic = $payload['profilePicture'] ?? $payload['ProfilePicture']
+            ?? $payload['profileImageUrl'] ?? $payload['ProfileImageUrl']
+            ?? $payload['avatarUrl'] ?? $payload['AvatarUrl']
+            ?? $payload['imageUrl'] ?? $payload['ImageUrl']
+            ?? null;
+        if (! is_string($pic)) {
+            return null;
+        }
+        $pic = trim($pic);
+
+        return $pic !== '' ? $pic : null;
+    }
+
+    /**
+     * GetAllUsersWithStats may omit profile photos; load full account when missing.
+     *
+     * @param  array<string, mixed>  $user  normalized user row
+     * @return array<string, mixed>
+     */
+    private function ensureProfilePicture(array $user): array
+    {
+        $pic = $user['profilePicture'] ?? null;
+        if (is_string($pic) && trim($pic) !== '') {
+            return $user;
+        }
+
+        $id = (int) ($user['id'] ?? 0);
+        if ($id <= 0) {
+            return $user;
+        }
+
+        try {
+            $full = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$id}", ['_no_cache' => 1]);
+        } catch (\Throwable) {
+            return $user;
+        }
+
+        if (! is_array($full)) {
+            return $user;
+        }
+
+        $fetched = $this->extractProfilePictureString($full);
+        if ($fetched === null) {
+            return $user;
+        }
+
+        $user['profilePicture'] = $fetched;
+        if (isset($user['raw']) && is_array($user['raw'])) {
+            $user['raw'] = array_merge($user['raw'], ['profilePicture' => $fetched]);
+        }
+
+        return $user;
     }
 
     public function openUserDetail(int $userId): void
     {
         $user = collect($this->users)->first(fn ($u) => (int) ($u['id'] ?? 0) === $userId);
-        if (! $user) return;
+        if (! $user) {
+            return;
+        }
 
-        $this->selectedUser = $user;
+        $this->selectedUser = $this->ensureProfilePicture($user);
         $this->showUserDetailModal = true;
     }
 
@@ -276,6 +449,7 @@ class UserManagement extends Component
                 }
 
                 $haystack = implode(' ', $parts);
+
                 return str_contains($haystack, $query);
             }));
         }
@@ -292,5 +466,106 @@ class UserManagement extends Component
         $this->filterStatus = true;
         $this->filterSpecialization = true;
         $this->search = '';
+    }
+
+    public function toggleUserStatus(int $userId, bool $isActive): void
+    {
+        try {
+            $user = session('user', []);
+            $adminId = (int) ($user['id'] ?? $user['Id'] ?? $user['accountId'] ?? $user['AccountId'] ?? 0);
+
+            if ($isActive) {
+                app(CsharpApiService::class)->delete(
+                    "/api/Account/DeleteAccount/{$userId}?adminId={$adminId}"
+                );
+            } else {
+                app(CsharpApiService::class)->delete(
+                    "/api/Account/ReactivateAccount/{$userId}?adminId={$adminId}"
+                );
+            }
+
+            $this->reloadUsersFromApi();
+        } catch (\Throwable $e) {
+            $this->apiError = 'Failed to update user status. Please try again.';
+        }
+    }
+
+    public function editUser(int $userId): void
+    {
+        $user = collect($this->users)->first(fn ($u) => (int) ($u['id'] ?? 0) === $userId);
+        if (! $user) {
+            return;
+        }
+
+        $user = $this->ensureProfilePicture($user);
+
+        $this->editUserId = $userId;
+        $this->editProfilePicture = $user['profilePicture'] ?? null;
+        $this->editName = $user['name'] === '—' ? '' : $user['name'];
+        $parts = preg_split('/\s+/', trim($this->editName));
+        $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
+        $this->editFirstName = (string) ($parts[0] ?? '');
+        $this->editLastName = (string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : '');
+        $this->editEmail = $user['email'] === '—' ? '' : $user['email'];
+        $this->editSpecialization = $user['specialization'] === '—' ? '' : $user['specialization'];
+        $this->editRole = $user['raw']['role'] ?? $user['raw']['Role'] ?? 'User';
+        $this->editIsActive = $user['isActive'];
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+        $this->showEditUserModal = true;
+    }
+
+    public function closeEditUserModal(): void
+    {
+        $this->showEditUserModal = false;
+        $this->editUserId = 0;
+        $this->editName = '';
+        $this->editFirstName = '';
+        $this->editLastName = '';
+        $this->editEmail = '';
+        $this->editSpecialization = '';
+        $this->editRole = 'User';
+        $this->editIsActive = true;
+        $this->editProfilePicture = null;
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+    }
+
+    public function saveEditUser(): void
+    {
+        $this->editUserError = null;
+        $this->editUserSuccess = null;
+
+        $first = trim($this->editFirstName);
+        $last = trim($this->editLastName);
+        $fullName = trim($first.' '.$last);
+        if ($fullName === '') {
+            $this->editUserError = 'First name and last name are required.';
+
+            return;
+        }
+
+        try {
+            $user = session('user', []);
+            $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+
+            $payload = [
+                'name' => $fullName,
+                'role' => $this->editRole,
+                'isActive' => $this->editIsActive,
+                'specialization' => trim($this->editSpecialization) ?: null,
+            ];
+
+            app(CsharpApiService::class)->patch(
+                "/api/Account/UpdateAccount/{$this->editUserId}?editorId={$editorId}",
+                $payload
+            );
+
+            $this->editUserSuccess = 'User updated successfully.';
+            $this->reloadUsersFromApi();
+            $this->closeEditUserModal();
+        } catch (\Throwable $e) {
+            $this->editUserError = 'Failed to update user. Please try again.';
+        }
     }
 }
