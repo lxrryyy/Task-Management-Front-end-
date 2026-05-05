@@ -97,7 +97,7 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 require __DIR__.'/auth.php';
 
-Route::post('/login', [LoginController::class, 'login'])->name('login');
+Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
 
 // Notifications (proxied to C# backend)
 Route::middleware(['api.auth'])->group(function () {

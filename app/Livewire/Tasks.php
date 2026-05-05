@@ -5,7 +5,9 @@ namespace App\Livewire;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Services\CsharpApiService;
+use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\ViewErrorBag;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -49,6 +51,9 @@ class Tasks extends Component
 
     public ?int $taskParentId = null;
 
+    /** Synced from rich-text editor (Alpine) via Livewire.set; required for name="description". */
+    public string $description = '';
+
     /** Persist overload warnings across Livewire re-renders */
     public array $taskWarnings = [];
 
@@ -69,6 +74,10 @@ class Tasks extends Component
 
     public ?string $commentError = null;
 
+    public ?string $commentToastMessage = null;
+
+    public string $commentToastType = 'success';
+
     // Delete confirmation modal state
     public bool $showDeleteConfirmModal = false;
 
@@ -77,6 +86,19 @@ class Tasks extends Component
     public ?string $pendingDeleteTaskName = null;
 
     public bool $loading = true;
+    public int $listVisibleLimit = 30;
+    public int $listVisibleStep = 30;
+    public int $boardVisibleStep = 25;
+    public array $boardVisibleByStatus = [];
+
+    /** Current task-level context; null means root (parent tasks). */
+    public ?int $currentParentTaskId = null;
+
+    /** Session flash copied on first load so alerts survive Livewire re-renders (flash is one-request only). */
+    public ?string $flashSuccess = null;
+
+    /** @var list<string> */
+    public array $flashErrorMessages = [];
 
     public function mount(
         ?int $projectId = null,
@@ -102,6 +124,9 @@ class Tasks extends Component
 
         $this->taskWarnings = array_values(array_filter((array) Session::get('task_warnings', [])));
 
+        $this->flashSuccess = session()->get('success') ?: null;
+        $this->flashErrorMessages = $this->captureFlashedErrors();
+
         $statusData = app(TaskController::class)->getStatuses();
         $this->statusMap = $statusData['map'] ?? [];
         $this->taskStatuses = $statusData['names'] ?? [];
@@ -110,9 +135,15 @@ class Tasks extends Component
             $this->statusMap = ['Not Started' => 1, 'In Progress' => 2, 'For Review' => 3, 'Completed' => 4];
             $this->taskStatuses = array_keys($this->statusMap);
         }
+        $this->resetVisibleWindows();
 
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->syncProjectStatusFromTasks();
+
+        $requestedParent = (int) request()->query('parentTaskId', 0);
+        if ($requestedParent > 0) {
+            $this->currentParentTaskId = $requestedParent;
+        }
 
         if ($openTaskId !== null && $openTaskId > 0) {
             $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
@@ -120,6 +151,40 @@ class Tasks extends Component
         }
 
         $this->dispatch('tasks-loaded');
+    }
+
+    public function dismissFlashSuccess(): void
+    {
+        $this->flashSuccess = null;
+    }
+
+    public function dismissFlashErrors(): void
+    {
+        $this->flashErrorMessages = [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function captureFlashedErrors(): array
+    {
+        $bag = session()->get('errors');
+        if (! $bag instanceof ViewErrorBag) {
+            return [];
+        }
+        $out = [];
+        foreach ($bag->getBags() as $namedBag) {
+            foreach ($namedBag->getMessages() as $msgs) {
+                foreach ((array) $msgs as $m) {
+                    $t = trim((string) $m);
+                    if ($t !== '') {
+                        $out[] = $t;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     #[On('tasks-loaded')]
@@ -131,6 +196,28 @@ class Tasks extends Component
     public function switchView(string $mode): void
     {
         $this->viewMode = $mode;
+        $this->resetVisibleWindows();
+    }
+
+    public function enterTaskLevel(int $taskId): void
+    {
+        if ($taskId <= 0) {
+            return;
+        }
+
+        $exists = collect($this->tasks)->first(fn ($t) => (int) ($t['id'] ?? $t['Id'] ?? 0) === $taskId);
+        if (! $exists) {
+            return;
+        }
+
+        $this->currentParentTaskId = $taskId;
+        $this->resetVisibleWindows();
+    }
+
+    public function goToTaskLevel(?int $taskId = null): void
+    {
+        $this->currentParentTaskId = $taskId && $taskId > 0 ? (int) $taskId : null;
+        $this->resetVisibleWindows();
     }
 
     public function clearTaskFilters(): void
@@ -139,6 +226,70 @@ class Tasks extends Component
         $this->filterPriority = '';
         $this->filterDateFrom = '';
         $this->filterDateTo = '';
+        $this->resetVisibleWindows();
+    }
+
+    public function loadMoreList(): void
+    {
+        $this->listVisibleLimit += $this->listVisibleStep;
+    }
+
+    public function loadMoreBoard(string $status): void
+    {
+        $current = (int) ($this->boardVisibleByStatus[$status] ?? $this->boardVisibleStep);
+        $this->boardVisibleByStatus[$status] = $current + $this->boardVisibleStep;
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterStatus(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterPriority(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterDateFrom(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    public function updatedFilterDateTo(): void
+    {
+        $this->resetVisibleWindows();
+    }
+
+    private function resetVisibleWindows(): void
+    {
+        $this->listVisibleLimit = max(1, (int) $this->listVisibleStep);
+        $this->boardVisibleByStatus = [];
+        foreach ((array) $this->taskStatuses as $status) {
+            $name = trim((string) $status);
+            if ($name === '') {
+                continue;
+            }
+            $this->boardVisibleByStatus[$name] = max(1, (int) $this->boardVisibleStep);
+        }
+    }
+
+    private function ensureBoardVisibleWindows(array $statuses): void
+    {
+        $step = max(1, (int) $this->boardVisibleStep);
+        foreach ($statuses as $status) {
+            $name = trim((string) $status);
+            if ($name === '') {
+                continue;
+            }
+            if (! isset($this->boardVisibleByStatus[$name]) || (int) $this->boardVisibleByStatus[$name] <= 0) {
+                $this->boardVisibleByStatus[$name] = $step;
+            }
+        }
     }
 
     public function openTaskDetail(int $taskId, ?int $scrollToCommentId = null): void
@@ -168,6 +319,13 @@ class Tasks extends Component
         $this->editingCommentId = null;
         $this->editingCommentContent = '';
         $this->commentError = null;
+        $this->commentToastMessage = null;
+        $this->commentToastType = 'success';
+    }
+
+    public function dismissCommentToast(): void
+    {
+        $this->commentToastMessage = null;
     }
 
     private function buildTaskBreadcrumb(int $taskId): array
@@ -176,7 +334,7 @@ class Tasks extends Component
         $byId = [];
         $parentById = [];
         foreach ($this->tasks as $t) {
-            if (!is_array($t)) {
+            if (! is_array($t)) {
                 continue;
             }
             $id = (int) ($t['id'] ?? $t['Id'] ?? 0);
@@ -191,7 +349,7 @@ class Tasks extends Component
         $seen = [];
         $cur = $taskId;
         $guard = 0;
-        while ($cur > 0 && $guard < 25 && isset($byId[$cur]) && !isset($seen[$cur])) {
+        while ($cur > 0 && $guard < 25 && isset($byId[$cur]) && ! isset($seen[$cur])) {
             $seen[$cur] = true;
             $chain[] = $byId[$cur];
             $pidRaw = $parentById[$cur] ?? null;
@@ -213,7 +371,10 @@ class Tasks extends Component
     {
         $this->commentError = null;
         try {
-            $raw = app(CsharpApiService::class)->get("/api/TaskComment/GetCommentsByTask/{$taskId}");
+            $raw = app(CsharpApiService::class)->get(
+                "/api/TaskComment/GetCommentsByTask/{$taskId}",
+                ['_no_cache' => 1]
+            );
             $list = is_array($raw)
                 ? ($raw['data'] ?? $raw['comments'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
                 : [];
@@ -242,23 +403,23 @@ class Tasks extends Component
 
     public function addComment(): void
     {
-        logger('addComment called', [
-            'newComment' => $this->newComment,
-            'detailTask' => $this->detailTask['id'] ?? null,
-        ]);
-
-        if (empty($this->newComment)) {
-            $this->newComment = request()->input('newComment', '');
-        }
-
         $taskId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
         $accountId = $this->currentAccountId();
         $content = trim($this->newComment);
+        $plain = trim((string) preg_replace('/\x{00A0}|&nbsp;/u', ' ', strip_tags($content)));
 
         if ($taskId <= 0 || $accountId <= 0) {
+            $this->commentError = 'Unable to add comment right now.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
             return;
         }
-        if ($content === '') {
+        if ($content === '' || $plain === '') {
+            $this->commentError = 'Comment cannot be empty.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
+            $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
             return;
         }
 
@@ -273,9 +434,14 @@ class Tasks extends Component
             );
             $this->newComment = '';
             $this->loadTaskComments($taskId);
+            $this->commentToastType = 'success';
+            $this->commentToastMessage = 'Comment added successfully.';
+            $this->dispatch('clear-rich-editor', field: 'newComment');
             $this->dispatch('app-toast', type: 'success', message: 'Comment added successfully.', timeout: 2000);
         } catch (\Throwable $e) {
             $this->commentError = 'Failed to add comment.';
+            $this->commentToastType = 'error';
+            $this->commentToastMessage = $this->commentError;
             $this->dispatch('app-toast', type: 'error', message: $this->commentError, timeout: 2000);
         }
     }
@@ -558,7 +724,9 @@ class Tasks extends Component
 
     public function openAddTaskModal(): void
     {
-        $this->taskParentId = null;
+        // At root, add a parent task. Inside a parent, add a child in current context.
+        $this->taskParentId = $this->currentParentTaskId;
+        $this->description = '';
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }
@@ -567,12 +735,15 @@ class Tasks extends Component
     {
         $this->showAddTaskModal = false;
         $this->taskParentId = null;
+        $this->description = '';
         $this->taskWarnings = [];
+        $this->dismissFlashErrors();
     }
 
     public function addSubtask(int $parentTaskId): void
     {
         $this->taskParentId = $parentTaskId;
+        $this->description = '';
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->showAddTaskModal = true;
     }
@@ -810,15 +981,123 @@ class Tasks extends Component
 
         $filtered = array_values(array_filter($this->tasks, fn ($t) => isset($includedIds[$t['id'] ?? null])));
 
+        $parentOf = [];
+        $childrenMap = [];
+        $tasksById = [];
+        foreach ($this->tasks as $task) {
+            if (! is_array($task)) {
+                continue;
+            }
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $tasksById[$id] = $task;
+            $pidRaw = $task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? null;
+            $pid = $pidRaw !== null && $pidRaw !== '' ? (int) $pidRaw : null;
+            $parentOf[$id] = $pid;
+            if ($pid !== null && $pid > 0) {
+                $childrenMap[$pid][] = $id;
+            }
+        }
+
+        $rootOnly = [];
+        $currentOnly = [];
+        foreach ($filtered as $task) {
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $pid = $parentOf[$id] ?? null;
+            if ($pid === null || $pid <= 0) {
+                $rootOnly[] = $task;
+            }
+            if ($this->currentParentTaskId === null) {
+                if ($pid === null || $pid <= 0) {
+                    $currentOnly[] = $task;
+                }
+            } elseif ((int) ($pid ?? 0) === (int) $this->currentParentTaskId) {
+                $currentOnly[] = $task;
+            }
+        }
+
+        $listRows = [];
+        $appendRow = function (array $task, int $depth) use (&$appendRow, &$listRows, $tasksById, $childrenMap) {
+            $id = (int) ($task['id'] ?? $task['Id'] ?? 0);
+            if ($id <= 0) {
+                return;
+            }
+            $childIds = array_values(array_filter(array_map('intval', (array) ($childrenMap[$id] ?? [])), static fn ($v) => $v > 0));
+            // Inside-parent tree: child and grandchild rows are toggleable.
+            // Great-grandchild rows are terminal.
+            $canExpandInLevel = $depth < 2;
+            $listRows[] = [
+                'type' => 'task',
+                'task' => $task,
+                'id' => $id,
+                'depth' => max(0, $depth),
+                'canToggle' => $canExpandInLevel,
+                'hasChildren' => ! empty($childIds),
+            ];
+
+            if (! $canExpandInLevel || ! ($this->expanded[$id] ?? false)) {
+                return;
+            }
+
+            foreach ($childIds as $childId) {
+                if (! isset($tasksById[$childId]) || ! is_array($tasksById[$childId])) {
+                    continue;
+                }
+                $appendRow($tasksById[$childId], $depth + 1);
+            }
+
+            $addLabel = $depth === 0 ? 'Add grandchild task' : 'Add great grandchild task';
+            $listRows[] = [
+                'type' => 'add',
+                'parentId' => $id,
+                'depth' => max(0, $depth + 1),
+                'label' => $addLabel,
+            ];
+        };
+
+        foreach ($currentOnly as $task) {
+            if (! is_array($task)) {
+                continue;
+            }
+            $appendRow($task, 0);
+        }
+
+        $currentBreadcrumb = [];
+        if ($this->currentParentTaskId !== null && $this->currentParentTaskId > 0) {
+            $chain = $this->buildTaskBreadcrumb((int) $this->currentParentTaskId);
+            foreach ($chain as $item) {
+                $currentBreadcrumb[] = [
+                    'id' => (int) ($item['id'] ?? $item['Id'] ?? 0),
+                    'name' => (string) ($item['name'] ?? $item['title'] ?? 'Task'),
+                ];
+            }
+        }
+
         $statuses = ! empty($this->taskStatuses) ? $this->taskStatuses : ['Not Started', 'In Progress', 'For Review', 'Completed'];
+        $this->ensureBoardVisibleWindows($statuses);
 
         $grouped = array_fill_keys($statuses, []);
-        foreach ($filtered as $task) {
+        foreach ($currentOnly as $task) {
             $s = $task['statusName'] ?? $task['status'] ?? 'Not Started';
             if (! array_key_exists($s, $grouped)) {
                 $grouped[$s] = [];
             }
             $grouped[$s][] = $task;
+        }
+        $visibleListRows = array_slice($listRows, 0, max(1, (int) $this->listVisibleLimit));
+        $visibleFilteredTasks = array_slice($currentOnly, 0, max(1, (int) $this->listVisibleLimit));
+        $boardGroupedVisible = [];
+        $boardHasMoreByStatus = [];
+        foreach ($statuses as $status) {
+            $all = (array) ($grouped[$status] ?? []);
+            $limit = max(1, (int) ($this->boardVisibleByStatus[$status] ?? $this->boardVisibleStep));
+            $boardGroupedVisible[$status] = array_slice($all, 0, $limit);
+            $boardHasMoreByStatus[$status] = count($all) > count($boardGroupedVisible[$status]);
         }
 
         $accountMap = [];
@@ -860,7 +1139,7 @@ class Tasks extends Component
                 'initials' => $initials,
                 'name' => $name,
                 'email' => (string) ($account['email'] ?? $account['Email'] ?? ''),
-                'specialization' => (string) ($account['specialization'] ?? $account['Specialization'] ?? ''),
+                'specialization' => AccountPresentation::displaySpecialization($account),
                 'role' => (string) ($account['role'] ?? $account['Role'] ?? ''),
             ];
         }
@@ -885,9 +1164,20 @@ class Tasks extends Component
         $currentUserId = (int) ($user['id'] ?? $user['Id'] ?? 0);
 
         return view('livewire.tasks', [
-            'filteredTasks' => $filtered,
+            'filteredTasks' => $currentOnly,
+            'listRows' => $listRows,
+            'visibleListRows' => $visibleListRows,
+            'rootTasks' => $rootOnly,
+            'visibleFilteredTasks' => $visibleFilteredTasks,
             'boardStatuses' => $statuses,
             'boardGrouped' => $grouped,
+            'boardGroupedVisible' => $boardGroupedVisible,
+            'boardHasMoreByStatus' => $boardHasMoreByStatus,
+            'childrenMap' => $childrenMap,
+            'taskParentMap' => $parentOf,
+            'tasksById' => $tasksById,
+            'currentBreadcrumb' => $currentBreadcrumb,
+            'currentParentTaskId' => $this->currentParentTaskId,
             'accountMap' => $accountMap,
             'accountProfiles' => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,

@@ -1,13 +1,5 @@
 <div>
-    {{-- Success banner --}}
-    @if (session('success'))
-        <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3500)" x-show="show" x-transition.opacity.duration.300ms
-            class="alert alert-success text-sm flex items-center gap-2 py-2 px-4 rounded-lg mb-4">
-            <span>{{ session('success') }}</span>
-        </div>
-    @endif
-
-    {{-- Warning is shown under Due Date in the modal (not here) --}}
+    {{-- Success toast: parent Dashboard shows session flash (avoid double mount consuming flash). --}}
 
     @php
         // Keep modal heights consistent between "select project" and "create task".
@@ -58,19 +50,19 @@
             </div>
             <h3 class="font-bold text-lg">New Task</h3>
 
-            @if ($errors->any())
-                @php
-                    $errorMessages = array_filter(array_map('trim', array_unique($errors->all())));
-                @endphp
+            @php
+                $liveErrs = $errors->any()
+                    ? array_values(array_filter(array_unique(array_map('trim', $errors->all()))))
+                    : [];
+                $modalErrorMessages = array_values(array_unique(array_merge($flashErrorMessages, $liveErrs)));
+            @endphp
+            @if (!empty($modalErrorMessages))
                 <div class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 mt-3 text-sm text-red-700">
                     <p class="font-semibold mb-1">Please fix the following:</p>
                     <ul class="list-disc list-inside space-y-0.5">
-                        @foreach ($errorMessages as $msg)
+                        @foreach ($modalErrorMessages as $msg)
                             <li>{{ $msg }}</li>
                         @endforeach
-                        @if (empty($errorMessages))
-                            <li>An error occurred. Please check your input and try again.</li>
-                        @endif
                     </ul>
                 </div>
             @endif
@@ -88,6 +80,39 @@
                         $oldAssigneeIds = is_array($rawOld)
                             ? array_map('intval', $rawOld)
                             : array_filter(array_map('intval', array_filter(explode(',', (string) ($rawOld ?? '')))));
+                        $resolveAccountBioSpec = function (array $account): array {
+                            $bio = '';
+                            foreach (['bio', 'Bio', 'about', 'About', 'summary', 'Summary'] as $key) {
+                                $raw = $account[$key] ?? null;
+                                if ($raw === null || $raw === '') {
+                                    continue;
+                                }
+                                $t = trim((string) $raw);
+                                if ($t !== '') {
+                                    $bio = $t;
+                                    break;
+                                }
+                            }
+                            $spec = '';
+                            foreach (
+                                [
+                                    'specialization', 'Specialization', 'specialisations', 'Specialisations',
+                                    'jobTitle', 'JobTitle', 'position', 'Position',
+                                    'title', 'Title', 'department', 'Department',
+                                ] as $key
+                            ) {
+                                $raw = $account[$key] ?? null;
+                                if ($raw === null || $raw === '') {
+                                    continue;
+                                }
+                                $t = trim((string) $raw);
+                                if ($t !== '') {
+                                    $spec = $t;
+                                    break;
+                                }
+                            }
+                            return [$bio, $spec];
+                        };
                     @endphp
                     <div class="flex flex-col gap-2" x-data="{
                         selectedIds: {{ json_encode($oldAssigneeIds) }},
@@ -95,7 +120,7 @@
                             const idx = this.selectedIds.indexOf(id);
                             if (idx >= 0) this.selectedIds.splice(idx, 1);
                             else this.selectedIds.push(id);
-                            queueMicrotask(() => window.__dashDueCalc?.recalc?.());
+                            queueMicrotask(() => window.__dashDueCalc?.recalc?.(this.$root?.closest('form')));
                         }
                     }">
                         <label class="font-medium text-sm">Assignees</label>
@@ -131,15 +156,12 @@
                                         $ainitials = mb_strtoupper(
                                             mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
                                         );
-                                        $aspec = trim((string) (
-                                            $account['specialization'] ?? $account['Specialization']
-                                            ?? $account['bio'] ?? $account['Bio'] ?? ''
-                                        ));
+                                        [$abio, $aspec] = $resolveAccountBioSpec($account);
                                     @endphp
                                     @if ($aid !== null)
                                         <li class="px-2 py-1">
                                             <x-person-option name="{{ $aname }}" :email="$aemail"
-                                                :picture="$apic" :specialization="$aspec"
+                                                :picture="$apic" :bio="$abio" :specialization="$aspec"
                                                 initials="{{ $ainitials }}"
                                                 @click="toggle({{ (int) $aid }})">
                                                 <template x-if="selectedIds.includes({{ (int) $aid }})">
@@ -195,6 +217,7 @@
                             <label class="font-medium text-sm">Story Point</label>
                             @php $storyPointOptions = [1,2,3,5,8,13,21]; @endphp
                             <select name="storyPoints"
+                                onchange="window.__dashDueCalc?.recalc?.(this.form)"
                                 class="select select-bordered !rounded-lg w-full text-gray-900 bg-white"
                                 style="border-radius:0.5rem;">
                                 <option value="">Select</option>
@@ -219,6 +242,8 @@
                                 }
                             @endphp
                             <input name="startDate" type="datetime-local"
+                                onchange="window.__dashDueCalc?.recalc?.(this.form)"
+                                oninput="window.__dashDueCalc?.recalc?.(this.form)"
                                 class="input input-bordered !rounded-lg w-full {{ $errors->has('startDate') ? 'border-red-500' : '' }}"
                                 style="border-radius:0.5rem;" value="{{ $oldStartVal }}" />
                             @foreach ($errors->get('startDate') as $msg)
@@ -246,10 +271,16 @@
                                 <p class="text-xs text-red-600 font-medium">{{ $msg }}</p>
                             @endforeach
 
+                            <div class="mt-2 hidden items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900"
+                                data-due-calc-hint>
+                                <span class="loading loading-spinner loading-xs"></span>
+                                <span>Auto-computing due date...</span>
+                            </div>
+
                             <div class="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 hidden"
                                 data-overload-warnings>
                                 <p class="font-semibold mb-1">Task created with warnings:</p>
-                                <ul class="list-disc list-inside space-y-0.5" data-overload-warnings-list></ul>
+                                <div class="space-y-2" data-overload-warnings-list></div>
                             </div>
 
                             @if (!empty($taskWarnings))
@@ -288,6 +319,7 @@
 </div>
 
 <script>
+    (function() {
     const toDateOnly = (v) => (v || '').toString().trim().substring(0, 10);
     const toDateTimeLocal = (v) => (v || '').toString().trim().substring(0, 16); // YYYY-MM-DDTHH:MM
 
@@ -297,8 +329,17 @@
         if (!box || !list) return;
 
         const msgs = Array.isArray(warnings) ? warnings.filter(Boolean).map(String) : [];
-        list.innerHTML = msgs.map(m => `<li>${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</li>`).join('');
+        list.innerHTML = msgs.map(m =>
+            `<div class="rounded border border-yellow-300 bg-yellow-100 px-2 py-1">${m.replaceAll('<','&lt;').replaceAll('>','&gt;')}</div>`
+        ).join('');
         box.classList.toggle('hidden', msgs.length === 0);
+    }
+
+    function setDueCalcState(form, isCalculating) {
+        const hint = form?.querySelector('[data-due-calc-hint]');
+        if (!hint) return;
+        hint.classList.toggle('hidden', !isCalculating);
+        hint.classList.toggle('flex', isCalculating);
     }
 
     async function recalcDueAndWarnings(form) {
@@ -313,28 +354,61 @@
 
         const start = startInput.value;
         const sp = spSelect.value;
+        console.debug('[due-calc-debug][dashboard] recalc:start', {
+            startDate: start,
+            storyPoints: sp,
+            assigneeIdsRaw: assignees?.value ?? '',
+            projectId: projectId?.value ?? ''
+        });
         if (!start || !sp) {
             dueInput.min = '';
             dueInput.max = '';
             setOverloadWarnings(form, []);
+            setDueCalcState(form, false);
+            console.debug('[due-calc-debug][dashboard] recalc:skipped-missing-input', {
+                hasStartDate: Boolean(start),
+                hasStoryPoints: Boolean(sp)
+            });
             return;
         }
 
         try {
-            // Use the full datetime-local value so the API can calculate correctly.
+            setDueCalcState(form, true);
+            // Keep original datetime-local shape that worked in app flow.
             const startDateParam = toDateTimeLocal(start);
-            const aid = assignees?.value ? String(assignees.value) : '';
+            const aidRaw = assignees?.value ? String(assignees.value) : '';
             const pid = projectId?.value ? String(projectId.value) : '';
-            const url =
-                `/tasks/calculate-due-date?startDate=${encodeURIComponent(startDateParam)}&storyPoints=${encodeURIComponent(sp)}&assigneeIds=${encodeURIComponent(aid)}&projectId=${encodeURIComponent(pid)}`;
+            const params = new URLSearchParams();
+            params.set('startDate', startDateParam);
+            params.set('storyPoints', String(sp));
+            if (pid) params.set('projectId', pid);
+            aidRaw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => {
+                params.append('assigneeIds[]', id);
+            });
+            const url = `/tasks/calculate-due-date?${params.toString()}`;
+            console.debug('[due-calc-debug][dashboard] request', {
+                url,
+                assigneeIds: aidRaw.split(',').map(s => s.trim()).filter(Boolean)
+            });
             const r = await fetch(url, {
                 headers: {
                     'Accept': 'application/json'
                 },
                 credentials: 'same-origin'
             });
-            if (!r.ok) return;
+            console.debug('[due-calc-debug][dashboard] response-meta', {
+                ok: r.ok,
+                status: r.status
+            });
+            if (!r.ok) {
+                let errData = null;
+                try { errData = await r.json(); } catch (_) {}
+                console.debug('[due-calc-debug][dashboard] response-error-body', errData);
+                setOverloadWarnings(form, errData?.warnings || []);
+                return;
+            }
             const data = await r.json();
+            console.debug('[due-calc-debug][dashboard] response-body', data);
 
             if (data?.dueDate) {
                 const dueRaw = String(data.dueDate);
@@ -349,14 +423,19 @@
             }
 
             setOverloadWarnings(form, data?.warnings || []);
-        } catch {
-            // ignore
+        } catch (err) {
+            console.error('[due-calc-debug][dashboard] recalc:error', err);
+        } finally {
+            setDueCalcState(form, false);
         }
     }
 
     window.__dashDueCalc = {
-        recalc() {
-            const form = document.querySelector('form[data-due-calc="true"]');
+        __init: true,
+        recalc(formEl = null) {
+            const form = formEl && formEl.matches?.('form[data-due-calc="true"]')
+                ? formEl
+                : document.querySelector('form[data-due-calc="true"]');
             recalcDueAndWarnings(form);
         }
     };
@@ -369,4 +448,5 @@
         const form = target.closest('form[data-due-calc="true"]');
         recalcDueAndWarnings(form);
     });
+    })();
 </script>

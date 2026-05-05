@@ -4,11 +4,26 @@
     'checked'         => false,
     'picture'         => null,
     'initials'        => '',
+    'bio'             => '',
     'specialization'  => '',
 ])
 
 @php
-    $specLine = trim((string) $specialization);
+    $b = trim((string) $bio);
+    $s = trim((string) $specialization);
+    if ($b !== '' && $s !== '' && $b !== $s) {
+        $pillText = $b.' · '.$s;
+    } elseif ($b !== '') {
+        $pillText = $b;
+    } elseif ($s !== '') {
+        $pillText = $s;
+    } else {
+        $pillText = '';
+    }
+    $pillCase =
+        $pillText !== '' && (str_contains($pillText, ' · ') || mb_strlen($pillText) > 24)
+            ? 'normal-case'
+            : 'uppercase tracking-wide';
 @endphp
 
 <button type="button"
@@ -39,13 +54,20 @@
     </span>
 
     <div class="flex-1 min-w-0 text-left">
-        <div class="font-medium text-sm truncate">{{ $name }}</div>
-        @if ($specLine !== '')
-            <div class="text-xs text-gray-500 truncate">{{ $specLine }}</div>
-        @endif
+        <div class="font-medium text-sm text-gray-900 truncate leading-tight">{{ $name }}</div>
+        <div class="mt-1 flex items-center min-w-0">
+            @if ($pillText !== '')
+                <span
+                    class="inline-flex max-w-full items-center truncate px-2 py-1 text-[11px] font-medium text-slate-800"
+                    title="{{ $pillText }}">{{ $pillText }}</span>
+            @else
+                <span
+                    class="inline-flex items-center px-2 py-1  text-[11px] font-medium uppercase tracking-wide text-gray-400">Not set</span>
+            @endif
+        </div>
     </div>
 
     @if ($email)
-        <span class="text-xs text-gray-500 shrink-0 text-right self-start mt-0.5">{{ $email }}</span>
+        <span class="text-xs text-gray-500 shrink-0 text-right self-start pt-0.5 max-w-[40%] break-all">{{ $email }}</span>
     @endif
 </button>

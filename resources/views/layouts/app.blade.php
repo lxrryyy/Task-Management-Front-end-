@@ -34,6 +34,7 @@
 </head>
 
 <body class="font-sans antialiased">
+    <x-global-loader />
     <!-- UPDATED, THIS IS THE ONE THAT HAS NO RICH TEXT YET (WORKING) -->
     <div class="flex h-screen relative">
 
@@ -312,57 +313,96 @@
     @livewireScripts
 
     <script>
-        document.addEventListener('livewire:load', () => {
-            if (typeof Livewire === 'undefined') return;
-            const toastContainer = document.getElementById('toast-container');
-            const showToast = (payload = {}) => {
-                if (!toastContainer) return;
-                const type = (payload?.type || 'success').toString().toLowerCase();
-                const message = (payload?.message || '').toString().trim();
-                const timeout = Number(payload?.timeout || 2000);
-                if (!message) return;
+        (function () {
+            const registerLivewireUi = () => {
+                if (typeof Livewire === 'undefined' || window.__appLivewireUiRegistered) return;
+                window.__appLivewireUiRegistered = true;
 
-                const toast = document.createElement('div');
-                const tone = type === 'error'
-                    ? 'border-red-200 bg-red-50 text-red-700'
-                    : 'border-green-200 bg-green-50 text-green-700';
-                toast.className = `pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow ${tone}`;
-                toast.textContent = message;
-                toastContainer.appendChild(toast);
+                const toastContainer = document.getElementById('toast-container');
+                const showToast = (payload = {}) => {
+                    if (!toastContainer) return;
+                    const type = (payload?.type || 'success').toString().toLowerCase();
+                    const message = (payload?.message || '').toString().trim();
+                    const timeout = Number(payload?.timeout || 5500);
+                    if (!message) return;
 
-                window.setTimeout(() => {
-                    toast.remove();
-                }, timeout > 0 ? timeout : 2000);
+                    const toast = document.createElement('div');
+                    const tone = type === 'error'
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-green-200 bg-green-50 text-green-700';
+                    toast.className = `pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow ${tone}`;
+                    toast.textContent = message;
+                    toastContainer.appendChild(toast);
+
+                    window.setTimeout(() => {
+                        toast.remove();
+                    }, timeout > 0 ? timeout : 5500);
+                };
+
+                Livewire.on('avatar-updated', (payload) => {
+                    const wrap = document.getElementById('header-avatar');
+                    const img = document.getElementById('header-avatar-img');
+                    const span = document.getElementById('header-avatar-initials');
+                    if (!wrap || !img || !span) return;
+
+                    const pic = payload?.profilePicture;
+                    const initialsTextClass = payload?.initialsTextClass || 'text-white';
+                    const avatarBg = payload?.avatarBg || wrap.dataset.avatarBg || '#102B3C';
+
+                    if (pic) {
+                        wrap.style.backgroundColor = 'transparent';
+                        img.src = pic;
+                        img.style.display = '';
+                        span.style.display = 'none';
+                    } else {
+                        img.style.display = 'none';
+                        span.style.display = 'flex';
+                        span.className = 'font-semibold ' + initialsTextClass;
+
+                        wrap.style.backgroundColor = avatarBg;
+                    }
+
+                    if (payload?.initials) span.textContent = payload.initials;
+                });
+                Livewire.on('app-toast', showToast);
             };
 
-            Livewire.on('avatar-updated', (payload) => {
-                const wrap = document.getElementById('header-avatar');
-                const img = document.getElementById('header-avatar-img');
-                const span = document.getElementById('header-avatar-initials');
-                if (!wrap || !img || !span) return;
-
-                const pic = payload?.profilePicture;
-                const initialsTextClass = payload?.initialsTextClass || 'text-white';
-                const avatarBg = payload?.avatarBg || wrap.dataset.avatarBg || '#102B3C';
-
-                if (pic) {
-                    wrap.style.backgroundColor = 'transparent';
-                    img.src = pic;
-                    img.style.display = '';
-                    span.style.display = 'none';
-                } else {
-                    img.style.display = 'none';
-                    span.style.display = 'flex';
-                    span.className = 'font-semibold ' + initialsTextClass;
-
-                    wrap.style.backgroundColor = avatarBg;
-                }
-
-                if (payload?.initials) span.textContent = payload.initials;
-            });
-            Livewire.on('app-toast', showToast);
-        });
+            document.addEventListener('livewire:init', registerLivewireUi);
+            document.addEventListener('livewire:load', registerLivewireUi);
+        })();
     </script>
+
+    @if (session('error_toast'))
+        <script>
+            (function () {
+                const message = @json((string) session('error_toast'));
+                if (!message) return;
+
+                const showErrorToast = () => {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+
+                    const toast = document.createElement('div');
+                    toast.className =
+                        'pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow border-red-200 bg-red-50 text-red-700';
+                    toast.textContent = message;
+                    container.appendChild(toast);
+
+                    window.setTimeout(() => {
+                        toast.remove();
+                    }, 5500);
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', showErrorToast, {
+                        once: true
+                    });
+                } else {
+                    showErrorToast();
+                }
+            })();
+        </script>
+    @endif
 </body>
 
 </html>

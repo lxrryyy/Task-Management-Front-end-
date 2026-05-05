@@ -37,6 +37,7 @@ class DashboardController extends Controller
         try {
             $response = $this->api->get('/api/Dashboard/MyProjectsAndTasks', [
                 'requesterId' => $accountId,
+                '_no_cache' => 1,
             ]);
 
             return is_array($response) ? $response : [];
@@ -62,6 +63,7 @@ class DashboardController extends Controller
         try {
             $response = $this->api->get("/api/Dashboard/ProjectTaskSummary/{$projectId}", [
                 'requesterId' => $requesterId,
+                '_no_cache' => 1,
             ]);
             if (! is_array($response)) {
                 return ['totalTasks' => 0, 'breakdown' => []];
@@ -99,4 +101,37 @@ class DashboardController extends Controller
             return ['totalTasks' => 0, 'breakdown' => []];
         }
     }
+
+    /**
+     * Fetch admin dashboard stat cards.
+     * Endpoint: GET /api/Dashboard/GetDashboardAdminStats
+     */
+    public function getDashboardAdminStats(int $requesterId = 0): array
+    {
+        $candidates = [
+            ['/api/Dashboard/GetDashboardAdminStats', ['_no_cache' => 1]],
+            ['/api/Dashboard/GetDashboardAdminStats', ['requesterId' => $requesterId, '_no_cache' => 1]],
+            // Backward-compatible fallback
+            ['/api/Dashboard/GetDashboardStats', ['_no_cache' => 1]],
+            ['/api/Dashboard/GetDashboardStats', ['requesterId' => $requesterId, '_no_cache' => 1]],
+        ];
+
+        foreach ($candidates as [$endpoint, $query]) {
+            try {
+                $response = $this->api->get($endpoint, $query);
+                if (is_array($response)) {
+                    return $response;
+                }
+            } catch (RequestException $e) {
+                if (in_array($e->response?->status(), [401, 403], true)) {
+                    Session::forget(['api_token', 'user', 'expires_in']);
+                }
+            } catch (\Throwable) {
+                // Try the next shape.
+            }
+        }
+
+        return [];
+    }
+
 }

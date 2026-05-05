@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\ViewErrorBag;
 use Livewire\Component;
 
 class DashboardTaskCreate extends Component
@@ -12,9 +13,11 @@ class DashboardTaskCreate extends Component
     public array $projects = [];
 
     public bool $showSelectProjectModal = false;
+
     public bool $showAddTaskModal = false;
 
     public int $currentUserId = 0;
+
     public ?int $selectedProjectId = null;
 
     /** PriorityId => PriorityName */
@@ -25,6 +28,9 @@ class DashboardTaskCreate extends Component
 
     /** Persist overload warnings across Livewire re-renders */
     public array $taskWarnings = [];
+
+    /** @var list<string> */
+    public array $flashErrorMessages = [];
 
     protected $listeners = [
         'open-dashboard-task-create' => 'open',
@@ -37,6 +43,8 @@ class DashboardTaskCreate extends Component
         $this->currentUserId = (int) ($user['id'] ?? ($user['Id'] ?? 0));
 
         $this->loadPriorities();
+
+        $this->flashErrorMessages = $this->captureFlashedErrors();
 
         // If a task was just created with overload warnings, reopen the modal
         // so the warning can be displayed under the Due Date field.
@@ -54,6 +62,35 @@ class DashboardTaskCreate extends Component
         }
     }
 
+    public function dismissFlashErrors(): void
+    {
+        $this->flashErrorMessages = [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function captureFlashedErrors(): array
+    {
+        $bag = session()->get('errors');
+        if (! $bag instanceof ViewErrorBag) {
+            return [];
+        }
+        $out = [];
+        foreach ($bag->getBags() as $namedBag) {
+            foreach ($namedBag->getMessages() as $msgs) {
+                foreach ((array) $msgs as $m) {
+                    $t = trim((string) $m);
+                    if ($t !== '') {
+                        $out[] = $t;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
     public function open(): void
     {
         $this->resetWizard();
@@ -65,6 +102,7 @@ class DashboardTaskCreate extends Component
         $this->showSelectProjectModal = false;
         $this->showAddTaskModal = false;
         $this->taskWarnings = [];
+        $this->dismissFlashErrors();
     }
 
     public function resetWizard(): void
@@ -73,6 +111,7 @@ class DashboardTaskCreate extends Component
         $this->showAddTaskModal = false;
         $this->selectedProjectId = null;
         $this->assignableAccounts = [];
+        $this->dismissFlashErrors();
     }
 
     public function loadPriorities(): void
@@ -92,7 +131,9 @@ class DashboardTaskCreate extends Component
     public function chooseProject(int $projectId): void
     {
         $projectId = (int) $projectId;
-        if ($projectId <= 0) return;
+        if ($projectId <= 0) {
+            return;
+        }
 
         $this->selectedProjectId = $projectId;
         $this->assignableAccounts = app(TaskController::class)->getAssignableAccountsForProject(
@@ -115,4 +156,3 @@ class DashboardTaskCreate extends Component
         return view('livewire.dashboard-task-create');
     }
 }
-

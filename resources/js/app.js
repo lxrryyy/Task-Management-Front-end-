@@ -4,6 +4,134 @@ import { registerNotifications } from "./notifications";
 
 window.Chart = Chart;
 
+const perfTracker = (() => {
+    const isEnabled = () =>
+        typeof window !== "undefined" &&
+        (window.localStorage?.getItem("tmPerf") === "1" ||
+            window.sessionStorage?.getItem("tmPerf") === "1");
+
+    const formatMs = (value) => `${Math.max(0, value).toFixed(1)}ms`;
+
+    return {
+        mark(label) {
+            if (!isEnabled()) return;
+            try {
+                performance.mark(label);
+            } catch (_) {}
+        },
+        measure(name, start, end) {
+            if (!isEnabled()) return;
+            try {
+                performance.measure(name, start, end);
+                const entries = performance.getEntriesByName(name, "measure");
+                const latest = entries[entries.length - 1];
+                if (latest) {
+                    console.info(`[tmPerf] ${name}: ${formatMs(latest.duration)}`);
+                }
+            } catch (_) {}
+        },
+    };
+})();
+
+const globalLoader = (() => {
+    let activeCount = 0;
+    let hideTimer = null;
+    const minVisibleMs = 250;
+    let visibleSince = 0;
+
+    const element = () => document.getElementById("global-loader");
+
+    const show = () => {
+        const el = element();
+        if (!el) return;
+        if (hideTimer) {
+            clearTimeout(hideTimer);
+            hideTimer = null;
+        }
+        if (el.classList.contains("hidden")) {
+            el.classList.remove("hidden");
+            el.classList.add("flex");
+            visibleSince = Date.now();
+        }
+    };
+
+    const hide = () => {
+        const el = element();
+        if (!el) return;
+        const elapsed = Date.now() - visibleSince;
+        const remaining = Math.max(0, minVisibleMs - elapsed);
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+            el.classList.add("hidden");
+            el.classList.remove("flex");
+            hideTimer = null;
+        }, remaining);
+    };
+
+    return {
+        start() {
+            activeCount += 1;
+            show();
+        },
+        stop() {
+            activeCount = Math.max(0, activeCount - 1);
+            if (activeCount === 0) hide();
+        },
+        showForNavigation() {
+            activeCount = 1;
+            show();
+        },
+    };
+})();
+
+const isInternalNavigationLink = (anchor, event) => {
+    if (!anchor || anchor.target === "_blank") return false;
+    if (anchor.hasAttribute("download")) return false;
+    if (event.defaultPrevented) return false;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#") || href.startsWith("javascript:")) return false;
+
+    try {
+        const url = new URL(anchor.href, window.location.origin);
+        return url.origin === window.location.origin;
+    } catch {
+        return false;
+    }
+};
+
+const shouldSkipGlobalLoader = (element) => {
+    if (!(element instanceof Element)) return false;
+    return element.closest("[data-no-global-loader]") !== null;
+};
+
+document.addEventListener(
+    "click",
+    (event) => {
+        const anchor = event.target.closest("a[href]");
+        if (!isInternalNavigationLink(anchor, event)) return;
+        if (shouldSkipGlobalLoader(anchor)) return;
+        globalLoader.showForNavigation();
+    },
+    true,
+);
+
+document.addEventListener(
+    "submit",
+    (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+        if (shouldSkipGlobalLoader(form)) return;
+        globalLoader.showForNavigation();
+    },
+    true,
+);
+
+window.addEventListener("pageshow", () => {
+    globalLoader.stop();
+});
+
 window.countUpNumber = function countUpNumber(targetValue, durationMs) {
     const safeTarget = Math.max(0, parseInt(targetValue || 0, 10));
     const safeDuration = Math.max(250, parseInt(durationMs || 700, 10));
@@ -26,6 +154,47 @@ window.countUpNumber = function countUpNumber(targetValue, durationMs) {
 };
 
 document.addEventListener("livewire:init", () => {
+    document.addEventListener("livewire:navigating", () => {
+        perfTracker.mark("tm-livewire-nav-start");
+        globalLoader.start();
+    });
+    document.addEventListener("livewire:navigated", () => {
+        perfTracker.mark("tm-livewire-nav-end");
+        perfTracker.measure(
+            "livewire navigation",
+            "tm-livewire-nav-start",
+            "tm-livewire-nav-end",
+        );
+        globalLoader.stop();
+    });
+
+    if (typeof Livewire !== "undefined" && typeof Livewire.hook === "function") {
+        try {
+            Livewire.hook("message.sent", () => {
+                perfTracker.mark("tm-livewire-message-start");
+                globalLoader.start();
+            });
+            Livewire.hook("message.processed", () => {
+                perfTracker.mark("tm-livewire-message-end");
+                perfTracker.measure(
+                    "livewire message",
+                    "tm-livewire-message-start",
+                    "tm-livewire-message-end",
+                );
+                globalLoader.stop();
+            });
+            Livewire.hook("message.failed", () => {
+                perfTracker.mark("tm-livewire-message-failed");
+                perfTracker.measure(
+                    "livewire message (failed)",
+                    "tm-livewire-message-start",
+                    "tm-livewire-message-failed",
+                );
+                globalLoader.stop();
+            });
+        } catch (_) {}
+    }
+
     registerNotifications();
 
     window.Alpine.data(

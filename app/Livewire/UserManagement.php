@@ -71,6 +71,9 @@ class UserManagement extends Component
 
     public ?string $editUserSuccess = null;
 
+    /** Profile image URL for edit modal (from list API or GetAccountById). */
+    public ?string $editProfilePicture = null;
+
     public bool $showAddUserModal = false;
 
     public bool $showPassword = false;
@@ -241,7 +244,7 @@ class UserManagement extends Component
         $this->apiError = null;
 
         try {
-            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats');
+            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats', ['_no_cache' => 1]);
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
             $this->loading = false;
@@ -325,6 +328,8 @@ class UserManagement extends Component
             ?? $u['roleName'] ?? $u['RoleName'] ?? $u['role'] ?? $u['Role'] ?? ''
         ));
 
+        $profilePicture = $this->extractProfilePictureString($u);
+
         return [
             'id' => $id,
             'name' => $fullName ?: '—',
@@ -334,8 +339,68 @@ class UserManagement extends Component
             'tasksCount' => max(0, $tasksCount),
             'status' => $status ?: '—',
             'isActive' => (bool) ($u['isActive'] ?? $u['IsActive'] ?? true),
+            'profilePicture' => $profilePicture,
             'raw' => $u,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function extractProfilePictureString(array $payload): ?string
+    {
+        $pic = $payload['profilePicture'] ?? $payload['ProfilePicture']
+            ?? $payload['profileImageUrl'] ?? $payload['ProfileImageUrl']
+            ?? $payload['avatarUrl'] ?? $payload['AvatarUrl']
+            ?? $payload['imageUrl'] ?? $payload['ImageUrl']
+            ?? null;
+        if (! is_string($pic)) {
+            return null;
+        }
+        $pic = trim($pic);
+
+        return $pic !== '' ? $pic : null;
+    }
+
+    /**
+     * GetAllUsersWithStats may omit profile photos; load full account when missing.
+     *
+     * @param  array<string, mixed>  $user  normalized user row
+     * @return array<string, mixed>
+     */
+    private function ensureProfilePicture(array $user): array
+    {
+        $pic = $user['profilePicture'] ?? null;
+        if (is_string($pic) && trim($pic) !== '') {
+            return $user;
+        }
+
+        $id = (int) ($user['id'] ?? 0);
+        if ($id <= 0) {
+            return $user;
+        }
+
+        try {
+            $full = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$id}", ['_no_cache' => 1]);
+        } catch (\Throwable) {
+            return $user;
+        }
+
+        if (! is_array($full)) {
+            return $user;
+        }
+
+        $fetched = $this->extractProfilePictureString($full);
+        if ($fetched === null) {
+            return $user;
+        }
+
+        $user['profilePicture'] = $fetched;
+        if (isset($user['raw']) && is_array($user['raw'])) {
+            $user['raw'] = array_merge($user['raw'], ['profilePicture' => $fetched]);
+        }
+
+        return $user;
     }
 
     public function openUserDetail(int $userId): void
@@ -345,7 +410,7 @@ class UserManagement extends Component
             return;
         }
 
-        $this->selectedUser = $user;
+        $this->selectedUser = $this->ensureProfilePicture($user);
         $this->showUserDetailModal = true;
     }
 
@@ -432,7 +497,10 @@ class UserManagement extends Component
             return;
         }
 
+        $user = $this->ensureProfilePicture($user);
+
         $this->editUserId = $userId;
+        $this->editProfilePicture = $user['profilePicture'] ?? null;
         $this->editName = $user['name'] === '—' ? '' : $user['name'];
         $parts = preg_split('/\s+/', trim($this->editName));
         $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
@@ -458,6 +526,7 @@ class UserManagement extends Component
         $this->editSpecialization = '';
         $this->editRole = 'User';
         $this->editIsActive = true;
+        $this->editProfilePicture = null;
         $this->editUserError = null;
         $this->editUserSuccess = null;
     }

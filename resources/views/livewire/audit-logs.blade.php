@@ -32,8 +32,8 @@
         </button>
     </div>
 
-    <div class="flex flex-row justify-between mt-4">
-        <div class="flex flex-row gap-4">
+    <div class="flex flex-wrap justify-between mt-4 flex-shrink-0 gap-2">
+        <div class="flex flex-wrap gap-4">
             <button @click="open = !open"
                 class="btn border-2 border-gray clr-primary text-base-100 p-4 hover-clr-bg-primary hover:text-base-100">
                 <x-icons.sort class="w-4 h-4 inline-block" /> Filter
@@ -82,14 +82,32 @@
                     ?
                     `{{ route('auditLogs.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}` :
                     `{{ route('auditLogs.login.export.pdf') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
-                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                    @click="
+            const loader = document.getElementById('global-loader');
+            loader.classList.remove('hidden');
+            loader.classList.add('flex');
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                loader.classList.remove('flex');
+            }, 3000);
+        ">
                     Export to PDF
                 </a>
                 <a :href="currentTab === 'activity'
                     ?
                     `{{ route('auditLogs.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}` :
                     `{{ route('auditLogs.login.export.excel') }}?from=${encodeURIComponent(exportFrom||'')}&to=${encodeURIComponent(exportTo||'')}`"
-                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start">
+                    class="btn clr-bg-primary text-base-100 rounded-lg justify-start"
+                    @click="
+            const loader = document.getElementById('global-loader');
+            loader.classList.remove('hidden');
+            loader.classList.add('flex');
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                loader.classList.remove('flex');
+            }, 3000);
+        ">
                     Export to Excel
                 </a>
             </div>
@@ -136,15 +154,6 @@
                 <option value="">All actions</option>
                 <template x-for="a in actionOptions" :key="a">
                     <option :value="a" x-text="a"></option>
-                </template>
-            </select>
-        </div>
-        <div class="flex flex-col flex-1">
-            <span>Status</span>
-            <select x-model="filters.status" class="select select-bordered w-full bg-white text-gray-900">
-                <option value="">All statuses</option>
-                <template x-for="s in statusOptions" :key="s">
-                    <option :value="s" x-text="s"></option>
                 </template>
             </select>
         </div>
@@ -217,7 +226,8 @@
                                 </div>
                             </td>
                             <td class="py-4 text-gray-700 whitespace-nowrap" x-text="l.userRole || '—'"></td>
-                            <td class="py-4 text-gray-700" x-show="currentTab !== 'logs'" x-text="l.projectName || '—'"></td>
+                            <td class="py-4 text-gray-700" x-show="currentTab !== 'logs'"
+                                x-text="l.projectName || '—'"></td>
                             <td class="py-4 whitespace-nowrap">
                                 <template x-if="l.action">
                                     <span class="px-2 py-1 rounded text-[10px] font-semibold" :style="l.actionStyle"
@@ -241,7 +251,8 @@
                     </template>
 
                     <tr wire:loading.remove x-show="pageItems.length === 0">
-                        <td :colspan="currentTab === 'logs' ? 5 : 6" class="text-center py-10 text-gray-500">No audit logs
+                        <td :colspan="currentTab === 'logs' ? 5 : 6" class="text-center py-10 text-gray-500">No
+                            audit logs
                             found.</td>
                     </tr>
                 </tbody>
