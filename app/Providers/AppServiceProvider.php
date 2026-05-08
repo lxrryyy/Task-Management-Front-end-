@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use App\Services\AccountApiService;
+use App\Services\AuditLogApiService;
 use App\Services\AuthApiService;
 use App\Services\CommentApiService;
 use App\Services\CsharpApiService;
@@ -27,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(NotificationApiService::class);
         $this->app->singleton(ProjectApiService::class);
         $this->app->singleton(AccountApiService::class);
+        $this->app->singleton(AuditLogApiService::class);
         $this->app->singleton(AuthApiService::class);
         $this->app->singleton(DashboardApiService::class);
         $this->app->singleton(StickyNoteApiService::class);
