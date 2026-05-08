@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Services\AccountApiService;
 use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
 use Livewire\Attributes\On;
@@ -201,14 +202,12 @@ class UserManagement extends Component
                 'name' => $fullName,
                 'email' => $email,
                 'password' => $tempPassword,
-                'passwordHash' => $tempPassword,
-                // Backend may expect this key to exist even when optional.
                 'specialization' => $spec ?? '',
                 'role' => 'User',
                 'isActive' => true,
             ];
 
-            app(CsharpApiService::class)->post('/api/Account/CreateAccount?adminid='.$adminId, $payload);
+            app(AccountApiService::class)->create($payload);
 
             $this->createAccountSuccess = 'User created successfully.';
             $this->dispatch('app-toast', type: 'success', message: $this->createAccountSuccess, timeout: 2000);
@@ -244,30 +243,12 @@ class UserManagement extends Component
         $this->apiError = null;
 
         try {
-            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUsersWithStats', ['_no_cache' => 1]);
+            $list = app(AccountApiService::class)->listUsersWithStats();
         } catch (\Throwable $e) {
             $this->apiError = 'Failed to load users from API.';
             $this->loading = false;
 
             return;
-        }
-
-        // Normalize common shapes: { data: [...] }, { users: [...] }, [ ... ]
-        $list = [];
-        if (is_array($raw)) {
-            if (isset($raw['data']) && is_array($raw['data'])) {
-                $list = $raw['data'];
-            } elseif (isset($raw['users']) && is_array($raw['users'])) {
-                $list = $raw['users'];
-            } elseif (isset($raw['items']) && is_array($raw['items'])) {
-                $list = $raw['items'];
-            } elseif (isset($raw[0]) && is_array($raw[0])) {
-                $list = $raw;
-            }
-        }
-
-        if (! is_array($list)) {
-            $list = [];
         }
 
         $this->users = array_values(array_map(function ($u) {
@@ -380,13 +361,8 @@ class UserManagement extends Component
             return $user;
         }
 
-        try {
-            $full = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$id}", ['_no_cache' => 1]);
-        } catch (\Throwable) {
-            return $user;
-        }
-
-        if (! is_array($full)) {
+        $full = app(AccountApiService::class)->find($id);
+        if (! is_array($full) || $full === []) {
             return $user;
         }
 
@@ -471,17 +447,10 @@ class UserManagement extends Component
     public function toggleUserStatus(int $userId, bool $isActive): void
     {
         try {
-            $user = session('user', []);
-            $adminId = (int) ($user['id'] ?? $user['Id'] ?? $user['accountId'] ?? $user['AccountId'] ?? 0);
-
             if ($isActive) {
-                app(CsharpApiService::class)->delete(
-                    "/api/Account/DeleteAccount/{$userId}?adminId={$adminId}"
-                );
+                app(AccountApiService::class)->deactivate($userId);
             } else {
-                app(CsharpApiService::class)->delete(
-                    "/api/Account/ReactivateAccount/{$userId}?adminId={$adminId}"
-                );
+                app(AccountApiService::class)->reactivate($userId);
             }
 
             $this->reloadUsersFromApi();
@@ -546,9 +515,6 @@ class UserManagement extends Component
         }
 
         try {
-            $user = session('user', []);
-            $editorId = (int) ($user['id'] ?? $user['Id'] ?? 0);
-
             $payload = [
                 'name' => $fullName,
                 'role' => $this->editRole,
@@ -556,10 +522,7 @@ class UserManagement extends Component
                 'specialization' => trim($this->editSpecialization) ?: null,
             ];
 
-            app(CsharpApiService::class)->patch(
-                "/api/Account/UpdateAccount/{$this->editUserId}?editorId={$editorId}",
-                $payload
-            );
+            app(AccountApiService::class)->update($this->editUserId, $payload);
 
             $this->editUserSuccess = 'User updated successfully.';
             $this->reloadUsersFromApi();

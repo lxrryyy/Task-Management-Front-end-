@@ -386,23 +386,7 @@ class Dashboard extends Component
     {
         $out = [];
         try {
-            /** @var CsharpApiService $api */
-            $api = app(CsharpApiService::class);
-            // Use the account endpoint that includes role + profilePicture fields.
-            $raw = $api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $list = [];
-            if (is_array($raw)) {
-                if (array_is_list($raw)) {
-                    $list = $raw;
-                } else {
-                    foreach (['data', 'Data', 'items', 'Items', 'result', 'Result', 'accounts', 'Accounts'] as $k) {
-                        if (isset($raw[$k]) && is_array($raw[$k])) {
-                            $list = $raw[$k];
-                            break;
-                        }
-                    }
-                }
-            }
+            $list = app(\App\Services\AccountApiService::class)->listAssignableUsers();
 
             foreach ($list as $acc) {
                 if (! is_array($acc)) {

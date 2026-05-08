@@ -14,7 +14,7 @@ final class AccountListEnrichment
     /** @var array<int, array<string, mixed>|null> */
     private static array $fetchedById = [];
 
-    public function __construct(private CsharpApiService $api) {}
+    public function __construct(private AccountApiService $accountsApi) {}
 
     /**
      * @param  array<int, array<string, mixed>>  $projects  Project payloads (assigneeIds / AssigneeIds)
@@ -100,18 +100,13 @@ final class AccountListEnrichment
             return is_array($cached) ? $cached : [];
         }
 
-        try {
-            $raw = $this->api->get("/api/Account/GetAccountById/{$id}");
-            if (is_array($raw)) {
-                self::$fetchedById[$id] = $raw;
-
-                return $raw;
-            }
-        } catch (\Throwable) {
+        $full = $this->accountsApi->find($id);
+        if (is_array($full) && $full !== []) {
+            self::$fetchedById[$id] = $full;
+            return $full;
         }
 
         self::$fetchedById[$id] = [];
-
         return [];
     }
 }

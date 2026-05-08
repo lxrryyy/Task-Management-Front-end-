@@ -122,8 +122,7 @@ class AuditLogs extends Component
     private function loadAccounts(): void
     {
         try {
-            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
-            $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
+            $list = app(\App\Services\AccountApiService::class)->listAssignableUsers();
             $this->accounts = array_values(array_filter(array_map(function ($acc) {
                 if (! is_array($acc)) {
                     return null;

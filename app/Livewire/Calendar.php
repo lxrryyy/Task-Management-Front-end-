@@ -4,7 +4,7 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use App\Http\Controllers\DashboardController;
-use App\Services\CsharpApiService;
+use App\Services\AccountApiService;
 use Illuminate\Support\Facades\Session;
 
 class Calendar extends Component
@@ -46,9 +46,8 @@ class Calendar extends Component
         // Build account profile lookup for assignee avatars/initials
         $accountMap = [];
         try {
-            $raw  = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
-            foreach ((array) $list as $acc) {
+            $list = app(AccountApiService::class)->listAssignableUsers();
+            foreach ($list as $acc) {
                 $id   = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
                 $name = $acc['name'] ?? $acc['Name'] ?? $acc['fullName']
                         ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))

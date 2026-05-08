@@ -99,13 +99,16 @@ require __DIR__.'/auth.php';
 
 Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
 
-// Notifications (proxied to C# backend)
+// Notifications (proxied to C# backend /api/v1/notifications)
 Route::middleware(['api.auth'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
+    Route::get('/notifications/unread/count', [NotificationController::class, 'unreadCount'])->name('notifications.unread.count');
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::put('/notifications/{id}/unread', [NotificationController::class, 'markUnread'])->name('notifications.unreadOne');
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::put('/notifications/read', [NotificationController::class, 'markManyRead'])->name('notifications.readMany');
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::post('/notifications/delete', [NotificationController::class, 'destroyMany'])->name('notifications.destroyMany');
     Route::get('/notifications/resolve-task-project', [NotificationController::class, 'resolveTaskProject'])->name('notifications.resolveTaskProject');
 });
