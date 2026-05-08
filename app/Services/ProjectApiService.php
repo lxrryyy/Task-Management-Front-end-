@@ -6,16 +6,6 @@ use Illuminate\Support\Facades\Cache;
 
 class ProjectApiService
 {
-    /**
-     * Per-request memoization of `find()` results, keyed by project id.
-     * The service is registered as a Laravel singleton (per-request lifecycle), so this
-     * cache is naturally scoped to the current HTTP request and reset on the next one.
-     * Mutating methods (update/delete/restore/create) invalidate the relevant entries.
-     *
-     * @var array<int, array<string, mixed>>
-     */
-    private array $findCache = [];
-
     public function __construct(private CsharpApiService $api) {}
 
     /**
@@ -67,9 +57,6 @@ class ProjectApiService
     /**
      * GET /api/v1/projects/{id}
      *
-     * Memoized within the current request — multiple callsites (e.g. enrichment from
-     * separate Livewire components on the same page) only hit the API once per id.
-     *
      * @return array<string, mixed>
      */
     public function find(int $projectId): array
@@ -77,25 +64,12 @@ class ProjectApiService
         if ($projectId <= 0) {
             return [];
         }
-        if (array_key_exists($projectId, $this->findCache)) {
-            return $this->findCache[$projectId];
-        }
         try {
             $raw = $this->api->get("/api/v1/projects/{$projectId}", ['_no_cache' => 1]);
-            $result = is_array($raw) ? $raw : [];
+            return is_array($raw) ? $raw : [];
         } catch (\Throwable) {
-            $result = [];
+            return [];
         }
-        return $this->findCache[$projectId] = $result;
-    }
-
-    /**
-     * Drop the memoized find() entry for a project. Call after a mutation so the next
-     * find() in the same request reflects the latest server state.
-     */
-    public function forgetFind(int $projectId): void
-    {
-        unset($this->findCache[$projectId]);
     }
 
     /**
@@ -117,14 +91,12 @@ class ProjectApiService
     public function update(int $projectId, array $payload): void
     {
         $this->api->patch("/api/v1/projects/{$projectId}", $this->normalizeUpdatePayload($payload));
-        $this->forgetFind($projectId);
     }
 
     /** DELETE /api/v1/projects/{id} */
     public function delete(int $projectId): void
     {
         $this->api->delete("/api/v1/projects/{$projectId}");
-        $this->forgetFind($projectId);
     }
 
     /**
@@ -135,7 +107,6 @@ class ProjectApiService
     public function restore(int $projectId): array
     {
         $raw = $this->api->patch("/api/v1/projects/{$projectId}/restore");
-        $this->forgetFind($projectId);
         return [
             'restoredCount' => (int) ($raw['restoredCount'] ?? $raw['RestoredCount'] ?? 0),
         ];

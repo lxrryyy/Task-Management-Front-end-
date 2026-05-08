@@ -36,7 +36,10 @@ const perfTracker = (() => {
 const globalLoader = (() => {
     let activeCount = 0;
     let hideTimer = null;
-    const minVisibleMs = 250;
+    // Hold the loader for at least 1s on every navigation so users get a clear
+    // visual cue. After that, the page renders and per-section skeletons take over
+    // for any data still streaming in.
+    const minVisibleMs = 1000;
     let visibleSince = 0;
 
     const element = () => document.getElementById("global-loader");
