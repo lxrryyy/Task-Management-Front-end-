@@ -8,8 +8,10 @@ use App\Services\AccountApiService;
 use App\Services\AuthApiService;
 use App\Services\CommentApiService;
 use App\Services\CsharpApiService;
+use App\Services\DashboardApiService;
 use App\Services\NotificationApiService;
 use App\Services\ProjectApiService;
+use App\Services\StickyNoteApiService;
 use App\Services\TaskApiService;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ProjectApiService::class);
         $this->app->singleton(AccountApiService::class);
         $this->app->singleton(AuthApiService::class);
+        $this->app->singleton(DashboardApiService::class);
+        $this->app->singleton(StickyNoteApiService::class);
     }
 
     /**
