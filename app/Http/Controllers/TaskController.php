@@ -442,21 +442,25 @@ class TaskController extends Controller
 
         $memberIds = [];
 
-        foreach (['projectManagerId', 'createdById', 'createdBy'] as $key) {
+        // Project manager / creator identifiers (camel + Pascal variants).
+        foreach ([
+            'projectManagerId', 'ProjectManagerId',
+            'createdById', 'CreatedById',
+            'createdBy', 'CreatedBy',
+        ] as $key) {
             if (! empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
-                break;
             }
         }
 
         foreach (['scrumMasterId', 'ScrumMasterId'] as $key) {
             if (! empty($project[$key])) {
                 $memberIds[(int) $project[$key]] = true;
-                break;
             }
         }
 
-        foreach (['memberIds', 'MemberIds', 'assigneeIds'] as $key) {
+        // Explicit member id lists (legacy + v1 + casing variants).
+        foreach (['memberIds', 'MemberIds', 'assigneeIds', 'AssigneeIds'] as $key) {
             if (! empty($project[$key]) && is_array($project[$key])) {
                 foreach ($project[$key] as $mid) {
                     if ($mid) {
@@ -467,7 +471,24 @@ class TaskController extends Controller
             }
         }
 
-        $memberNames = $project['memberNames'] ?? $project['Members'] ?? [];
+        // Some API shapes return members as objects rather than ids.
+        foreach (['members', 'Members', 'teamMembers', 'TeamMembers'] as $key) {
+            $list = $project[$key] ?? null;
+            if (! is_array($list) || $list === []) {
+                continue;
+            }
+            foreach ($list as $m) {
+                if (! is_array($m)) {
+                    continue;
+                }
+                $id = $m['id'] ?? $m['Id'] ?? $m['accountId'] ?? $m['AccountId'] ?? null;
+                if ($id) {
+                    $memberIds[(int) $id] = true;
+                }
+            }
+        }
+
+        $memberNames = $project['memberNames'] ?? $project['MemberNames'] ?? $project['Members'] ?? [];
         if (! empty($memberNames) && is_array($memberNames)) {
             $normalised = array_map('mb_strtolower', array_map('trim', $memberNames));
             foreach ($allAccounts as $account) {
