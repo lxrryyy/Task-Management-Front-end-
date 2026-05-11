@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AccountApiService;
 use App\Services\AccountListEnrichment;
 use App\Services\CsharpApiService;
+use App\Services\ProjectApiService;
+use App\Services\TaskApiService;
 use Carbon\Carbon;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
@@ -12,24 +15,25 @@ use Illuminate\Support\Facades\Session;
 
 class ProjectController extends Controller
 {
-    public function __construct(protected CsharpApiService $api) {}
+    public function __construct(
+        protected CsharpApiService $api,
+        protected TaskApiService $tasksApi,
+        protected ProjectApiService $projectsApi,
+        protected AccountApiService $accountsApi,
+    ) {}
 
     public function index()
     {
         $user = Session::get('user', []);
         $accountId = $user['id'] ?? $user['Id'] ?? null;
-        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
-        $isAdmin = $role === 'admin';
 
         if (! $accountId) {
             return view('projects', ['projects' => [], 'accounts' => [], 'creatorId' => 0]);
         }
 
-        $projects = $isAdmin
-            ? $this->fetchProjectsForAdmin((int) $accountId)
-            : $this->normalizeProjects($this->api->get("/api/Project/GetMyProjects/{$accountId}", ['_no_cache' => 1]));
+        // v1 endpoint resolves visibility from the bearer token (admin → all, others → own).
+        $projects = $this->projectsApi->listAll();
 
-        // If we just updated a project, merge in fresh data from GetProjectById (members etc.)
         if (Session::has('refreshed_project')) {
             $refreshed = Session::get('refreshed_project');
             Session::forget('refreshed_project');
@@ -45,8 +49,8 @@ class ProjectController extends Controller
             }
         }
 
-        // Derive task-based progress/status only when missing.
-        // Calling GetTasksByProject for every row is expensive on large lists.
+        // Derive task-based progress/status only when missing (one POST /api/v1/tasks/stats/batch per page).
+        $needsStats = [];
         foreach ($projects as $i => $project) {
             $projectId = $project['id'] ?? $project['Id'] ?? null;
             if (! $projectId) {
@@ -58,79 +62,64 @@ class ProjectController extends Controller
             $existingStatus = trim((string) ($project['_derivedStatus'] ?? $project['statusName'] ?? $project['status'] ?? ''));
             $hasStatus = $existingStatus !== '';
 
-            // If list payload already includes progress + status, keep it and skip per-project task fetch.
             if ($hasProgress && $hasStatus) {
-                $progressInt = (int) $existingProgress;
-                if ($progressInt < 0) {
-                    $progressInt = 0;
-                }
-                if ($progressInt > 100) {
-                    $progressInt = 100;
-                }
+                $progressInt = max(0, min(100, (int) $existingProgress));
                 $projects[$i]['completionPercentage'] = $progressInt;
                 $projects[$i]['_derivedStatus'] = $existingStatus;
 
                 continue;
             }
 
-            // Use project manager / creator as privileged requester so all project tasks are visible,
-            // regardless of who is currently logged in.
-            $pmId = $project['projectManagerId']
-                ?? $project['ProjectManagerId']
-                ?? $project['createdById']
-                ?? $project['CreatedById']
-                ?? $accountId;
+            $needsStats[$i] = (int) $projectId;
+        }
 
+        $statsByProject = [];
+        if ($needsStats !== []) {
             try {
-                $tasksResponse = $this->api->get(
-                    "/api/Task/GetTasksByProject/{$projectId}",
-                    ['requesterId' => $pmId, '_no_cache' => 1]
-                );
-                $tasks = is_array($tasksResponse)
-                    ? $tasksResponse
-                    : ($tasksResponse['data'] ?? $tasksResponse['tasks'] ?? []);
-
-                $total = 0;
-                $completed = 0;
-                foreach ((array) $tasks as $t) {
-                    if (! is_array($t)) {
+                $batch = $this->tasksApi->projectStatsBatch(array_values(array_unique(array_values($needsStats))));
+                $rows = $batch['items'] ?? $batch['Items'] ?? [];
+                foreach ((array) $rows as $row) {
+                    if (! is_array($row)) {
                         continue;
                     }
-                    $status = mb_strtolower(trim((string) ($t['statusName'] ?? $t['status'] ?? '')));
-                    if ($status === '') {
-                        $status = 'not started';
+                    $pid = (int) ($row['projectId'] ?? $row['ProjectId'] ?? 0);
+                    if ($pid <= 0) {
+                        continue;
                     }
-                    $total++;
-                    if ($status === 'completed') {
-                        $completed++;
-                    }
+                    $statsByProject[$pid] = [
+                        'total' => (int) ($row['total'] ?? $row['Total'] ?? 0),
+                        'completed' => (int) ($row['completed'] ?? $row['Completed'] ?? 0),
+                    ];
                 }
-
-                $projects[$i]['_taskTotal'] = $total;
-                $projects[$i]['_taskCompleted'] = $completed;
-
-                if ($total > 0) {
-                    $projects[$i]['completionPercentage'] = (int) round(($completed / $total) * 100);
-                }
-
-                if ($total === 0) {
-                    $derivedStatus = 'Not Started';
-                } elseif ($completed === $total) {
-                    $derivedStatus = 'Completed';
-                } else {
-                    $derivedStatus = 'Active';
-                }
-                $projects[$i]['_derivedStatus'] = $derivedStatus;
             } catch (\Throwable $e) {
-                Log::warning('GetTasksByProject for status/progress failed', [
-                    'projectId' => $projectId,
+                Log::warning('Task stats batch for project list failed', [
                     'message' => $e->getMessage(),
                 ]);
             }
         }
 
-        $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-        $accounts = $this->normalizeAccounts($accountsResponse);
+        foreach ($needsStats as $i => $projectId) {
+            $total = $statsByProject[$projectId]['total'] ?? 0;
+            $completed = $statsByProject[$projectId]['completed'] ?? 0;
+
+            $projects[$i]['_taskTotal'] = $total;
+            $projects[$i]['_taskCompleted'] = $completed;
+
+            if ($total > 0) {
+                $projects[$i]['completionPercentage'] = (int) round(($completed / $total) * 100);
+            }
+
+            if ($total === 0) {
+                $derivedStatus = 'Not Started';
+            } elseif ($completed === $total) {
+                $derivedStatus = 'Completed';
+            } else {
+                $derivedStatus = 'Active';
+            }
+            $projects[$i]['_derivedStatus'] = $derivedStatus;
+        }
+
+        $accounts = $this->accountsApi->listAssignableUsers();
         $accounts = app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing($projects, $accounts);
 
         return view('projects', [
@@ -138,37 +127,6 @@ class ProjectController extends Controller
             'accounts' => $accounts,
             'creatorId' => (int) $accountId,
         ]);
-    }
-
-    /**
-     * Admin view: attempt all-project endpoints first, then fallback to my-projects.
-     * Keeps compatibility with varying backend route names.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function fetchProjectsForAdmin(int $accountId): array
-    {
-        $candidates = [
-            ['/api/Project/GetAllProjects', ['_no_cache' => 1]],
-            ['/api/Project/GetAllProject', ['_no_cache' => 1]],
-            ['/api/Project/GetAllProjects', ['requesterId' => $accountId, '_no_cache' => 1]],
-            ['/api/Project/GetAllProject', ['requesterId' => $accountId, '_no_cache' => 1]],
-            ["/api/Project/GetMyProjects/{$accountId}", ['_no_cache' => 1]], // fallback
-        ];
-
-        foreach ($candidates as [$endpoint, $query]) {
-            try {
-                $raw = $this->api->get($endpoint, $query);
-                $projects = $this->normalizeProjects($raw);
-                if (!empty($projects)) {
-                    return $projects;
-                }
-            } catch (\Throwable) {
-                // Try next candidate endpoint.
-            }
-        }
-
-        return [];
     }
 
     public function archive()
@@ -180,18 +138,10 @@ class ProjectController extends Controller
             return view('projects-archive', ['projects' => [], 'accounts' => [], 'creatorId' => 0]);
         }
 
-        // Fetch deleted (archived) projects
-        try {
-            $response = $this->api->get('/api/Project/GetDeletedProjects', ['_no_cache' => 1]);
-            $projects = $this->normalizeProjects($response);
-        } catch (\Throwable) {
-            $projects = [];
-        }
+        $projects = $this->projectsApi->listAll(includeDeleted: true);
 
-        // Accounts are useful for resolving member names when API returns assigneeIds
         try {
-            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $accounts = $this->normalizeAccounts($accountsResponse);
+            $accounts = $this->accountsApi->listAssignableUsers();
             $accounts = app(AccountListEnrichment::class)->mergeFullProfilesWhereMissing($projects, $accounts);
         } catch (\Throwable) {
             $accounts = [];
@@ -206,7 +156,7 @@ class ProjectController extends Controller
 
     /**
      * DELETE a project via the C# API.
-     * Endpoint: DELETE /api/Project/DeleteProject/{id}?accountId={accountId}
+     * Endpoint: DELETE /api/v1/projects/{id}
      */
     public function destroy(int $projectId)
     {
@@ -218,7 +168,7 @@ class ProjectController extends Controller
         }
 
         try {
-            $this->api->delete("/api/Project/DeleteProject/{$projectId}?accountId={$accountId}");
+            $this->projectsApi->delete($projectId);
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
             Log::warning('Project delete failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
@@ -231,11 +181,13 @@ class ProjectController extends Controller
 
     /**
      * Same delete behavior, usable from Livewire without an HTTP form submit.
+     * The $accountId argument is preserved for backward compatibility — v1 resolves the
+     * caller from the bearer token, so this value is no longer sent over the wire.
      */
     public function deleteProjectApi(int $projectId, int $accountId): bool
     {
         try {
-            $this->api->delete("/api/Project/DeleteProject/{$projectId}?accountId={$accountId}");
+            $this->projectsApi->delete($projectId);
 
             return true;
         } catch (RequestException $e) {
@@ -248,7 +200,7 @@ class ProjectController extends Controller
 
     public function show($id)
     {
-        $project = $this->api->get("/api/Project/GetProjectById/{$id}", ['_no_cache' => 1]);
+        $project = $this->projectsApi->find((int) $id);
 
         return view('project', ['project' => $project]);
     }
@@ -274,38 +226,32 @@ class ProjectController extends Controller
             'endDate' => ['nullable', 'date'],
         ]);
 
-        // Collect ALL member IDs: form may send memberIds[] or memberIds[0], memberIds[1], etc.
         $rawMemberIds = $request->input('memberIds', []);
         if (! is_array($rawMemberIds)) {
             $rawMemberIds = $rawMemberIds !== null && $rawMemberIds !== '' ? [(int) $rawMemberIds] : [];
         }
         $memberIds = array_values(array_filter(array_map('intval', $rawMemberIds), static fn ($id) => $id > 0));
 
-        // Resolve status: prefer statusId -> name, fallback to status string
-        $status = $request->status;
-        if ($status === null && $request->filled('statusId')) {
-            $statusData = $this->getStatuses();
-            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
-        }
-
-        // Creator is project manager; scrum master from request or creator
         $projectManagerId = (int) ($user['id'] ?? $user['Id'] ?? 0);
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
 
-        // C# backend uses AssigneeIds (not MemberIds) for updating the member list
         $payload = [
             'name' => $request->name,
             'description' => $request->description ?? '',
-            'status' => $status,
             'projectManagerId' => $projectManagerId,
             'scrumMasterId' => $scrumMasterId,
-            'assigneeIds' => $memberIds,
+            'memberIds' => $memberIds,
             'startDate' => $this->toIso8601OrNull($request->input('startDate')),
             'endDate' => $this->toIso8601OrNull($request->input('endDate')),
         ];
+        if ($request->filled('statusId')) {
+            $payload['statusId'] = (int) $request->statusId;
+        } elseif ($request->filled('status')) {
+            $payload['status'] = (string) $request->status;
+        }
 
         try {
-            $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+            $this->projectsApi->update($projectId, $payload);
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
             Log::warning('Project update failed', ['projectId' => $projectId, 'errors' => $fieldErrors]);
@@ -313,9 +259,9 @@ class ProjectController extends Controller
             return back()->withInput()->withErrors($fieldErrors);
         }
 
-        // Re-fetch updated project (including members) via GetProjectById for the list
-        $updated = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
-        if (! empty($updated) && is_array($updated)) {
+        // Re-fetch updated project (including members) for the list.
+        $updated = $this->projectsApi->find($projectId);
+        if (! empty($updated)) {
             Session::put('refreshed_project', $updated);
         }
 
@@ -329,12 +275,13 @@ class ProjectController extends Controller
 
     /**
      * Update a project via the C# API, usable from Livewire.
-     * Expects a ready-to-send $payload shaped for the backend UpdateProject endpoint.
+     * Accepts both legacy (`status` name + `assigneeIds`) and v1 (`statusId` + `memberIds`) payload shapes.
+     * The third `$requesterId` parameter is no longer sent over the wire — kept for signature stability.
      */
     public function updateProjectApi(int $projectId, array $payload, int $requesterId): array
     {
         try {
-            $this->api->patch("/api/Project/UpdateProject/{$projectId}?requesterId={$requesterId}", $payload);
+            $this->projectsApi->update($projectId, $payload);
 
             return ['ok' => true, 'errors' => []];
         } catch (RequestException $e) {
@@ -344,52 +291,28 @@ class ProjectController extends Controller
         }
     }
 
-    // Update only the project status. Resolves statusId to name and PATCHes the project.
-
+    /**
+     * Update only the project status. Resolves statusId via v1 catalog and PATCHes via v1.
+     */
     public function updateProjectStatusApi(int $projectId, int $statusId, int $requesterId): array
     {
-        $statusData = $this->getStatuses();
-        $statusName = $statusData['mapById'][$statusId] ?? null;
-        if ($statusName === null) {
+        $statuses = $this->projectsApi->getStatusesFormatted();
+        if (! isset($statuses['mapById'][$statusId])) {
             return ['ok' => false, 'errors' => ['status' => ['Invalid status selected.']]];
         }
-        // Some backend implementations require a full payload to update.
-        // Fetch the current project and send the minimal required fields + new status.
-        $current = $this->getProjectData($projectId);
 
-        $payload = [
-            'name' => $current['name'] ?? $current['projectName'] ?? $current['title'] ?? null,
-            'description' => $current['description'] ?? '',
-            'status' => $statusName,
-        ];
-
-        // Include IDs if present (common backend requirements)
-        $pmId = $current['projectManagerId'] ?? $current['ProjectManagerId'] ?? $current['createdById'] ?? $current['CreatedById'] ?? null;
-        $smId = $current['scrumMasterId'] ?? $current['ScrumMasterId'] ?? null;
-        if ($pmId !== null) {
-            $payload['projectManagerId'] = (int) $pmId;
-        }
-        if ($smId !== null) {
-            $payload['scrumMasterId'] = (int) $smId;
-        }
-
-        // Include current members if available so status updates don't accidentally clear them
-        $assigneeIds = $current['assigneeIds'] ?? $current['AssigneeIds'] ?? null;
-        if (is_array($assigneeIds)) {
-            $payload['assigneeIds'] = array_values(array_filter(array_map('intval', $assigneeIds), static fn ($id) => $id > 0));
-        }
-
-        return $this->updateProjectApi($projectId, $payload, $requesterId);
+        return $this->updateProjectApi($projectId, ['statusId' => $statusId], $requesterId);
     }
 
     /**
      * Restore (reactivate) a deleted project via the C# API.
-     * Endpoint: PATCH /api/Project/ReactivateProject/{projectId}?accountId={accountId}
+     * Endpoint: PATCH /api/v1/projects/{projectId}/restore
+     * The $accountId argument is preserved for compatibility with existing Livewire callers.
      */
     public function restoreProjectApi(int $projectId, int $accountId): array
     {
         try {
-            $this->api->patch("/api/Project/ReactivateProject/{$projectId}?accountId={$accountId}", []);
+            $this->projectsApi->restore($projectId);
 
             return ['ok' => true, 'errors' => []];
         } catch (RequestException $e) {
@@ -419,20 +342,11 @@ class ProjectController extends Controller
             'endDate' => ['nullable', 'date'],
         ]);
 
-        // memberIds from checkbox selection (hidden memberIds[] in form)
         $memberIds = [];
         if (! empty($request->memberIds) && is_array($request->memberIds)) {
             $memberIds = array_values(array_filter(array_map('intval', $request->memberIds)));
         }
 
-        // Resolve status name from statusId for API
-        $status = null;
-        if ($request->filled('statusId')) {
-            $statusData = $this->getStatuses();
-            $status = $statusData['mapById'][(int) $request->statusId] ?? null;
-        }
-
-        // Creator is always project manager; scrum master is creator unless a member is chosen in the table
         $projectManagerId = (int) $creatorId;
         $scrumMasterId = (int) ($request->scrumMasterId ?? 0) ?: $projectManagerId;
         $isAlsoScrumMaster = $projectManagerId === $scrumMasterId;
@@ -447,13 +361,10 @@ class ProjectController extends Controller
             'startDate' => $request->startDate,
             'endDate' => $request->endDate,
         ];
-        if ($status !== null) {
-            $payload['status'] = $status;
-        }
 
         $createdResponse = [];
         try {
-            $createdResponse = $this->api->post("/api/Project/CreateProject?creatorId={$creatorId}", $payload);
+            $createdResponse = $this->projectsApi->create($payload);
         } catch (RequestException $e) {
             $fieldErrors = $this->api->extractFieldErrors($e->response);
             Log::warning('Project create failed', ['errors' => $fieldErrors]);
@@ -474,44 +385,19 @@ class ProjectController extends Controller
 
         $successMessage = __('Project created successfully.');
         if ($request->expectsJson()) {
-            $createdId = 0;
-            $idCandidates = [
-                $createdResponse['id'] ?? null,
-                $createdResponse['Id'] ?? null,
-                $createdResponse['projectId'] ?? null,
-                $createdResponse['ProjectId'] ?? null,
-                $createdResponse['data']['id'] ?? null,
-                $createdResponse['data']['Id'] ?? null,
-                $createdResponse['data']['projectId'] ?? null,
-                $createdResponse['data']['ProjectId'] ?? null,
-                $createdResponse['project']['id'] ?? null,
-                $createdResponse['project']['Id'] ?? null,
-                $createdResponse['project']['projectId'] ?? null,
-                $createdResponse['project']['ProjectId'] ?? null,
-                $createdResponse['result']['id'] ?? null,
-                $createdResponse['result']['Id'] ?? null,
-                $createdResponse['result']['projectId'] ?? null,
-                $createdResponse['result']['ProjectId'] ?? null,
-            ];
-            foreach ($idCandidates as $candidate) {
-                $value = (int) $candidate;
-                if ($value > 0) {
-                    $createdId = $value;
-                    break;
-                }
-            }
+            $createdId = (int) ($createdResponse['id'] ?? $createdResponse['Id'] ?? 0);
 
             return response()->json([
                 'ok' => true,
                 'message' => $successMessage,
                 'project' => [
                     'id' => $createdId > 0 ? $createdId : null,
-                    'name' => (string) ($payload['name'] ?? 'Project'),
-                    'createdByName' => (string) ($user['name'] ?? $user['Name'] ?? 'You'),
-                    'status' => (string) ($payload['status'] ?? 'Not Started'),
-                    'completionPercentage' => 0,
-                    'createdAt' => now()->toDateString(),
-                    'endDate' => (string) ($payload['endDate'] ?? ''),
+                    'name' => (string) ($createdResponse['name'] ?? $payload['name'] ?? 'Project'),
+                    'createdByName' => (string) ($createdResponse['createdByName'] ?? $user['name'] ?? $user['Name'] ?? 'You'),
+                    'status' => (string) ($createdResponse['statusName'] ?? 'Not Started'),
+                    'completionPercentage' => (int) ($createdResponse['completionPercentage'] ?? 0),
+                    'createdAt' => (string) ($createdResponse['createdAt'] ?? now()->toDateString()),
+                    'endDate' => (string) ($createdResponse['endDate'] ?? $payload['endDate'] ?? ''),
                 ],
             ]);
         }
@@ -530,120 +416,28 @@ class ProjectController extends Controller
      */
     public function getProjectData(int $projectId): array
     {
-        try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
-
-            return is_array($project) ? $project : [];
-        } catch (\Throwable) {
-            return [];
-        }
+        return $this->projectsApi->find($projectId);
     }
 
     /**
-     * Fetch all accounts (members) used in the project form.
-     * Endpoint: GET /api/Account/GetAllUserRoleAccount
+     * Fetch all assignable accounts (members) used in the project form.
+     * Endpoint: GET /api/v1/accounts?role=User&active=true (paginated, walked by AccountApiService::listAll).
      */
     public function getAccountsData(): array
     {
         try {
-            $accountsResponse = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-
-            return $this->normalizeAccounts($accountsResponse);
+            return $this->accountsApi->listAssignableUsers();
         } catch (\Throwable) {
             return [];
         }
     }
 
     /**
-     * Response shape: [{id, name, description, active, createdAt}, ...]
      * Returns ['items' => [{id, name}, ...], 'names' => [...], 'map' => [name => id], 'mapById' => [id => name]].
      */
     public function getStatuses(): array
     {
-        try {
-            $raw = $this->api->get('/api/Project/GetAllProjectsStatus');
-
-            $list = $raw['data'] ?? $raw['Data']
-                ?? $raw['items'] ?? $raw['Items']
-                ?? $raw['value'] ?? $raw['Value']
-                ?? $raw['statuses'] ?? $raw['Statuses']
-                ?? $raw['result'] ?? $raw['Result']
-                ?? $raw;
-
-            if (! is_array($list)) {
-                $list = [];
-            }
-
-            if (! empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
-                $list = [$list];
-            }
-
-            $map = [];
-            $mapById = [];
-            $names = [];
-            $items = [];
-            foreach ($list as $s) {
-                if (! is_array($s)) {
-                    continue;
-                }
-                $id = $s['id'] ?? $s['Id'] ?? $s['statusId'] ?? $s['StatusId'] ?? null;
-                $name = $s['name'] ?? $s['Name'] ?? $s['statusName'] ?? $s['StatusName'] ?? null;
-                if ($id !== null && $name !== null) {
-                    $id = (int) $id;
-                    $name = (string) trim($name);
-                    if ($name !== '') {
-                        $map[$name] = $id;
-                        $mapById[$id] = $name;
-                        $names[] = $name;
-                        $items[] = ['id' => $id, 'name' => $name];
-                    }
-                }
-            }
-
-            return ['items' => $items, 'names' => $names, 'map' => $map, 'mapById' => $mapById];
-        } catch (\Throwable) {
-            return ['items' => [], 'names' => [], 'map' => [], 'mapById' => []];
-        }
-    }
-
-    private function normalizeProjects($response): array
-    {
-        if (! is_array($response)) {
-            return [];
-        }
-
-        // Some APIs return: [ {..}, {..} ]
-        if (isset($response[0]) && is_array($response[0])) {
-            return $response;
-        }
-
-        // Some APIs wrap results: { data: [...] } or { projects: [...] }
-        foreach (['data', 'projects', 'items', 'value', 'result'] as $key) {
-            if (isset($response[$key]) && is_array($response[$key])) {
-                return $response[$key];
-            }
-        }
-
-        return [];
-    }
-
-    private function normalizeAccounts($response): array
-    {
-        if (! is_array($response)) {
-            return [];
-        }
-
-        if (isset($response[0]) && is_array($response[0])) {
-            return $response;
-        }
-
-        foreach (['data', 'accounts', 'items', 'value', 'result'] as $key) {
-            if (isset($response[$key]) && is_array($response[$key])) {
-                return $response[$key];
-            }
-        }
-
-        return [];
+        return $this->projectsApi->getStatusesFormatted();
     }
 
     /** Return ISO 8601 date string or null for PATCH request body. */

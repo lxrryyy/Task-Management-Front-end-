@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Http\Controllers\DashboardController;
 use App\Services\CsharpApiService;
+use App\Services\StickyNoteApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
@@ -86,19 +87,15 @@ class Dashboard extends Component
         $payloadContent = self::NOTEPAD_MARKER . $content;
 
         try {
-            /** @var CsharpApiService $api */
-            $api = app(CsharpApiService::class);
+            $notesApi = app(StickyNoteApiService::class);
 
             if ($this->notepadNoteId) {
-                $api->patch("/api/StickyNote/UpdateNote/{$this->notepadNoteId}?accountId={$this->currentUserId}", [
+                $notesApi->update($this->notepadNoteId, [
                     'content' => $payloadContent,
                     'isPinned' => true,
                 ]);
             } else {
-                $created = $api->post("/api/StickyNote/CreateNote/{$this->currentUserId}", [
-                    'content' => $payloadContent,
-                    'isPinned' => true,
-                ]);
+                $created = $notesApi->create($payloadContent, true);
                 $newId = (int) ($created['id'] ?? $created['Id'] ?? 0);
                 if ($newId > 0) {
                     $this->notepadNoteId = $newId;
@@ -386,23 +383,7 @@ class Dashboard extends Component
     {
         $out = [];
         try {
-            /** @var CsharpApiService $api */
-            $api = app(CsharpApiService::class);
-            // Use the account endpoint that includes role + profilePicture fields.
-            $raw = $api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $list = [];
-            if (is_array($raw)) {
-                if (array_is_list($raw)) {
-                    $list = $raw;
-                } else {
-                    foreach (['data', 'Data', 'items', 'Items', 'result', 'Result', 'accounts', 'Accounts'] as $k) {
-                        if (isset($raw[$k]) && is_array($raw[$k])) {
-                            $list = $raw[$k];
-                            break;
-                        }
-                    }
-                }
-            }
+            $list = app(\App\Services\AccountApiService::class)->listAssignableUsers();
 
             foreach ($list as $acc) {
                 if (! is_array($acc)) {
@@ -446,23 +427,9 @@ class Dashboard extends Component
         }
 
         try {
-            /** @var CsharpApiService $api */
-            $api = app(CsharpApiService::class);
-            $raw = $api->get("/api/StickyNote/GetMyNotes/{$this->currentUserId}", ['_no_cache' => 1]);
-            $list = [];
-            if (is_array($raw)) {
-                if (isset($raw['data']) && is_array($raw['data'])) {
-                    $list = $raw['data'];
-                } elseif (isset($raw['notes']) && is_array($raw['notes'])) {
-                    $list = $raw['notes'];
-                } elseif (isset($raw['items']) && is_array($raw['items'])) {
-                    $list = $raw['items'];
-                } elseif (array_is_list($raw)) {
-                    $list = $raw;
-                }
-            }
+            $list = app(StickyNoteApiService::class)->list();
 
-            foreach ((array) $list as $note) {
+            foreach ($list as $note) {
                 $content = (string) ($note['content'] ?? $note['Content'] ?? '');
                 if (! str_starts_with($content, self::NOTEPAD_MARKER)) {
                     continue;

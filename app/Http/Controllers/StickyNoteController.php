@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CsharpApiService;
+use App\Services\StickyNoteApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -10,141 +10,95 @@ use Illuminate\Support\Facades\Session;
 
 class StickyNoteController extends Controller
 {
-    public function __construct(
-        private readonly CsharpApiService $api
-    ) {}
+    public function __construct(private readonly StickyNoteApiService $notesApi) {}
 
-    // ── resolve authenticated account ID ─────────────────────────────────────
     private function accountId(): int
     {
         $user = Session::get('user', null);
         return (int) ($user['id'] ?? $user['Id'] ?? 0);
     }
 
-    // ── normalise a single note from whatever shape the API returns ───────────
+    /**
+     * @param  array<string, mixed>  $note
+     * @return array<string, mixed>
+     */
     private function normalise(array $note): array
     {
         return [
-            'id'        => (int)    ($note['id']        ?? $note['Id']        ?? 0),
-            'content'   => (string) ($note['content']   ?? $note['Content']   ?? $note['text'] ?? $note['Text'] ?? ''),
-            'isPinned'  => (bool)   ($note['isPinned']  ?? $note['IsPinned']  ?? false),
-            'createdAt' => (string) ($note['createdAt'] ?? $note['CreatedAt'] ?? $note['createdDate'] ?? ''),
-            'updatedAt' => (string) ($note['updatedAt'] ?? $note['UpdatedAt'] ?? $note['modifiedDate'] ?? $note['createdAt'] ?? $note['CreatedAt'] ?? ''),
+            'id' => (int) ($note['id'] ?? $note['Id'] ?? 0),
+            'content' => (string) ($note['content'] ?? $note['Content'] ?? ''),
+            'isPinned' => (bool) ($note['isPinned'] ?? $note['IsPinned'] ?? false),
+            'createdAt' => (string) ($note['createdAt'] ?? $note['CreatedAt'] ?? ''),
+            'updatedAt' => (string) ($note['updatedAt'] ?? $note['UpdatedAt'] ?? $note['createdAt'] ?? $note['CreatedAt'] ?? ''),
         ];
     }
 
-    /**
-     * GET /notes
-     * Returns all sticky notes for the authenticated user.
-     */
     public function index(): JsonResponse
     {
-        $accountId = $this->accountId();
-
-        if ($accountId <= 0) {
+        if ($this->accountId() <= 0) {
             return response()->json([]);
         }
 
         try {
-            $raw = $this->api->get("/api/StickyNote/GetMyNotes/{$accountId}");
-            // C# API returns a top-level array; or a wrapper like { data: [...] }
-            $list = [];
-            if (is_array($raw)) {
-                if (isset($raw['data'])) {
-                    $list = $raw['data'];
-                } elseif (isset($raw['notes'])) {
-                    $list = $raw['notes'];
-                } elseif (isset($raw['items'])) {
-                    $list = $raw['items'];
-                } elseif (array_is_list($raw)) {
-                    $list = $raw;
-                }
-            }
-            $notes = array_values(array_map(fn ($n) => $this->normalise($n), (array) $list));
+            $list = $this->notesApi->list();
+            $notes = array_values(array_map(fn ($n) => $this->normalise((array) $n), $list));
             return response()->json($notes);
         } catch (\Throwable $e) {
-            Log::warning('StickyNote GetMyNotes failed', [
-                'accountId' => $accountId,
-                'message'   => $e->getMessage(),
-                'url'       => config('services.csharp_api.url') . "/api/StickyNote/GetMyNotes/{$accountId}",
-            ]);
+            Log::warning('StickyNote list failed', ['message' => $e->getMessage()]);
             return response()->json([]);
         }
     }
 
-    /**
-     * POST /notes
-     * Body: { content: string, isPinned?: bool }
-     */
     public function store(Request $request): JsonResponse
     {
-        $accountId = $this->accountId();
-
         $validated = $request->validate([
-            'content'  => 'required|string|max:500',
+            'content' => 'required|string|max:500',
             'isPinned' => 'boolean',
         ]);
 
-        $raw = $this->api->post("/api/StickyNote/CreateNote/{$accountId}", [
-            'content'  => $validated['content'],
-            'isPinned' => $validated['isPinned'] ?? false,
-        ]);
+        $created = $this->notesApi->create(
+            (string) $validated['content'],
+            (bool) ($validated['isPinned'] ?? false),
+        );
 
-        // Some APIs echo back the created object; others return minimal data.
-        // Fall back to a synthetic response using the content we sent.
-        $note = !empty($raw['id']) || !empty($raw['Id'])
-            ? $this->normalise($raw)
+        $note = !empty($created['id']) || !empty($created['Id'])
+            ? $this->normalise($created)
             : array_merge(
-                $this->normalise($raw),
+                $this->normalise($created),
                 [
-                    'content'   => $validated['content'],
-                    'isPinned'  => $validated['isPinned'] ?? false,
+                    'content' => (string) $validated['content'],
+                    'isPinned' => (bool) ($validated['isPinned'] ?? false),
                     'createdAt' => now()->toIso8601String(),
                     'updatedAt' => now()->toIso8601String(),
                 ]
-              );
+            );
 
         return response()->json($note, 201);
     }
 
-    /**
-     * PATCH /notes/{id}
-     * Body: { content?: string, isPinned?: bool }
-     */
     public function update(Request $request, int $id): JsonResponse
     {
-        $accountId = $this->accountId();
-
         $validated = $request->validate([
-            'content'  => 'sometimes|string|max:500',
+            'content' => 'sometimes|string|max:500',
             'isPinned' => 'sometimes|boolean',
         ]);
 
-        $raw = $this->api->patch(
-            "/api/StickyNote/UpdateNote/{$id}?accountId={$accountId}",
-            $validated
-        );
+        $updated = $this->notesApi->update($id, $validated);
 
-        $note = !empty($raw['id']) || !empty($raw['Id'])
-            ? $this->normalise($raw)
+        $note = !empty($updated['id']) || !empty($updated['Id'])
+            ? $this->normalise($updated)
             : array_merge(
                 ['id' => $id],
                 $validated,
-                ['updatedAt' => now()->toIso8601String()]
-              );
+                ['updatedAt' => now()->toIso8601String()],
+            );
 
         return response()->json($note);
     }
 
-    /**
-     * DELETE /notes/{id}
-     */
     public function destroy(int $id): JsonResponse
     {
-        $accountId = $this->accountId();
-
-        $this->api->delete("/api/StickyNote/DeleteNote/{$id}?accountId={$accountId}");
-
+        $this->notesApi->delete($id);
         return response()->json(['deleted' => true]);
     }
 }

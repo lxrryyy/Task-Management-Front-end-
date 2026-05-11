@@ -89,7 +89,7 @@ class Projects extends Component
 
     public int $formStatusId = 0;
 
-    // Project statuses from GET /api/Project/GetAllProjectsStatus
+    // Project statuses from GET /api/v1/projects/catalog/statuses
     public array $projectStatuses = [];
 
     public array $projectStatusItems = [];

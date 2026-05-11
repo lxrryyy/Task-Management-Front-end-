@@ -56,6 +56,29 @@
     </div>
     <hr class="border-2 clr-bg-primary">
 
+    @if (($tasksLastPage ?? 1) > 1 && ($projectId ?? null))
+        @php
+            $tasksPaginationBase = route('projects.tasks', ['project' => $projectId]);
+            $tasksPaginationUrl = function (int $p) use ($tasksPaginationBase) {
+                $q = request()->query();
+                $q['page'] = $p;
+
+                return $tasksPaginationBase.'?'.http_build_query($q);
+            };
+        @endphp
+        <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 px-1">
+            <span>Page {{ $tasksPage }} of {{ $tasksLastPage }} ({{ $tasksTotal }} tasks)</span>
+            <div class="flex gap-2">
+                @if ($tasksPage > 1)
+                    <a href="{{ $tasksPaginationUrl($tasksPage - 1) }}" class="btn btn-sm btn-outline">Previous</a>
+                @endif
+                @if ($tasksPage < $tasksLastPage)
+                    <a href="{{ $tasksPaginationUrl($tasksPage + 1) }}" class="btn btn-sm btn-outline">Next</a>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="flex flex-wrap justify-between gap-2">
         <div class="flex gap-2">
             <button wire:click="switchView('list')" data-viewmode-btn data-viewmode="list"

@@ -34,10 +34,11 @@ const perfTracker = (() => {
 })();
 
 const globalLoader = (() => {
-    let activeCount = 0;
     let hideTimer = null;
-    const minVisibleMs = 250;
-    let visibleSince = 0;
+    // Fixed visible duration: every navigation shows the loader for exactly
+    // this long, then the new page is revealed. Per-section skeletons take
+    // over for any data that is still streaming in after the loader hides.
+    const visibleMs = 1000;
 
     const element = () => document.getElementById("global-loader");
 
@@ -51,34 +52,27 @@ const globalLoader = (() => {
         if (el.classList.contains("hidden")) {
             el.classList.remove("hidden");
             el.classList.add("flex");
-            visibleSince = Date.now();
         }
-    };
-
-    const hide = () => {
-        const el = element();
-        if (!el) return;
-        const elapsed = Date.now() - visibleSince;
-        const remaining = Math.max(0, minVisibleMs - elapsed);
-        if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
-            el.classList.add("hidden");
-            el.classList.remove("flex");
+            const node = element();
+            if (node) {
+                node.classList.add("hidden");
+                node.classList.remove("flex");
+            }
             hideTimer = null;
-        }, remaining);
+        }, visibleMs);
     };
 
     return {
         start() {
-            activeCount += 1;
             show();
         },
         stop() {
-            activeCount = Math.max(0, activeCount - 1);
-            if (activeCount === 0) hide();
+            // The loader is timer-driven so explicit stops are no-ops; this
+            // keeps the visible duration constant regardless of how fast or
+            // slow the new page or Livewire roundtrip completes.
         },
         showForNavigation() {
-            activeCount = 1;
             show();
         },
     };
@@ -128,9 +122,10 @@ document.addEventListener(
     true,
 );
 
-window.addEventListener("pageshow", () => {
-    globalLoader.stop();
-});
+// `pageshow` no longer hides the loader: the loader is timer-driven and
+// always runs for a constant 1s. If the new page is ready earlier, it
+// renders behind the loader; if it's still loading data, the per-section
+// skeletons take over once the loader fades out.
 
 window.countUpNumber = function countUpNumber(targetValue, durationMs) {
     const safeTarget = Math.max(0, parseInt(targetValue || 0, 10));
@@ -165,14 +160,19 @@ document.addEventListener("livewire:init", () => {
             "tm-livewire-nav-start",
             "tm-livewire-nav-end",
         );
-        globalLoader.stop();
+        // No globalLoader.stop() here on purpose: the loader runs on a
+        // constant 1s timer regardless of how fast Livewire navigates so
+        // every page transition feels uniform.
     });
 
     if (typeof Livewire !== "undefined" && typeof Livewire.hook === "function") {
         try {
+            // In-page Livewire roundtrips intentionally do NOT trigger the
+            // global loader. Components rely on per-action `wire:loading`
+            // indicators so users can keep typing/clicking without a 1s
+            // full-screen blocker. We still record perf marks here.
             Livewire.hook("message.sent", () => {
                 perfTracker.mark("tm-livewire-message-start");
-                globalLoader.start();
             });
             Livewire.hook("message.processed", () => {
                 perfTracker.mark("tm-livewire-message-end");
@@ -181,7 +181,6 @@ document.addEventListener("livewire:init", () => {
                     "tm-livewire-message-start",
                     "tm-livewire-message-end",
                 );
-                globalLoader.stop();
             });
             Livewire.hook("message.failed", () => {
                 perfTracker.mark("tm-livewire-message-failed");
@@ -190,7 +189,6 @@ document.addEventListener("livewire:init", () => {
                     "tm-livewire-message-start",
                     "tm-livewire-message-failed",
                 );
-                globalLoader.stop();
             });
         } catch (_) {}
     }

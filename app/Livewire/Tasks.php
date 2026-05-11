@@ -4,7 +4,9 @@ namespace App\Livewire;
 
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Services\CommentApiService;
 use App\Services\CsharpApiService;
+use App\Services\TaskApiService;
 use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ViewErrorBag;
@@ -86,6 +88,15 @@ class Tasks extends Component
     public ?string $pendingDeleteTaskName = null;
 
     public bool $loading = true;
+
+    public int $tasksTotal = 0;
+
+    public int $tasksPage = 1;
+
+    public int $tasksPageSize = 20;
+
+    public int $tasksLastPage = 1;
+
     public int $listVisibleLimit = 30;
     public int $listVisibleStep = 30;
     public int $boardVisibleStep = 25;
@@ -109,10 +120,18 @@ class Tasks extends Component
         ?int $openTaskId = null,
         ?int $openCommentId = null,
         ?array $project = null,
+        int $tasksTotal = 0,
+        int $tasksPage = 1,
+        int $tasksPageSize = 20,
+        int $tasksLastPage = 1,
     ): void {
         $this->projectId = $projectId;
         $this->project = $project;
         $this->tasks = $tasks;
+        $this->tasksTotal = $tasksTotal;
+        $this->tasksPage = $tasksPage;
+        $this->tasksPageSize = $tasksPageSize;
+        $this->tasksLastPage = $tasksLastPage;
         $this->accounts = $accounts;
         $this->showAddTaskModal = $showAddTaskModal;
         $this->taskParentId = $taskParentId;
@@ -371,30 +390,7 @@ class Tasks extends Component
     {
         $this->commentError = null;
         try {
-            $raw = app(CsharpApiService::class)->get(
-                "/api/TaskComment/GetCommentsByTask/{$taskId}",
-                ['_no_cache' => 1]
-            );
-            $list = is_array($raw)
-                ? ($raw['data'] ?? $raw['comments'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
-                : [];
-
-            $comments = [];
-            foreach ((array) $list as $c) {
-                if (! is_array($c)) {
-                    continue;
-                }
-                $comments[] = [
-                    'id' => (int) ($c['id'] ?? $c['Id'] ?? 0),
-                    'taskId' => (int) ($c['taskId'] ?? $c['TaskId'] ?? 0),
-                    'accountId' => (int) ($c['accountId'] ?? $c['AccountId'] ?? 0),
-                    'accountName' => (string) ($c['accountName'] ?? $c['AccountName'] ?? 'User'),
-                    'content' => (string) ($c['content'] ?? $c['Content'] ?? ''),
-                    'createdAt' => (string) ($c['createdAt'] ?? $c['CreatedAt'] ?? ''),
-                    'updatedAt' => (string) ($c['updatedAt'] ?? $c['UpdatedAt'] ?? ''),
-                ];
-            }
-            $this->taskComments = $comments;
+            $this->taskComments = app(CommentApiService::class)->listByTask($taskId);
         } catch (\Throwable $e) {
             $this->taskComments = [];
             $this->commentError = 'Failed to load comments.';
@@ -425,13 +421,7 @@ class Tasks extends Component
 
         $this->commentError = null;
         try {
-            app(CsharpApiService::class)->post(
-                "/api/TaskComment/CreateComment?accountId={$accountId}",
-                [
-                    'taskId' => $taskId,
-                    'content' => $content,
-                ]
-            );
+            app(CommentApiService::class)->create($taskId, $content);
             $this->newComment = '';
             $this->loadTaskComments($taskId);
             $this->commentToastType = 'success';
@@ -476,10 +466,7 @@ class Tasks extends Component
 
         $this->commentError = null;
         try {
-            app(CsharpApiService::class)->patch(
-                "/api/TaskComment/UpdateComment/{$commentId}?accountId={$accountId}",
-                ['content' => $content]
-            );
+            app(CommentApiService::class)->update($taskId, $commentId, $content);
             $this->editingCommentId = null;
             $this->editingCommentContent = '';
             $this->loadTaskComments($taskId);
@@ -500,7 +487,7 @@ class Tasks extends Component
 
         $this->commentError = null;
         try {
-            app(CsharpApiService::class)->delete("/api/TaskComment/DeleteComment/{$commentId}?accountId={$accountId}");
+            app(CommentApiService::class)->delete($taskId, $commentId);
             if ($this->editingCommentId === $commentId) {
                 $this->editingCommentId = null;
                 $this->editingCommentContent = '';
@@ -793,43 +780,30 @@ class Tasks extends Component
         }
 
         try {
-            $api = app(CsharpApiService::class);
-            $projectResponse = $api->get(
-                "/api/Task/GetTasksByProject/{$pid}",
-                ['requesterId' => $requesterId]
-            );
-            $allTasks = is_array($projectResponse)
-                ? $projectResponse
-                : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+            $tasksApi = app(TaskApiService::class);
+            $page = max(1, (int) $this->tasksPage);
+            $pageSize = max(1, (int) ($this->tasksPageSize ?: 20));
 
-            $assignedIds = [];
-            try {
-                $assignedResponse = $api->get("/api/Task/GetTasksByAssignee/{$requesterId}");
-                $assignedTasks = is_array($assignedResponse)
-                    ? $assignedResponse
-                    : ($assignedResponse['data'] ?? $assignedResponse['tasks'] ?? []);
-                foreach ($assignedTasks as $t) {
-                    if (isset($t['id'])) {
-                        $assignedIds[(int) $t['id']] = true;
-                    }
-                }
-            } catch (\Throwable) {
-                // ignore
-            }
+            $listData = $tasksApi->list($page, $pageSize, $pid);
+            $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
 
             $tasks = [];
-            foreach ((array) $allTasks as $t) {
+            foreach ((array) $rawItems as $t) {
                 if (! is_array($t)) {
                     continue;
                 }
-                if (isset($t['id']) && isset($assignedIds[(int) $t['id']])) {
-                    $t['isMine'] = true;
-                } else {
-                    $t['isMine'] = false;
-                }
+                $assigneeIds = $t['assigneeIds'] ?? $t['AssigneeIds'] ?? [];
+                $ids = array_map('intval', (array) $assigneeIds);
+                $t['isMine'] = (bool) ($requesterId && in_array((int) $requesterId, $ids, true));
                 $tasks[] = $t;
             }
+
             $this->tasks = $tasks;
+            $this->tasksTotal = (int) ($listData['total'] ?? $listData['Total'] ?? 0);
+            $this->tasksPage = (int) ($listData['page'] ?? $listData['Page'] ?? $page);
+            $this->tasksPageSize = (int) ($listData['pageSize'] ?? $listData['PageSize'] ?? $pageSize);
+            $ps = $this->tasksPageSize > 0 ? $this->tasksPageSize : 1;
+            $this->tasksLastPage = max(1, (int) ceil($this->tasksTotal / $ps));
         } catch (\Throwable) {
             // keep existing $this->tasks
         }
@@ -873,7 +847,7 @@ class Tasks extends Component
         $detailId = (int) ($this->detailTask['id'] ?? $this->detailTask['Id'] ?? 0);
 
         try {
-            app(CsharpApiService::class)->delete("/api/Task/DeleteTask/{$taskId}?requesterId={$requesterId}");
+            app(TaskApiService::class)->delete($taskId);
         } catch (\Throwable) {
             $this->moveError = 'Failed to delete task. Please try again.';
 

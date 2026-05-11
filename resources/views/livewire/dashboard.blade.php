@@ -40,19 +40,30 @@
                         ['label' => 'Overdue Tasks', 'key' => 'overdueTasks', 'trend' => 'text-red-500', 'delta' => 2],
                     ];
                 @endphp
-                @foreach($kpiMap as $i => $k)
-                    <div class="px-3 py-2 {{ $i < 4 ? 'border-r border-dashed border-gray-300' : '' }}">
-                        <div class="flex items-center gap-1 text-md text-gray-500 leading-none">
-                            <span>{{ $k['label'] }}</span>
-                            <span class="{{ $k['trend'] }}">▲ {{ $k['delta'] }}</span>
+                @if($loading)
+                    @foreach($kpiMap as $i => $k)
+                        <div class="px-3 py-2 {{ $i < 4 ? 'border-r border-dashed border-gray-300' : '' }}">
+                            <div class="flex items-center gap-1 text-md text-gray-500 leading-none">
+                                <span>{{ $k['label'] }}</span>
+                            </div>
+                            <div class="h-8 w-20 bg-gray-200 rounded animate-pulse mt-2"></div>
                         </div>
-                        <div class="dash-title mt-2"
-                             wire:key="kpi-{{ $k['key'] }}-{{ (int) ($kpiCards[$k['key']] ?? 0) }}"
-                             x-data="countUpNumber({{ (int) ($kpiCards[$k['key']] ?? 0) }}, {{ 500 + ($i * 35) }})"
-                             x-init="start()"
-                             x-text="display"></div>
-                    </div>
-                @endforeach
+                    @endforeach
+                @else
+                    @foreach($kpiMap as $i => $k)
+                        <div class="px-3 py-2 {{ $i < 4 ? 'border-r border-dashed border-gray-300' : '' }}">
+                            <div class="flex items-center gap-1 text-md text-gray-500 leading-none">
+                                <span>{{ $k['label'] }}</span>
+                                <span class="{{ $k['trend'] }}">▲ {{ $k['delta'] }}</span>
+                            </div>
+                            <div class="dash-title mt-2"
+                                 wire:key="kpi-{{ $k['key'] }}-{{ (int) ($kpiCards[$k['key']] ?? 0) }}"
+                                 x-data="countUpNumber({{ (int) ($kpiCards[$k['key']] ?? 0) }}, {{ 500 + ($i * 35) }})"
+                                 x-init="start()"
+                                 x-text="display"></div>
+                        </div>
+                    @endforeach
+                @endif
             </div>
 
             <div class="dash-panel-row">
@@ -63,17 +74,29 @@
                     </div>
                     <div class="border-t border-dashed border-gray-300 my-2"></div>
                     <div class="space-y-2 dash-list-scroll mt-3">
-                        @forelse($assignedTaskList as $task)
-                            <a href="{{ route('projects.tasks', $task['projectId']) }}" class="block border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
-                                <div class="flex items-center justify-between">
-                                    <p class="text-lg font-semibold text-gray-900 leading-none">{{ $task['name'] }}</p>
-                                    <span class="text-gray-400">◎</span>
+                        @if($loading)
+                            @for($i = 0; $i < 4; $i++)
+                                <div class="border border-gray-200 rounded-lg px-3 py-2">
+                                    <div class="flex items-center justify-between">
+                                        <div class="h-5 bg-gray-200 rounded animate-pulse w-2/3"></div>
+                                        <div class="h-3 w-3 bg-gray-200 rounded-full animate-pulse"></div>
+                                    </div>
+                                    <div class="h-3 bg-gray-200 rounded animate-pulse w-1/2 mt-2"></div>
                                 </div>
-                                <p class="dash-muted mt-1">{{ $task['projectName'] }} · {{ $task['dueLabel'] }}</p>
-                            </a>
-                        @empty
-                            <div class="text-sm text-gray-400 py-10 text-center">No assigned tasks yet.</div>
-                        @endforelse
+                            @endfor
+                        @else
+                            @forelse($assignedTaskList as $task)
+                                <a href="{{ route('projects.tasks', $task['projectId']) }}" class="block border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-lg font-semibold text-gray-900 leading-none">{{ $task['name'] }}</p>
+                                        <span class="text-gray-400">◎</span>
+                                    </div>
+                                    <p class="dash-muted mt-1">{{ $task['projectName'] }} · {{ $task['dueLabel'] }}</p>
+                                </a>
+                            @empty
+                                <div class="text-sm text-gray-400 py-10 text-center">No assigned tasks yet.</div>
+                            @endforelse
+                        @endif
                     </div>
                     <a href="/tasks" class="block text-center text-md font-medium text-[#587f75] mt-2">Show All</a>
                 </section>
@@ -92,18 +115,32 @@
                                 <span class="text-md font-medium text-gray-900">New Project</span>
                             </div>
                         </button>
-                        @foreach($projectOverviewList as $proj)
-                            @php $initial = strtoupper(substr($proj['name'] ?? 'P', 0, 1)); @endphp
-                            <a href="{{ route('projects.tasks', $proj['id']) }}" class="border border-gray-200 rounded-lg px-3 py-3 hover:bg-gray-50">
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex w-8 h-8 rounded-md bg-blue-100 text-blue-700 items-center justify-center font-semibold">{{ $initial }}</span>
-                                    <div class="min-w-0">
-                                        <p class="text-md font-semibold text-gray-900 truncate leading-none">{{ $proj['name'] }}</p>
-                                        <p class="dash-muted mt-1">{{ $proj['dueSoon'] }} task due soon</p>
+                        @if($loading)
+                            @for($i = 0; $i < 5; $i++)
+                                <div class="border border-gray-200 rounded-lg px-3 py-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-md bg-gray-200 animate-pulse"></div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                                            <div class="h-3 bg-gray-200 rounded animate-pulse w-1/2 mt-2"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </a>
-                        @endforeach
+                            @endfor
+                        @else
+                            @foreach($projectOverviewList as $proj)
+                                @php $initial = strtoupper(substr($proj['name'] ?? 'P', 0, 1)); @endphp
+                                <a href="{{ route('projects.tasks', $proj['id']) }}" class="border border-gray-200 rounded-lg px-3 py-3 hover:bg-gray-50">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex w-8 h-8 rounded-md bg-blue-100 text-blue-700 items-center justify-center font-semibold">{{ $initial }}</span>
+                                        <div class="min-w-0">
+                                            <p class="text-md font-semibold text-gray-900 truncate leading-none">{{ $proj['name'] }}</p>
+                                            <p class="dash-muted mt-1">{{ $proj['dueSoon'] }} task due soon</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            @endforeach
+                        @endif
                     </div>
                 </section>
             </div>
@@ -123,6 +160,14 @@
                     </div>
                     <div class="border-t border-dashed border-gray-300 my-2"></div>
                     <div class="dash-people-grid mt-3">
+                        @if($loading)
+                            @for($i = 0; $i < 6; $i++)
+                                <div class="border border-gray-200 rounded-lg p-3 text-center">
+                                    <div class="mx-auto w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+                                    <div class="h-4 bg-gray-200 rounded animate-pulse w-3/4 mx-auto mt-3"></div>
+                                </div>
+                            @endfor
+                        @else
                         @forelse($peopleList as $person)
                             @php
                                 $parts = preg_split('/\s+/', trim((string) ($person['name'] ?? 'U')));
@@ -155,6 +200,7 @@
                         @empty
                             <p class="col-span-3 text-sm text-gray-400 py-8 text-center">No collaborators found.</p>
                         @endforelse
+                        @endif
                     </div>
                 </section>
 

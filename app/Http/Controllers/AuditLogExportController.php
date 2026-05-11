@@ -2,102 +2,67 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CsharpApiService;
+use App\Services\AuditLogApiService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Session;
 
 class AuditLogExportController extends Controller
 {
-    private function ensureAdmin(): void
+    public function __construct(private readonly AuditLogApiService $auditApi) {}
+
+    public function exportExcel(Request $request): Response
     {
-        $user = Session::get('user', []);
-        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
-        abort_if($role !== 'admin', 403);
+        return $this->stream($request, AuditLogApiService::KIND_ACTION, AuditLogApiService::FORMAT_EXCEL,
+            'audit-logs.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
-    private function requesterId(): int
+    public function exportPdf(Request $request): Response
     {
-        $user = Session::get('user', []);
-
-        return (int) ($user['id'] ?? $user['Id'] ?? 0);
+        return $this->stream($request, AuditLogApiService::KIND_ACTION, AuditLogApiService::FORMAT_PDF,
+            'audit-logs.pdf', 'application/pdf');
     }
 
-    private function exportQuery(Request $request, int $requesterId): array
+    public function exportLoginLogoutExcel(Request $request): Response
     {
+        return $this->stream($request, AuditLogApiService::KIND_LOGIN_LOGOUT, AuditLogApiService::FORMAT_EXCEL,
+            'login-logout-logs.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function exportLoginLogoutPdf(Request $request): Response
+    {
+        return $this->stream($request, AuditLogApiService::KIND_LOGIN_LOGOUT, AuditLogApiService::FORMAT_PDF,
+            'login-logout-logs.pdf', 'application/pdf');
+    }
+
+    private function stream(Request $request, string $kind, string $format, string $defaultFileName, string $defaultContentType): Response
+    {
+        $this->ensureAdmin();
+
         $data = $request->validate([
             'from' => 'nullable|date',
             'to' => 'nullable|date',
         ]);
 
-        $q = ['requesterId' => $requesterId];
-        if (! empty($data['from'])) {
-            $q['from'] = $data['from'];
-        }
-        if (! empty($data['to'])) {
-            $q['to'] = $data['to'];
-        }
+        $filter = array_filter([
+            'from' => $data['from'] ?? null,
+            'to' => $data['to'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
 
-        return $q;
-    }
-
-    public function exportExcel(Request $request, CsharpApiService $api): Response
-    {
-        $this->ensureAdmin();
-        $requesterId = $this->requesterId();
-        abort_if($requesterId <= 0, 401);
-
-        $resp = $api->rawGet('/api/AuditLog/ExportActionLogsExcel', $this->exportQuery($request, $requesterId));
+        $resp = $this->auditApi->export($kind, $format, $filter);
 
         return response($resp->body(), $resp->status())
             ->withHeaders([
-                'Content-Type' => $resp->header('Content-Type') ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="audit-logs.xlsx"',
+                'Content-Type' => $resp->header('Content-Type') ?: $defaultContentType,
+                'Content-Disposition' => $resp->header('Content-Disposition') ?: 'attachment; filename="'.$defaultFileName.'"',
             ]);
     }
 
-    public function exportPdf(Request $request, CsharpApiService $api): Response
+    private function ensureAdmin(): void
     {
-        $this->ensureAdmin();
-        $requesterId = $this->requesterId();
-        abort_if($requesterId <= 0, 401);
-
-        $resp = $api->rawGet('/api/AuditLog/ExportActionLogsPdf', $this->exportQuery($request, $requesterId));
-
-        return response($resp->body(), $resp->status())
-            ->withHeaders([
-                'Content-Type' => $resp->header('Content-Type') ?? 'application/pdf',
-                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="audit-logs.pdf"',
-            ]);
-    }
-
-    public function exportLoginLogoutExcel(Request $request, CsharpApiService $api): Response
-    {
-        $this->ensureAdmin();
-        $requesterId = $this->requesterId();
-        abort_if($requesterId <= 0, 401);
-
-        $resp = $api->rawGet('/api/AuditLog/ExportLoginLogoutExcel', $this->exportQuery($request, $requesterId));
-
-        return response($resp->body(), $resp->status())
-            ->withHeaders([
-                'Content-Type' => $resp->header('Content-Type') ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="login-logout-logs.xlsx"',
-            ]);
-    }
-
-    public function exportLoginLogoutPdf(Request $request, CsharpApiService $api): Response
-    {
-        $this->ensureAdmin();
-        $requesterId = $this->requesterId();
-        abort_if($requesterId <= 0, 401);
-
-        $resp = $api->rawGet('/api/AuditLog/ExportLoginLogoutPdf', $this->exportQuery($request, $requesterId));
-
-        return response($resp->body(), $resp->status())
-            ->withHeaders([
-                'Content-Type' => $resp->header('Content-Type') ?? 'application/pdf',
-                'Content-Disposition' => $resp->header('Content-Disposition') ?? 'attachment; filename="login-logout-logs.pdf"',
-            ]);
+        $user = Session::get('user', []);
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        abort_if($role !== 'admin', 403);
+        abort_if((int) ($user['id'] ?? $user['Id'] ?? 0) <= 0, 401);
     }
 }
