@@ -9,6 +9,48 @@ namespace App\Support;
 final class AccountPresentation
 {
     /**
+     * Normalize API/session profile picture values for HTML img[src] / Alpine.
+     *
+     * - http(s) and data:image/* pass through.
+     * - Paths starting with /uploads/ are prefixed with the .NET API base URL (legacy API-hosted files).
+     * - Paths starting with /storage/ are prefixed with the public disk base (PUBLIC_DISK_URL or APP_URL + /storage).
+     * - Other non-empty strings are treated as legacy raw base64 and wrapped as a JPEG data URL.
+     */
+    public static function profilePictureDisplayUrl(mixed $pic): ?string
+    {
+        if (! is_string($pic)) {
+            return null;
+        }
+        $pic = trim($pic);
+        if ($pic === '') {
+            return null;
+        }
+        if (
+            str_starts_with($pic, 'http://')
+            || str_starts_with($pic, 'https://')
+            || str_starts_with($pic, 'data:image/')
+        ) {
+            return $pic;
+        }
+        if (str_starts_with($pic, '/uploads/')) {
+            $base = rtrim((string) config('services.csharp_api.url'), '/');
+
+            return $base !== '' ? $base.$pic : $pic;
+        }
+        if (str_starts_with($pic, '/storage/')) {
+            $diskUrl = rtrim((string) (config('filesystems.disks.public.url') ?? ''), '/');
+            if ($diskUrl === '') {
+                return $pic;
+            }
+            $suffix = ltrim(substr($pic, strlen('/storage')), '/');
+
+            return $diskUrl.'/'.$suffix;
+        }
+
+        return 'data:image/jpeg;base64,'.$pic;
+    }
+
+    /**
      * @param  array<string, mixed>  $account
      * @return array{0: string, 1: string} [bioLine, specLine]
      */

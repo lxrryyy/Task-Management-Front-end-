@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Http\Controllers\DashboardController;
 use App\Services\CsharpApiService;
 use App\Services\StickyNoteApiService;
+use App\Support\AccountPresentation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
@@ -395,10 +396,9 @@ class Dashboard extends Component
                 }
                 $name = (string) ($acc['name'] ?? $acc['Name'] ?? 'User');
                 $email = (string) ($acc['email'] ?? $acc['Email'] ?? '');
-                $profilePicture = (string) ($acc['profilePicture'] ?? $acc['ProfilePicture'] ?? '');
-                if ($profilePicture !== '' && !str_starts_with($profilePicture, 'http') && !str_starts_with($profilePicture, 'data:')) {
-                    $profilePicture = 'data:image/jpeg;base64,' . $profilePicture;
-                }
+                $profilePicture = AccountPresentation::profilePictureDisplayUrl(
+                    $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null
+                ) ?? '';
                 $specialization = (string) ($acc['specialization'] ?? $acc['Specialization'] ?? '');
                 $role = (string) ($acc['role'] ?? $acc['Role'] ?? $acc['roleName'] ?? $acc['RoleName'] ?? '');
 

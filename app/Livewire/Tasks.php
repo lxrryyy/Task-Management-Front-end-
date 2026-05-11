@@ -1092,7 +1092,9 @@ class Tasks extends Component
                 $accountMap[$accountId] = $name;
             }
 
-            $profilePicture = $account['profilePicture'] ?? $account['ProfilePicture'] ?? null;
+            $profilePicture = AccountPresentation::profilePictureDisplayUrl(
+                $account['profilePicture'] ?? $account['ProfilePicture'] ?? null
+            );
 
             $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
             $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));

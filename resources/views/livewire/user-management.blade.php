@@ -134,7 +134,10 @@
                             $ef = trim((string) ($editFirstName ?? ''));
                             $el = trim((string) ($editLastName ?? ''));
                             $editInitials = mb_strtoupper(mb_substr($ef, 0, 1) . mb_substr($el, 0, 1));
-                            $editPic = is_string($editProfilePicture ?? null) ? trim($editProfilePicture) : '';
+                            $editPicRaw = is_string($editProfilePicture ?? null) ? trim($editProfilePicture) : '';
+                            $editPic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                                $editPicRaw !== '' ? $editPicRaw : null,
+                            ) ?? '';
                         @endphp
                         <div
                             class="w-12 h-12 rounded-full bg-amber-200 text-gray-700 flex items-center justify-center text-sm font-medium {{ $editPic !== '' ? 'hidden' : '' }}"
@@ -336,7 +339,10 @@
                 $detailInitials = mb_strtoupper(mb_substr($detailFirst, 0, 1) . mb_substr($detailLast, 0, 1));
                 $detailStatus = (bool) ($su['isActive'] ?? false);
                 $detailPicRaw = $su['profilePicture'] ?? null;
-                $detailPic = is_string($detailPicRaw) ? trim($detailPicRaw) : '';
+                $detailPicTrim = is_string($detailPicRaw) ? trim($detailPicRaw) : '';
+                $detailPic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                    $detailPicTrim !== '' ? $detailPicTrim : null,
+                ) ?? '';
             @endphp
 
             <div class="flex flex-col gap-4 mt-4">

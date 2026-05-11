@@ -291,10 +291,9 @@
                                     $aid = $account['id'] ?? ($account['Id'] ?? null);
                                     $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
                                     $aemail = $account['email'] ?? ($account['Email'] ?? '');
-                                    $apic = $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null);
-                                    if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
-                                        $apic = 'data:image/jpeg;base64,' . $apic;
-                                    }
+                                    $apic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                                        $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null),
+                                    );
                                     $parts = preg_split('/\s+/', trim($aname));
                                     $ainitials = mb_strtoupper(
                                         mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),

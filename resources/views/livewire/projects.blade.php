@@ -455,7 +455,9 @@
                                         }
 
                                         $memberProfiles[] = [
-                                            'profilePicture' => $pp,
+                                            'profilePicture' => \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                                                $pp,
+                                            ),
                                             'initials' => $initials ?: '?',
                                             'name' => $memberName,
                                             'email' => (string) ($acc['email'] ?? ($acc['Email'] ?? '')),
@@ -514,7 +516,9 @@
                 $initials = mb_strtoupper($a0);
             }
             $memberProfiles[] = [
-                'profilePicture' => $pp,
+                'profilePicture' => \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                    $pp,
+                ),
                 'initials' => $initials ?: '?',
                 'name' => $mn,
                 'email' => (string) ($acc ? $acc['email'] ?? ($acc['Email'] ?? '') : ''),
