@@ -216,6 +216,10 @@
                 data-due-calc="true">
                 @csrf
                 <input type="hidden" name="projectId" value="{{ (int) $projectId }}" />
+                @if (!empty($currentParentTaskId))
+                    {{-- Preserve current subtask view after create. --}}
+                    <input type="hidden" name="redirectParentTaskId" value="{{ (int) $currentParentTaskId }}" />
+                @endif
                 @if ($taskParentId)
                     <input type="hidden" name="parentTaskId" value="{{ $taskParentId }}" />
                 @endif

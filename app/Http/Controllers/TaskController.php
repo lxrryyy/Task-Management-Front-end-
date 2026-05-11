@@ -262,6 +262,8 @@ class TaskController extends Controller
         };
 
         $parentTaskId = $request->integer('parentTaskId') ?: null;
+        // When creating a subtask/grandchild within a parent-task view, keep the user on that same view.
+        $redirectParentTaskId = $request->integer('redirectParentTaskId') ?: null;
         $raw = $request->input('assigneeIds');
         $assigneeIds = is_array($raw)
             ? array_values(array_filter(array_map('intval', $raw)))
@@ -306,7 +308,12 @@ class TaskController extends Controller
                     ->with('task_warnings', $warningMessages);
             }
 
-            return redirect()->route('projects.tasks', $projectId)
+            $routeParams = ['project' => $projectId];
+            if ($redirectParentTaskId !== null && $redirectParentTaskId > 0) {
+                $routeParams['parentTaskId'] = $redirectParentTaskId;
+            }
+
+            return redirect()->route('projects.tasks', $routeParams)
                 ->with('success', 'Task created successfully.')
                 ->with('task_warnings', $warningMessages);
 

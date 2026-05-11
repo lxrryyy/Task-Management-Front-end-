@@ -11,6 +11,7 @@ use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ViewErrorBag;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class Tasks extends Component
@@ -102,7 +103,11 @@ class Tasks extends Component
     public int $boardVisibleStep = 25;
     public array $boardVisibleByStatus = [];
 
-    /** Current task-level context; null means root (parent tasks). */
+    /**
+     * Current task-level context; null means root (parent tasks).
+     * Kept in the URL so actions like status updates/pagination don't kick the user back to root.
+     */
+    #[Url(as: 'parentTaskId', history: true)]
     public ?int $currentParentTaskId = null;
 
     /** Session flash copied on first load so alerts survive Livewire re-renders (flash is one-request only). */
@@ -159,10 +164,7 @@ class Tasks extends Component
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->syncProjectStatusFromTasks();
 
-        $requestedParent = (int) request()->query('parentTaskId', 0);
-        if ($requestedParent > 0) {
-            $this->currentParentTaskId = $requestedParent;
-        }
+        // parentTaskId is synced via #[Url] on $currentParentTaskId
 
         if ($openTaskId !== null && $openTaskId > 0) {
             $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
