@@ -783,14 +783,28 @@ class Tasks extends Component
 
         try {
             $tasksApi = app(TaskApiService::class);
-            $page = max(1, (int) $this->tasksPage);
-            $pageSize = max(1, (int) ($this->tasksPageSize ?: 20));
-
-            $listData = $tasksApi->list($page, $pageSize, $pid);
-            $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+            $allRaw = [];
+            $fetchPage = 1;
+            $fetchPageSize = 100;
+            $apiTotal = 0;
+            do {
+                $listData = $tasksApi->list($fetchPage, $fetchPageSize, $pid);
+                $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+                if (! is_array($rawItems)) {
+                    $rawItems = [];
+                }
+                foreach ($rawItems as $item) {
+                    if (is_array($item)) {
+                        $allRaw[] = $item;
+                    }
+                }
+                $apiTotal = (int) ($listData['total'] ?? $listData['Total'] ?? $apiTotal);
+                $fetched = count($allRaw);
+                $fetchPage++;
+            } while ($apiTotal > $fetched && count($rawItems) > 0 && $fetchPage < 1000);
 
             $tasks = [];
-            foreach ((array) $rawItems as $t) {
+            foreach ($allRaw as $t) {
                 if (! is_array($t)) {
                     continue;
                 }
@@ -801,11 +815,19 @@ class Tasks extends Component
             }
 
             $this->tasks = $tasks;
-            $this->tasksTotal = (int) ($listData['total'] ?? $listData['Total'] ?? 0);
-            $this->tasksPage = (int) ($listData['page'] ?? $listData['Page'] ?? $page);
-            $this->tasksPageSize = (int) ($listData['pageSize'] ?? $listData['PageSize'] ?? $pageSize);
-            $ps = $this->tasksPageSize > 0 ? $this->tasksPageSize : 1;
-            $this->tasksLastPage = max(1, (int) ceil($this->tasksTotal / $ps));
+            $rootCount = 0;
+            foreach ($tasks as $task) {
+                $parentId = (int) ($task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? 0);
+                if ($parentId <= 0) {
+                    $rootCount++;
+                }
+            }
+
+            // Tasks page no longer paginates; keep metadata stable for UI.
+            $this->tasksTotal = $rootCount;
+            $this->tasksPage = 1;
+            $this->tasksPageSize = max(1, $rootCount);
+            $this->tasksLastPage = 1;
         } catch (\Throwable) {
             // keep existing $this->tasks
         }

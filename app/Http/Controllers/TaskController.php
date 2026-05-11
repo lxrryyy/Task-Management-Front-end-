@@ -29,8 +29,9 @@ class TaskController extends Controller
         $user = Session::get('user', []);
         $accountId = $user['id'] ?? $user['Id'] ?? null;
 
-        $page = max(1, (int) request('page', 1));
-        $pageSize = min(100, max(1, (int) request('page_size', request('pageSize', 20))));
+        // Pagination removed for tasks view; keep all parent groups in one page.
+        $page = 1;
+        $pageSize = 100;
 
         $tasksTotal = 0;
         $tasksPage = $page;
@@ -62,23 +63,114 @@ class TaskController extends Controller
 
         $tasks = [];
         try {
-            $listData = $this->tasksApi->list($page, $pageSize, $projectId);
-            $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+            // Fetch all tasks first, then paginate by ROOT parent tasks so every page
+            // contains parent rows with their subtask records.
+            $allRaw = [];
+            $fetchPage = 1;
+            $fetchPageSize = 100;
+            $apiTotal = 0;
+            do {
+                $listData = $this->tasksApi->list($fetchPage, $fetchPageSize, $projectId);
+                $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+                if (! is_array($rawItems)) {
+                    $rawItems = [];
+                }
+                foreach ($rawItems as $item) {
+                    if (is_array($item)) {
+                        $allRaw[] = $item;
+                    }
+                }
+                $apiTotal = (int) ($listData['total'] ?? $listData['Total'] ?? $apiTotal);
+                $fetched = count($allRaw);
+                $fetchPage++;
+            } while ($apiTotal > $fetched && count($rawItems) > 0 && $fetchPage < 1000);
 
-            foreach ((array) $rawItems as $t) {
+            $allTasks = [];
+            foreach ($allRaw as $t) {
                 if (! is_array($t)) {
                     continue;
                 }
                 $assigneeIds = $t['assigneeIds'] ?? $t['AssigneeIds'] ?? [];
                 $ids = array_map('intval', (array) $assigneeIds);
                 $t['isMine'] = (bool) ($accountId && in_array((int) $accountId, $ids, true));
-                $tasks[] = $t;
+                $allTasks[] = $t;
             }
 
-            $tasksTotal = (int) ($listData['total'] ?? $listData['Total'] ?? 0);
-            $tasksPage = (int) ($listData['page'] ?? $listData['Page'] ?? $page);
-            $tasksPageSize = (int) ($listData['pageSize'] ?? $listData['PageSize'] ?? $pageSize);
-            $tasksLastPage = $tasksPageSize > 0 ? max(1, (int) ceil($tasksTotal / $tasksPageSize)) : 1;
+            $idOf = static fn (array $t): int => (int) ($t['id'] ?? $t['Id'] ?? 0);
+            $parentIdOf = static fn (array $t): int => (int) ($t['parentTaskId'] ?? $t['parentId'] ?? $t['parentID'] ?? 0);
+
+            $parentById = [];
+            $childrenById = [];
+            foreach ($allTasks as $t) {
+                $tid = $idOf($t);
+                if ($tid <= 0) {
+                    continue;
+                }
+                $pid = $parentIdOf($t);
+                $parentById[$tid] = $pid;
+                if ($pid > 0) {
+                    $childrenById[$pid][] = $tid;
+                }
+            }
+
+            $rootIds = [];
+            foreach ($allTasks as $t) {
+                $tid = $idOf($t);
+                if ($tid <= 0) {
+                    continue;
+                }
+                if (($parentById[$tid] ?? 0) <= 0) {
+                    $rootIds[] = $tid;
+                }
+            }
+            $rootIds = array_values(array_unique($rootIds));
+
+            $tasksTotal = count($rootIds);
+            $tasksPage = 1;
+            $tasksPageSize = max(1, $tasksTotal);
+            $tasksLastPage = 1;
+
+            // If user is inside a parent level, keep that branch available regardless of parent page.
+            $requestedParentTaskId = max(0, (int) request('parentTaskId', 0));
+            $visibleRootIds = [];
+            if ($requestedParentTaskId > 0) {
+                $cur = $requestedParentTaskId;
+                $guard = 0;
+                while ($cur > 0 && $guard < 64) {
+                    $pid = (int) ($parentById[$cur] ?? 0);
+                    if ($pid <= 0) {
+                        break;
+                    }
+                    $cur = $pid;
+                    $guard++;
+                }
+                if ($cur > 0) {
+                    $visibleRootIds[] = $cur;
+                }
+            } else {
+                $visibleRootIds = $rootIds;
+            }
+
+            $allowedIds = [];
+            $queue = $visibleRootIds;
+            while (! empty($queue)) {
+                $current = (int) array_shift($queue);
+                if ($current <= 0 || isset($allowedIds[$current])) {
+                    continue;
+                }
+                $allowedIds[$current] = true;
+                foreach ((array) ($childrenById[$current] ?? []) as $cid) {
+                    $cid = (int) $cid;
+                    if ($cid > 0 && ! isset($allowedIds[$cid])) {
+                        $queue[] = $cid;
+                    }
+                }
+            }
+
+            $tasks = array_values(array_filter($allTasks, static function ($t) use ($allowedIds, $idOf) {
+                $tid = $idOf((array) $t);
+                return $tid > 0 && isset($allowedIds[$tid]);
+            }));
         } catch (\Exception $e) {
             $tasks = [];
         }
