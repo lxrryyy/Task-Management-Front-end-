@@ -276,6 +276,7 @@ class Dashboard extends Component
                     'projectId' => $projectId,
                     'projectName' => $projectName,
                     'taskId' => (int) $this->readField($task, ['id', 'Id'], 0),
+                    'parentTaskId' => (int) $this->readField($task, ['parentTaskId', 'ParentTaskId', 'parentId', 'ParentId', 'parentID'], 0),
                     'name' => (string) $this->readField($task, ['title', 'name', 'Name'], 'Task'),
                     'status' => (string) $this->readField($task, ['statusName', 'StatusName', 'status', 'Status'], ''),
                     'dueRaw' => $this->readField($task, ['dueDate', 'DueDate', 'dueAt', 'DueAt']),
@@ -334,6 +335,8 @@ class Dashboard extends Component
                 'name' => $task['name'],
                 'projectName' => $task['projectName'],
                 'projectId' => $task['projectId'],
+                'taskId' => (int) ($task['taskId'] ?? 0),
+                'parentTaskId' => (int) ($task['parentTaskId'] ?? 0),
                 'dueLabel' => $dueLabel,
             ];
         }, $assignedTasks), 0, 5);
