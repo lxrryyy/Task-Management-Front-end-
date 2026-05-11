@@ -356,8 +356,7 @@
             projectId: projectId?.value ?? ''
         });
         if (!start || !sp) {
-            dueInput.min = '';
-            dueInput.max = '';
+            // Suggestion is based on both inputs; if missing, don't constrain the field.
             setOverloadWarnings(form, []);
             setDueCalcState(form, false);
             console.debug('[due-calc-debug][dashboard] recalc:skipped-missing-input', {
@@ -406,15 +405,15 @@
             console.debug('[due-calc-debug][dashboard] response-body', data);
 
             if (data?.dueDate) {
+                // Treat API-calculated due date as a suggestion only.
                 const dueRaw = String(data.dueDate);
-                const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                const suggested = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                dueInput.dataset.suggestedDue = suggested;
 
-                let current = dueInput.value || maxDue;
-                if (current < start) current = start;
-                if (current > maxDue) current = maxDue;
-                dueInput.value = current;
-                dueInput.min = start;
-                dueInput.max = maxDue;
+                // Only auto-fill when user hasn't picked a due date yet.
+                if (!dueInput.value) {
+                    dueInput.value = suggested;
+                }
             }
 
             setOverloadWarnings(form, data?.warnings || []);

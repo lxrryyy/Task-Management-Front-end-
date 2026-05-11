@@ -269,6 +269,23 @@ class TaskController extends Controller
             ? array_values(array_filter(array_map('intval', $raw)))
             : array_values(array_filter(array_map('intval', array_filter(explode(',', (string) $raw)))));
 
+        // Security + rule enforcement: subtasks may only be assigned to assignees of the parent task.
+        if ($parentTaskId !== null && $parentTaskId > 0 && ! empty($assigneeIds)) {
+            $parent = $this->tasksApi->find($parentTaskId);
+            $parentRaw =
+                (is_array($parent) ? ($parent['assigneeIds'] ?? $parent['AssigneeIds'] ?? $parent['assigneeId'] ?? $parent['AssigneeId'] ?? []) : []);
+            if (is_string($parentRaw)) {
+                $parentRaw = preg_split('/[,\s;]+/', $parentRaw);
+                $parentRaw = array_filter(array_map('trim', (array) $parentRaw));
+            } elseif (! is_array($parentRaw)) {
+                $parentRaw = [$parentRaw];
+            }
+            $allowed = array_flip(array_values(array_unique(array_filter(array_map('intval', (array) $parentRaw), static fn ($v) => $v > 0))));
+            if (! empty($allowed)) {
+                $assigneeIds = array_values(array_filter($assigneeIds, static fn ($id) => isset($allowed[(int) $id])));
+            }
+        }
+
         $priorityId = $request->integer('priorityId');
 
         $payload = [
@@ -279,11 +296,15 @@ class TaskController extends Controller
             'projectId' => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate' => $toDate($request->input('startDate')),
+            'dueDate' => $toDate($request->input('dueDate')),
             'assigneeIds' => $assigneeIds,
         ];
 
         if ($payload['startDate'] === null) {
             unset($payload['startDate']);
+        }
+        if ($payload['dueDate'] === null) {
+            unset($payload['dueDate']);
         }
         if ($payload['parentTaskId'] === null) {
             unset($payload['parentTaskId']);

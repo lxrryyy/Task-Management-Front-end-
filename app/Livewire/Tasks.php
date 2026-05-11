@@ -1129,6 +1129,43 @@ class Tasks extends Component
             fn ($a) => (int) ($a['id'] ?? $a['Id'] ?? 0) !== $creatorId
         ));
 
+        // When viewing inside a parent task, subtasks should only be assignable to
+        // assignees of that parent task. Also restrict visibility of subtask assignees
+        // to those same parent assignees (or privileged roles).
+        $parentAssigneeIds = [];
+        if ($this->currentParentTaskId !== null && $this->currentParentTaskId > 0) {
+            $parent = $tasksById[(int) $this->currentParentTaskId] ?? null;
+            if (is_array($parent)) {
+                $raw =
+                    $parent['assigneeIds']
+                    ?? $parent['AssigneeIds']
+                    ?? $parent['assigneeId']
+                    ?? $parent['AssigneeId']
+                    ?? [];
+                if (is_string($raw)) {
+                    $raw = preg_split('/[,\s;]+/', $raw);
+                    $raw = array_filter(array_map('trim', (array) $raw));
+                } elseif (! is_array($raw)) {
+                    $raw = [$raw];
+                }
+                $parentAssigneeIds = array_values(array_unique(array_filter(array_map('intval', $raw), static fn ($v) => $v > 0)));
+            }
+        }
+
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        $isPrivileged = in_array($role, ['admin', 'superadmin'], true) || $this->canDeleteTasks();
+        $canViewSubtaskAssignees = $isPrivileged
+            || empty($parentAssigneeIds)
+            || in_array((int) $creatorId, $parentAssigneeIds, true);
+
+        if (! empty($parentAssigneeIds)) {
+            $allowed = array_flip($parentAssigneeIds);
+            $assignableAccounts = array_values(array_filter($assignableAccounts, static function ($a) use ($allowed) {
+                $id = (int) ($a['id'] ?? $a['Id'] ?? 0);
+                return $id > 0 && isset($allowed[$id]);
+            }));
+        }
+
         $taskPriorityMap = [];
         foreach ($this->taskPriorities['items'] ?? [] as $pr) {
             $pid = is_array($pr) ? ($pr['id'] ?? $pr['Id'] ?? null) : null;
@@ -1159,6 +1196,7 @@ class Tasks extends Component
             'accountMap' => $accountMap,
             'accountProfiles' => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,
+            'canViewSubtaskAssignees' => $canViewSubtaskAssignees,
             'taskPriorities' => $this->taskPriorities['items'] ?? [],
             'taskPriorityNames' => $this->taskPriorities['names'] ?? [],
             'taskPriorityMap' => $taskPriorityMap,

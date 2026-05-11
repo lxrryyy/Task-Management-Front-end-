@@ -497,9 +497,8 @@
                     assigneeIdsRaw: assignees?.value ?? '',
                     projectId: projectId?.value ?? ''
                 });
-                if (!start || !sp) {
-                    dueInput.min = '';
-                    dueInput.max = '';
+                    if (!start || !sp) {
+                    // Suggestion is based on both inputs; if missing, don't constrain the field.
                     setOverloadWarnings(form, []);
                     setDueCalcState(form, false);
                     console.debug('[due-calc-debug][tasks] recalc:skipped-missing-input', {
@@ -548,15 +547,15 @@
                     console.debug('[due-calc-debug][tasks] response-body', data);
 
                     if (data?.dueDate) {
+                        // Treat API-calculated due date as a suggestion only.
                         const dueRaw = String(data.dueDate);
-                        const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                        const suggested = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                        dueInput.dataset.suggestedDue = suggested;
 
-                        let current = dueInput.value || maxDue;
-                        if (current < start) current = start;
-                        if (current > maxDue) current = maxDue;
-                        dueInput.value = current;
-                        dueInput.min = start;
-                        dueInput.max = maxDue;
+                        // Only auto-fill when user hasn't picked a due date yet.
+                        if (!dueInput.value) {
+                            dueInput.value = suggested;
+                        }
                     }
 
                     setOverloadWarnings(form, data?.warnings || []);
@@ -1337,10 +1336,14 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
-                                    @if (!empty($profiles))
-                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
-                                            data-prefix="assignee" />
+                                    @php
+                                        $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                                        $hideAssignees = (($currentParentTaskId ?? null) !== null) && empty($canViewSubtaskAssignees);
+                                    @endphp
+                                    @if ($hideAssignees)
+                                        <span class="text-sm">—</span>
+                                    @elseif (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                     @else
                                         <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
                                     @endif
@@ -1457,10 +1460,14 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
-                                    @if (!empty($profiles))
-                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
-                                            data-prefix="assignee" />
+                                    @php
+                                        $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                                        $hideAssignees = (($currentParentTaskId ?? null) !== null) && empty($canViewSubtaskAssignees);
+                                    @endphp
+                                    @if ($hideAssignees)
+                                        <span class="text-sm">—</span>
+                                    @elseif (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                     @else
                                         <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
                                     @endif
