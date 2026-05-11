@@ -221,7 +221,7 @@
                     @php
                         $navUser = \Illuminate\Support\Facades\Session::get('user', []);
                         $pic = $navUser['profilePicture'] ?? ($navUser['ProfilePicture'] ?? null);
-                        $avatarSrc = $pic;
+                        $avatarSrc = \App\Support\AccountPresentation::profilePictureDisplayUrl($pic);
                         $avatarHasImage = !empty($avatarSrc);
                         $fullName = (string) ($navUser['name'] ?? ($navUser['Name'] ?? ($navUser['fullName'] ?? '')));
                         $parts = preg_split('/\s+/', trim($fullName));

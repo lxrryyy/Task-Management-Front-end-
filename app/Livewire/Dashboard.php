@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Http\Controllers\DashboardController;
 use App\Services\CsharpApiService;
 use App\Services\StickyNoteApiService;
+use App\Support\AccountPresentation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
@@ -275,6 +276,7 @@ class Dashboard extends Component
                     'projectId' => $projectId,
                     'projectName' => $projectName,
                     'taskId' => (int) $this->readField($task, ['id', 'Id'], 0),
+                    'parentTaskId' => (int) $this->readField($task, ['parentTaskId', 'ParentTaskId', 'parentId', 'ParentId', 'parentID'], 0),
                     'name' => (string) $this->readField($task, ['title', 'name', 'Name'], 'Task'),
                     'status' => (string) $this->readField($task, ['statusName', 'StatusName', 'status', 'Status'], ''),
                     'dueRaw' => $this->readField($task, ['dueDate', 'DueDate', 'dueAt', 'DueAt']),
@@ -333,6 +335,8 @@ class Dashboard extends Component
                 'name' => $task['name'],
                 'projectName' => $task['projectName'],
                 'projectId' => $task['projectId'],
+                'taskId' => (int) ($task['taskId'] ?? 0),
+                'parentTaskId' => (int) ($task['parentTaskId'] ?? 0),
                 'dueLabel' => $dueLabel,
             ];
         }, $assignedTasks), 0, 5);
@@ -395,10 +399,9 @@ class Dashboard extends Component
                 }
                 $name = (string) ($acc['name'] ?? $acc['Name'] ?? 'User');
                 $email = (string) ($acc['email'] ?? $acc['Email'] ?? '');
-                $profilePicture = (string) ($acc['profilePicture'] ?? $acc['ProfilePicture'] ?? '');
-                if ($profilePicture !== '' && !str_starts_with($profilePicture, 'http') && !str_starts_with($profilePicture, 'data:')) {
-                    $profilePicture = 'data:image/jpeg;base64,' . $profilePicture;
-                }
+                $profilePicture = AccountPresentation::profilePictureDisplayUrl(
+                    $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null
+                ) ?? '';
                 $specialization = (string) ($acc['specialization'] ?? $acc['Specialization'] ?? '');
                 $role = (string) ($acc['role'] ?? $acc['Role'] ?? $acc['roleName'] ?? $acc['RoleName'] ?? '');
 
