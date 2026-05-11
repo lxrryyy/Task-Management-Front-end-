@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\AccountApiService;
 use App\Services\AuthApiService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 
@@ -50,14 +51,14 @@ class LoginController extends Controller
                 }
             }
 
-
             Session::put('user', $user);
 
             return redirect()->route('dashboard');
-        } catch (\Illuminate\Http\Client\RequestException $e) {
+        } catch (RequestException $e) {
             $body = $e->response?->json() ?? [];
             // v1 returns { "error": "..." } via GlobalExceptionMiddleware; legacy used { "message": "..." }.
             $message = (string) ($body['error'] ?? $body['message'] ?? 'Invalid credentials');
+
             return back()->withErrors(['email' => $message]);
         } catch (\Exception $e) {
             return back()->withErrors(['email' => $e->getMessage()]);
@@ -69,6 +70,7 @@ class LoginController extends Controller
         $this->authApi->logout();
 
         Session::forget(['api_token', 'expires_in', 'user']);
+
         return redirect()->route('login');
     }
 }

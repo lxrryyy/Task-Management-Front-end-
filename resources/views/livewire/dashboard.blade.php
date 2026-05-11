@@ -86,7 +86,18 @@
                             @endfor
                         @else
                             @forelse($assignedTaskList as $task)
-                                <a href="{{ route('projects.tasks', $task['projectId']) }}" class="block border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
+                                @php
+                                    $taskRouteParams = ['project' => (int) $task['projectId']];
+                                    $taskId = (int) ($task['taskId'] ?? 0);
+                                    $parentTaskId = (int) ($task['parentTaskId'] ?? 0);
+                                    if ($taskId > 0) {
+                                        $taskRouteParams['taskId'] = $taskId;
+                                    }
+                                    if ($parentTaskId > 0) {
+                                        $taskRouteParams['parentTaskId'] = $parentTaskId;
+                                    }
+                                @endphp
+                                <a href="{{ route('projects.tasks', $taskRouteParams) }}" class="block border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50">
                                     <div class="flex items-center justify-between">
                                         <p class="text-lg font-semibold text-gray-900 leading-none">{{ $task['name'] }}</p>
                                         <span class="text-gray-400">◎</span>
@@ -98,7 +109,25 @@
                             @endforelse
                         @endif
                     </div>
-                    <a href="/tasks" class="block text-center text-md font-medium text-[#587f75] mt-2">Show All</a>
+                    @php
+                        $showAllHref = route('Projects');
+                        if (!empty($assignedTaskList) && is_array($assignedTaskList[0] ?? null)) {
+                            $firstAssigned = $assignedTaskList[0];
+                            $showAllParams = ['project' => (int) ($firstAssigned['projectId'] ?? 0)];
+                            $showAllTaskId = (int) ($firstAssigned['taskId'] ?? 0);
+                            $showAllParentTaskId = (int) ($firstAssigned['parentTaskId'] ?? 0);
+                            if ($showAllTaskId > 0) {
+                                $showAllParams['taskId'] = $showAllTaskId;
+                            }
+                            if ($showAllParentTaskId > 0) {
+                                $showAllParams['parentTaskId'] = $showAllParentTaskId;
+                            }
+                            if (($showAllParams['project'] ?? 0) > 0) {
+                                $showAllHref = route('projects.tasks', $showAllParams);
+                            }
+                        }
+                    @endphp
+                    <a href="{{ $showAllHref }}" class="block text-center text-md font-medium text-[#587f75] mt-2">Show All</a>
                 </section>
 
                 <section class="dash-card p-3 dash-projects flex flex-col">

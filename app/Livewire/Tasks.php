@@ -11,6 +11,7 @@ use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ViewErrorBag;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class Tasks extends Component
@@ -102,7 +103,11 @@ class Tasks extends Component
     public int $boardVisibleStep = 25;
     public array $boardVisibleByStatus = [];
 
-    /** Current task-level context; null means root (parent tasks). */
+    /**
+     * Current task-level context; null means root (parent tasks).
+     * Kept in the URL so actions like status updates/pagination don't kick the user back to root.
+     */
+    #[Url(as: 'parentTaskId', history: true)]
     public ?int $currentParentTaskId = null;
 
     /** Session flash copied on first load so alerts survive Livewire re-renders (flash is one-request only). */
@@ -159,10 +164,7 @@ class Tasks extends Component
         $this->taskPriorities = app(TaskController::class)->getPriorities();
         $this->syncProjectStatusFromTasks();
 
-        $requestedParent = (int) request()->query('parentTaskId', 0);
-        if ($requestedParent > 0) {
-            $this->currentParentTaskId = $requestedParent;
-        }
+        // parentTaskId is synced via #[Url] on $currentParentTaskId
 
         if ($openTaskId !== null && $openTaskId > 0) {
             $commentId = ($openCommentId !== null && $openCommentId > 0) ? $openCommentId : null;
@@ -781,14 +783,28 @@ class Tasks extends Component
 
         try {
             $tasksApi = app(TaskApiService::class);
-            $page = max(1, (int) $this->tasksPage);
-            $pageSize = max(1, (int) ($this->tasksPageSize ?: 20));
-
-            $listData = $tasksApi->list($page, $pageSize, $pid);
-            $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+            $allRaw = [];
+            $fetchPage = 1;
+            $fetchPageSize = 100;
+            $apiTotal = 0;
+            do {
+                $listData = $tasksApi->list($fetchPage, $fetchPageSize, $pid);
+                $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
+                if (! is_array($rawItems)) {
+                    $rawItems = [];
+                }
+                foreach ($rawItems as $item) {
+                    if (is_array($item)) {
+                        $allRaw[] = $item;
+                    }
+                }
+                $apiTotal = (int) ($listData['total'] ?? $listData['Total'] ?? $apiTotal);
+                $fetched = count($allRaw);
+                $fetchPage++;
+            } while ($apiTotal > $fetched && count($rawItems) > 0 && $fetchPage < 1000);
 
             $tasks = [];
-            foreach ((array) $rawItems as $t) {
+            foreach ($allRaw as $t) {
                 if (! is_array($t)) {
                     continue;
                 }
@@ -799,11 +815,19 @@ class Tasks extends Component
             }
 
             $this->tasks = $tasks;
-            $this->tasksTotal = (int) ($listData['total'] ?? $listData['Total'] ?? 0);
-            $this->tasksPage = (int) ($listData['page'] ?? $listData['Page'] ?? $page);
-            $this->tasksPageSize = (int) ($listData['pageSize'] ?? $listData['PageSize'] ?? $pageSize);
-            $ps = $this->tasksPageSize > 0 ? $this->tasksPageSize : 1;
-            $this->tasksLastPage = max(1, (int) ceil($this->tasksTotal / $ps));
+            $rootCount = 0;
+            foreach ($tasks as $task) {
+                $parentId = (int) ($task['parentTaskId'] ?? $task['parentId'] ?? $task['parentID'] ?? 0);
+                if ($parentId <= 0) {
+                    $rootCount++;
+                }
+            }
+
+            // Tasks page no longer paginates; keep metadata stable for UI.
+            $this->tasksTotal = $rootCount;
+            $this->tasksPage = 1;
+            $this->tasksPageSize = max(1, $rootCount);
+            $this->tasksLastPage = 1;
         } catch (\Throwable) {
             // keep existing $this->tasks
         }
@@ -1092,7 +1116,9 @@ class Tasks extends Component
                 $accountMap[$accountId] = $name;
             }
 
-            $profilePicture = $account['profilePicture'] ?? $account['ProfilePicture'] ?? null;
+            $profilePicture = AccountPresentation::profilePictureDisplayUrl(
+                $account['profilePicture'] ?? $account['ProfilePicture'] ?? null
+            );
 
             $parts = preg_split('/\s+/', trim((string) ($name ?? '')));
             $parts = array_values(array_filter($parts, fn ($p) => is_string($p) && trim($p) !== ''));
@@ -1125,6 +1151,43 @@ class Tasks extends Component
             fn ($a) => (int) ($a['id'] ?? $a['Id'] ?? 0) !== $creatorId
         ));
 
+        // When viewing inside a parent task, subtasks should only be assignable to
+        // assignees of that parent task. Also restrict visibility of subtask assignees
+        // to those same parent assignees (or privileged roles).
+        $parentAssigneeIds = [];
+        if ($this->currentParentTaskId !== null && $this->currentParentTaskId > 0) {
+            $parent = $tasksById[(int) $this->currentParentTaskId] ?? null;
+            if (is_array($parent)) {
+                $raw =
+                    $parent['assigneeIds']
+                    ?? $parent['AssigneeIds']
+                    ?? $parent['assigneeId']
+                    ?? $parent['AssigneeId']
+                    ?? [];
+                if (is_string($raw)) {
+                    $raw = preg_split('/[,\s;]+/', $raw);
+                    $raw = array_filter(array_map('trim', (array) $raw));
+                } elseif (! is_array($raw)) {
+                    $raw = [$raw];
+                }
+                $parentAssigneeIds = array_values(array_unique(array_filter(array_map('intval', $raw), static fn ($v) => $v > 0)));
+            }
+        }
+
+        $role = mb_strtolower(trim((string) ($user['role'] ?? $user['Role'] ?? $user['roleName'] ?? $user['RoleName'] ?? '')));
+        $isPrivileged = in_array($role, ['admin', 'superadmin'], true) || $this->canDeleteTasks();
+        $canViewSubtaskAssignees = $isPrivileged
+            || empty($parentAssigneeIds)
+            || in_array((int) $creatorId, $parentAssigneeIds, true);
+
+        if (! empty($parentAssigneeIds)) {
+            $allowed = array_flip($parentAssigneeIds);
+            $assignableAccounts = array_values(array_filter($assignableAccounts, static function ($a) use ($allowed) {
+                $id = (int) ($a['id'] ?? $a['Id'] ?? 0);
+                return $id > 0 && isset($allowed[$id]);
+            }));
+        }
+
         $taskPriorityMap = [];
         foreach ($this->taskPriorities['items'] ?? [] as $pr) {
             $pid = is_array($pr) ? ($pr['id'] ?? $pr['Id'] ?? null) : null;
@@ -1155,6 +1218,7 @@ class Tasks extends Component
             'accountMap' => $accountMap,
             'accountProfiles' => $accountProfiles,
             'assignableAccounts' => $assignableAccounts,
+            'canViewSubtaskAssignees' => $canViewSubtaskAssignees,
             'taskPriorities' => $this->taskPriorities['items'] ?? [],
             'taskPriorityNames' => $this->taskPriorities['names'] ?? [],
             'taskPriorityMap' => $taskPriorityMap,

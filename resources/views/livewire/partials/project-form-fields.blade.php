@@ -137,7 +137,9 @@
                     $initials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
                     [$pBio, $pSpec] = $resolveAccountBioSpec($acc);
                     $addProfiles[] = [
-                        'profilePicture' => $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null),
+                        'profilePicture' => \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                            $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null),
+                        ),
                         'initials' => $initials ?: '?',
                         'name' => $name,
                         'email' => (string) ($acc['email'] ?? $acc['Email'] ?? ''),
@@ -157,10 +159,9 @@
                         $aid = $account['id'] ?? ($account['Id'] ?? null);
                         $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
                         $aemail = $account['email'] ?? ($account['Email'] ?? '');
-                        $apic = $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null);
-                        if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
-                            $apic = 'data:image/jpeg;base64,' . $apic;
-                        }
+                        $apic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                            $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null),
+                        );
                         $apart = preg_split('/\s+/', trim((string) $aname));
                         $ainitials = mb_strtoupper(mb_substr($apart[0] ?? '', 0, 1) . mb_substr($apart[1] ?? '', 0, 1));
                         [$abio, $aspec] = $resolveAccountBioSpec($account);
@@ -225,10 +226,9 @@
                     @php
                         $cname = $creatorAccount['name'] ?? ($creatorAccount['Name'] ?? 'Project Manager');
                         $cemail = $creatorAccount['email'] ?? ($creatorAccount['Email'] ?? '');
-                        $cPic = $creatorAccount['profilePicture'] ?? ($creatorAccount['ProfilePicture'] ?? null);
-                        if ($cPic && !str_starts_with($cPic, 'http') && !str_starts_with($cPic, 'data:')) {
-                            $cPic = 'data:image/jpeg;base64,' . $cPic;
-                        }
+                        $cPic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                            $creatorAccount['profilePicture'] ?? ($creatorAccount['ProfilePicture'] ?? null),
+                        );
                         $cParts = preg_split('/\s+/', trim((string) $cname));
                         $cInitials = mb_strtoupper(mb_substr($cParts[0] ?? '', 0, 1) . mb_substr($cParts[1] ?? '', 0, 1));
                         [$cbio, $cspec] = $resolveAccountBioSpec($creatorAccount);
@@ -272,10 +272,9 @@
                         }
                         $name = $acc['name'] ?? ($acc['Name'] ?? 'Unknown');
                         $email = $acc['email'] ?? ($acc['Email'] ?? '');
-                        $pic = $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null);
-                        if ($pic && !str_starts_with($pic, 'http') && !str_starts_with($pic, 'data:')) {
-                            $pic = 'data:image/jpeg;base64,' . $pic;
-                        }
+                        $pic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                            $acc['profilePicture'] ?? ($acc['ProfilePicture'] ?? null),
+                        );
                         $parts = preg_split('/\s+/', trim((string) $name));
                         $initials = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1));
                         $pos = $memberRoles[$memberId] ?? 'Member';

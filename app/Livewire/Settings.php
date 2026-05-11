@@ -3,10 +3,11 @@
 namespace App\Livewire;
 
 use App\Services\AccountApiService;
-use App\Services\CsharpApiService;
+use App\Support\AccountPresentation;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
@@ -156,13 +157,7 @@ class Settings extends Component
 
     private function normalizeProfilePicture(mixed $value): ?string
     {
-        $pic = is_string($value) ? trim($value) : '';
-        if ($pic === '') return null;
-        if (str_starts_with($pic, 'http://') || str_starts_with($pic, 'https://') || str_starts_with($pic, 'data:image/')) {
-            return $pic;
-        }
-        // API may return raw base64 only.
-        return 'data:image/jpeg;base64,' . $pic;
+        return AccountPresentation::profilePictureDisplayUrl($value);
     }
 
     public function updatedPhoto(): void
@@ -188,22 +183,77 @@ class Settings extends Component
         }
     }
 
-    private function photoFileToDataUrl($file): string
+    /**
+     * Persist a new avatar on the public disk and return the absolute public URL for the API.
+     *
+     * @throws \RuntimeException
+     */
+    private function storeUploadedProfilePictureOnPublicDisk(): string
     {
-        // Livewire's TemporaryUploadedFile supports getRealPath()
-        $path = method_exists($file, 'getRealPath') ? $file->getRealPath() : null;
-        if (!$path || !is_string($path) || !file_exists($path)) {
-            return '';
+        if (! $this->photo) {
+            throw new \RuntimeException('No photo selected.');
         }
-        $bytes = file_get_contents($path);
-        if (!is_string($bytes) || $bytes === '') return '';
 
-        $base64 = base64_encode($bytes);
-        // For many APIs this is what they mean by "URL string": a data URL is still a URL.
-        $mime = method_exists($file, 'getMimeType') ? (string) $file->getMimeType() : 'image';
-        if (!str_contains($mime, '/')) $mime = 'image/' . $mime;
+        $tmp = method_exists($this->photo, 'getRealPath') ? $this->photo->getRealPath() : null;
+        if (! is_string($tmp) || $tmp === '' || ! is_file($tmp)) {
+            throw new \RuntimeException('Could not read the selected photo file. Please try again.');
+        }
 
-        return "data:{$mime};base64,{$base64}";
+        $maxBytes = 5 * 1024 * 1024;
+        $size = @filesize($tmp);
+        if (is_int($size) && $size > $maxBytes) {
+            throw new \RuntimeException('Photo must be 5 MB or smaller.');
+        }
+
+        $orig = method_exists($this->photo, 'getClientOriginalName')
+            ? (string) $this->photo->getClientOriginalName()
+            : 'photo.jpg';
+        $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
+        if (! in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+            $ext = 'jpg';
+        }
+
+        $relativeDir = 'profiles/'.$this->accountId;
+        $relativePath = $relativeDir.'/'.uniqid('', true).'.'.$ext;
+
+        $bytes = file_get_contents($tmp);
+        if (! is_string($bytes) || $bytes === '') {
+            throw new \RuntimeException('Could not read the selected photo file. Please try again.');
+        }
+
+        Storage::disk('public')->put($relativePath, $bytes);
+
+        return Storage::disk('public')->url($relativePath);
+    }
+
+    /**
+     * Best-effort delete of a prior avatar we stored under storage/app/public/profiles/...
+     */
+    private function tryDeletePublicProfileIfOwned(?string $absoluteOrDisplayUrl): void
+    {
+        if (! is_string($absoluteOrDisplayUrl) || trim($absoluteOrDisplayUrl) === '') {
+            return;
+        }
+
+        $path = parse_url($absoluteOrDisplayUrl, PHP_URL_PATH);
+        if (! is_string($path) || ! str_starts_with($path, '/storage/')) {
+            return;
+        }
+
+        $relative = ltrim(substr($path, strlen('/storage')), '/');
+        if ($relative === '' || str_contains($relative, '..')) {
+            return;
+        }
+
+        if (! str_starts_with($relative, 'profiles/')) {
+            return;
+        }
+
+        try {
+            Storage::disk('public')->delete($relative);
+        } catch (\Throwable) {
+            // ignore
+        }
     }
 
     public function removeProfilePicture(): void
@@ -214,6 +264,8 @@ class Settings extends Component
         $this->saveSuccessMessage = null;
 
         try {
+            $this->tryDeletePublicProfileIfOwned($this->profilePicture);
+
             app(AccountApiService::class)->removeProfilePicture($this->accountId);
 
             $this->profilePicture = null;
@@ -304,6 +356,8 @@ class Settings extends Component
         $this->saveSuccessMessage = null;
         $this->showPhotoConfirmModal = false;
 
+        $uploadedPublicUrl = null;
+
         try {
             $composedFullName = trim(implode(' ', array_filter([
                 trim((string) $this->firstName),
@@ -313,12 +367,8 @@ class Settings extends Component
                 $this->fullName = $composedFullName;
             }
 
-            // If user selected a new photo, compute it once for both:
-            // 1) sending to the backend
-            // 2) instant UI update for the header (in case refresh response is delayed)
-            $pendingPicForUi = null;
             if ($this->photo) {
-                $pendingPicForUi = $this->photoFileToDataUrl($this->photo);
+                $uploadedPublicUrl = $this->storeUploadedProfilePictureOnPublicDisk();
             }
 
             $hasProfileEdit = $this->photo !== null
@@ -336,9 +386,7 @@ class Settings extends Component
                 'name' => $this->fullName,
                 'role' => $roleNormalized,
                 'isActive' => true,
-                'profilePicture' => $this->photo
-                    ? ($pendingPicForUi ?: null)
-                    : ($this->profilePicture ?: null),
+                'profilePicture' => $uploadedPublicUrl ?? ($this->profilePicture ?: null),
                 'specialization' => trim((string) $this->bio) !== '' ? $this->bio : null,
                 'currentPassword' => trim((string) $this->currentPassword) !== '' ? $this->currentPassword : null,
                 'newPassword' => trim((string) $this->newPassword) !== '' ? $this->newPassword : null,
@@ -346,6 +394,10 @@ class Settings extends Component
             ];
 
             app(AccountApiService::class)->update($this->accountId, $payload);
+
+            if ($uploadedPublicUrl !== null) {
+                $this->tryDeletePublicProfileIfOwned($this->baselineProfilePicture);
+            }
 
             // Refresh from API / session so the UI reflects server state
             $this->photo = null;
@@ -369,7 +421,7 @@ class Settings extends Component
             $this->confirmPassword = '';
 
             $initialsTextClass = $this->avatarBg === '#F0EFEF' ? 'text-gray-800' : 'text-white';
-            $picForHeader = !empty($this->profilePicture) ? $this->profilePicture : $pendingPicForUi;
+            $picForHeader = $this->profilePicture ?: $uploadedPublicUrl;
 
             // Update the session user object so the header has the latest profile picture.
             $user = Session::get('user', []);
@@ -393,6 +445,10 @@ class Settings extends Component
                 initialsTextClass: $initialsTextClass
             );
         } catch (RequestException $e) {
+            if ($uploadedPublicUrl !== null) {
+                $this->tryDeletePublicProfileIfOwned($uploadedPublicUrl);
+            }
+
             $status = $e->response?->status();
             $body = null;
             try {
@@ -427,6 +483,9 @@ class Settings extends Component
 
             $this->saveErrorNonce++;
             $this->saveError = "Failed to update account (HTTP {$status}). {$msg}";
+        } catch (\RuntimeException $e) {
+            $this->saveErrorNonce++;
+            $this->saveError = $e->getMessage();
         } catch (\Throwable $e) {
             $this->saveErrorNonce++;
             $this->saveError = 'Failed to update account. Please try again.';

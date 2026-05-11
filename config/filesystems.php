@@ -41,7 +41,8 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // Use PUBLIC_DISK_URL when public files are served from a CDN or different host than APP_URL.
+            'url' => rtrim((string) (env('PUBLIC_DISK_URL') ?: env('APP_URL', 'http://localhost')), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

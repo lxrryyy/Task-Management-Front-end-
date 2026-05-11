@@ -6,6 +6,7 @@ use Livewire\Component;
 use App\Services\AccountApiService;
 use App\Services\DashboardApiService;
 use App\Services\StickyNoteApiService;
+use App\Support\AccountPresentation;
 use Illuminate\Support\Facades\Session;
 
 class Calendar extends Component
@@ -54,12 +55,13 @@ class Calendar extends Component
                 $name = $acc['name'] ?? $acc['Name'] ?? $acc['fullName']
                     ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))
                     ?: null;
-                $pic = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
-                $pic = is_string($pic) ? trim($pic) : '';
+                $pic = AccountPresentation::profilePictureDisplayUrl(
+                    $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null
+                );
                 if ($id > 0 && $name) {
                     $accountMap[$id] = [
                         'name' => $name,
-                        'profilePicture' => $pic !== '' ? $pic : null,
+                        'profilePicture' => $pic,
                     ];
                 }
             }

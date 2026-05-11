@@ -56,29 +56,6 @@
     </div>
     <hr class="border-2 clr-bg-primary">
 
-    @if (($tasksLastPage ?? 1) > 1 && ($projectId ?? null))
-        @php
-            $tasksPaginationBase = route('projects.tasks', ['project' => $projectId]);
-            $tasksPaginationUrl = function (int $p) use ($tasksPaginationBase) {
-                $q = request()->query();
-                $q['page'] = $p;
-
-                return $tasksPaginationBase.'?'.http_build_query($q);
-            };
-        @endphp
-        <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 px-1">
-            <span>Page {{ $tasksPage }} of {{ $tasksLastPage }} ({{ $tasksTotal }} tasks)</span>
-            <div class="flex gap-2">
-                @if ($tasksPage > 1)
-                    <a href="{{ $tasksPaginationUrl($tasksPage - 1) }}" class="btn btn-sm btn-outline">Previous</a>
-                @endif
-                @if ($tasksPage < $tasksLastPage)
-                    <a href="{{ $tasksPaginationUrl($tasksPage + 1) }}" class="btn btn-sm btn-outline">Next</a>
-                @endif
-            </div>
-        </div>
-    @endif
-
     <div class="flex flex-wrap justify-between gap-2">
         <div class="flex gap-2">
             <button wire:click="switchView('list')" data-viewmode-btn data-viewmode="list"
@@ -216,6 +193,10 @@
                 data-due-calc="true">
                 @csrf
                 <input type="hidden" name="projectId" value="{{ (int) $projectId }}" />
+                @if (!empty($currentParentTaskId))
+                    {{-- Preserve current subtask view after create. --}}
+                    <input type="hidden" name="redirectParentTaskId" value="{{ (int) $currentParentTaskId }}" />
+                @endif
                 @if ($taskParentId)
                     <input type="hidden" name="parentTaskId" value="{{ $taskParentId }}" />
                 @endif
@@ -291,10 +272,9 @@
                                     $aid = $account['id'] ?? ($account['Id'] ?? null);
                                     $aname = $account['name'] ?? ($account['Name'] ?? 'Unknown');
                                     $aemail = $account['email'] ?? ($account['Email'] ?? '');
-                                    $apic = $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null);
-                                    if ($apic && !str_starts_with($apic, 'http') && !str_starts_with($apic, 'data:')) {
-                                        $apic = 'data:image/jpeg;base64,' . $apic;
-                                    }
+                                    $apic = \App\Support\AccountPresentation::profilePictureDisplayUrl(
+                                        $account['profilePicture'] ?? ($account['ProfilePicture'] ?? null),
+                                    );
                                     $parts = preg_split('/\s+/', trim($aname));
                                     $ainitials = mb_strtoupper(
                                         mb_substr($parts[0] ?? '', 0, 1) . mb_substr($parts[1] ?? '', 0, 1),
@@ -494,9 +474,8 @@
                     assigneeIdsRaw: assignees?.value ?? '',
                     projectId: projectId?.value ?? ''
                 });
-                if (!start || !sp) {
-                    dueInput.min = '';
-                    dueInput.max = '';
+                    if (!start || !sp) {
+                    // Suggestion is based on both inputs; if missing, don't constrain the field.
                     setOverloadWarnings(form, []);
                     setDueCalcState(form, false);
                     console.debug('[due-calc-debug][tasks] recalc:skipped-missing-input', {
@@ -545,15 +524,15 @@
                     console.debug('[due-calc-debug][tasks] response-body', data);
 
                     if (data?.dueDate) {
+                        // Treat API-calculated due date as a suggestion only.
                         const dueRaw = String(data.dueDate);
-                        const maxDue = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                        const suggested = dueRaw.includes('T') ? toDateTimeLocal(dueRaw) : `${toDateOnly(dueRaw)}T23:59`;
+                        dueInput.dataset.suggestedDue = suggested;
 
-                        let current = dueInput.value || maxDue;
-                        if (current < start) current = start;
-                        if (current > maxDue) current = maxDue;
-                        dueInput.value = current;
-                        dueInput.min = start;
-                        dueInput.max = maxDue;
+                        // Only auto-fill when user hasn't picked a due date yet.
+                        if (!dueInput.value) {
+                            dueInput.value = suggested;
+                        }
                     }
 
                     setOverloadWarnings(form, data?.warnings || []);
@@ -1334,10 +1313,14 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
-                                    @if (!empty($profiles))
-                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
-                                            data-prefix="assignee" />
+                                    @php
+                                        $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                                        $hideAssignees = (($currentParentTaskId ?? null) !== null) && empty($canViewSubtaskAssignees);
+                                    @endphp
+                                    @if ($hideAssignees)
+                                        <span class="text-sm">—</span>
+                                    @elseif (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                     @else
                                         <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
                                     @endif
@@ -1454,10 +1437,14 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @php $profiles = is_array($p['assigneeProfiles'] ?? null) ? $p['assigneeProfiles'] ?? [] : []; @endphp
-                                    @if (!empty($profiles))
-                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3"
-                                            data-prefix="assignee" />
+                                    @php
+                                        $profiles = is_array($p['assigneeProfiles'] ?? null) ? ($p['assigneeProfiles'] ?? []) : [];
+                                        $hideAssignees = (($currentParentTaskId ?? null) !== null) && empty($canViewSubtaskAssignees);
+                                    @endphp
+                                    @if ($hideAssignees)
+                                        <span class="text-sm">—</span>
+                                    @elseif (!empty($profiles))
+                                        <x-avatar-group :profiles="$profiles" :visible="3" overlap-class="-space-x-3" data-prefix="assignee" />
                                     @else
                                         <span class="text-sm">{{ $p['assignee'] ?: '—' }}</span>
                                     @endif
