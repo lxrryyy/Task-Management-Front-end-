@@ -210,14 +210,12 @@ export function registerNotifications() {
 
       async refreshUnread() {
         try {
-          const r = await fetch('/notifications/unread', {
+          const r = await fetch('/notifications/unread/count', {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
           });
           const data = await r.json();
-          this.unreadCount = Array.isArray(data)
-            ? data.filter((x) => !(x.isRead ?? x.IsRead)).length
-            : 0;
+          this.unreadCount = Math.max(0, parseInt(data?.count ?? 0, 10) || 0);
         } catch (e) {
           // ignore
         }
@@ -320,23 +318,36 @@ export function registerNotifications() {
       async markSelectedRead() {
         const ids = [...this.selectedIds];
         if (ids.length === 0) return;
-        const selectedItems = this.items.filter((x) => ids.includes(x.id));
-        await Promise.allSettled(selectedItems.map((x) => this.markRead(x)));
+        try {
+          await fetch('/notifications/read', {
+            method: 'PUT',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids }),
+          });
+          this.items = this.items.map((x) => (ids.includes(x.id) ? { ...x, isRead: true } : x));
+          this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);
+        } catch (e) {}
       },
 
       async deleteSelected() {
         const ids = [...this.selectedIds];
         if (ids.length === 0) return;
         try {
-          await Promise.allSettled(
-            ids.map((id) =>
-              fetch(`/notifications/${id}`, {
-                method: 'DELETE',
-                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
-                credentials: 'same-origin',
-              })
-            )
-          );
+          await fetch('/notifications/delete', {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids }),
+          });
           this.items = this.items.filter((x) => !ids.includes(x.id));
           this.selectedIds = [];
           this.unreadCount = Math.max(0, this.items.filter((x) => !x.isRead).length);

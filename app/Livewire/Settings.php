@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Services\AccountApiService;
 use App\Services\CsharpApiService;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Session;
@@ -120,10 +121,10 @@ class Settings extends Component
 
         $this->saveError = null;
 
-        // Enrich from GetAccountById endpoint.
+        // Enrich from accounts API.
         if ($this->accountId > 0) {
             try {
-                $acc = app(CsharpApiService::class)->get("/api/Account/GetAccountById/{$this->accountId}");
+                $acc = app(AccountApiService::class)->find($this->accountId);
                 if (is_array($acc) && $acc !== []) {
                     $this->fullName = (string) ($acc['name'] ?? $acc['Name'] ?? $this->fullName);
                     $this->email = (string) ($acc['email'] ?? $acc['Email'] ?? $this->email);
@@ -213,7 +214,7 @@ class Settings extends Component
         $this->saveSuccessMessage = null;
 
         try {
-            app(CsharpApiService::class)->delete("/api/Account/RemoveProfilePicture/{$this->accountId}");
+            app(AccountApiService::class)->removeProfilePicture($this->accountId);
 
             $this->profilePicture = null;
             $this->photoPreview = null;
@@ -328,15 +329,11 @@ class Settings extends Component
 
             $hasPasswordEdit = trim((string) $this->newPassword) !== '';
 
-            $editor = Session::get('user', []);
-            $editorId = (int) ($editor['id'] ?? $editor['Id'] ?? 0);
-
             $roleRaw = trim((string) $this->role);
             $roleNormalized = mb_strtolower($roleRaw) === 'admin' ? 'Admin' : 'User';
 
             $payload = [
                 'name' => $this->fullName,
-                'passwordHash' => trim((string) $this->currentPassword) !== '' ? $this->currentPassword : null,
                 'role' => $roleNormalized,
                 'isActive' => true,
                 'profilePicture' => $this->photo
@@ -348,10 +345,7 @@ class Settings extends Component
                 'confirmPassword' => trim((string) $this->confirmPassword) !== '' ? $this->confirmPassword : null,
             ];
 
-            app(CsharpApiService::class)->patch(
-                "/api/Account/UpdateAccount/{$this->accountId}?editorId={$editorId}",
-                $payload
-            );
+            app(AccountApiService::class)->update($this->accountId, $payload);
 
             // Refresh from API / session so the UI reflects server state
             $this->photo = null;

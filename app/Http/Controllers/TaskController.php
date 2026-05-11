@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Task\CreateTaskRequest;
+use App\Services\AccountApiService;
 use App\Services\AccountListEnrichment;
 use App\Services\CsharpApiService;
+use App\Services\ProjectApiService;
+use App\Services\TaskApiService;
 use Carbon\Carbon;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -13,68 +17,68 @@ use Illuminate\Support\Facades\Session;
 
 class TaskController extends Controller
 {
-    public function __construct(protected CsharpApiService $api) {}
+    public function __construct(
+        protected CsharpApiService $api,
+        protected TaskApiService $tasksApi,
+        protected ProjectApiService $projectsApi,
+        protected AccountApiService $accountsApi,
+    ) {}
 
     public function index(int $projectId)
     {
         $user = Session::get('user', []);
         $accountId = $user['id'] ?? $user['Id'] ?? null;
 
+        $page = max(1, (int) request('page', 1));
+        $pageSize = min(100, max(1, (int) request('page_size', request('pageSize', 20))));
+
+        $tasksTotal = 0;
+        $tasksPage = $page;
+        $tasksPageSize = $pageSize;
+        $tasksLastPage = 1;
+
         if (! $accountId) {
             return view('tasks', [
                 'projectId' => $projectId,
                 'tasks' => [],
+                'project' => null,
+                'accounts' => [],
+                'tasksTotal' => 0,
+                'tasksPage' => 1,
+                'tasksPageSize' => $pageSize,
+                'tasksLastPage' => 1,
             ]);
         }
 
-        // Check if current user is the project leader
-        $isLeader = false;
+        $project = null;
         try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
-            $createdById = $project['createdById'] ?? $project['createdBy'] ?? null;
-            $isLeader = $createdById && (int) $createdById === (int) $accountId;
+            $project = $this->projectsApi->find($projectId);
+            if ($project === []) {
+                $project = null;
+            }
         } catch (\Exception $e) {
             $project = null;
         }
 
+        $tasks = [];
         try {
-            // Always fetch all tasks for the project so parent/sub/grandchild layout works.
-            // API requires requesterId as a query parameter.
-            $projectResponse = $this->api->get(
-                "/api/Task/GetTasksByProject/{$projectId}",
-                ['requesterId' => $accountId, '_no_cache' => 1]
-            );
-            $allTasks = is_array($projectResponse)
-                ? $projectResponse
-                : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+            $listData = $this->tasksApi->list($page, $pageSize, $projectId);
+            $rawItems = $listData['items'] ?? $listData['Items'] ?? [];
 
-            // Mark tasks assigned to current user, so the view can highlight them if desired.
-            $assignedIds = [];
-            if ($accountId) {
-                try {
-                    $assignedResponse = $this->api->get("/api/Task/GetTasksByAssignee/{$accountId}", ['_no_cache' => 1]);
-                    $assignedTasks = is_array($assignedResponse)
-                        ? $assignedResponse
-                        : ($assignedResponse['data'] ?? $assignedResponse['tasks'] ?? []);
-                    foreach ($assignedTasks as $t) {
-                        if (isset($t['id'])) {
-                            $assignedIds[(int) $t['id']] = true;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    // If this call fails we still show tasks, just without isMine flag.
+            foreach ((array) $rawItems as $t) {
+                if (! is_array($t)) {
+                    continue;
                 }
-            }
-
-            $tasks = [];
-            foreach ($allTasks as $t) {
-                if (isset($t['id']) && isset($assignedIds[(int) $t['id']])) {
-                    $t['isMine'] = true;
-                } else {
-                    $t['isMine'] = false;
-                }
+                $assigneeIds = $t['assigneeIds'] ?? $t['AssigneeIds'] ?? [];
+                $ids = array_map('intval', (array) $assigneeIds);
+                $t['isMine'] = (bool) ($accountId && in_array((int) $accountId, $ids, true));
                 $tasks[] = $t;
             }
+
+            $tasksTotal = (int) ($listData['total'] ?? $listData['Total'] ?? 0);
+            $tasksPage = (int) ($listData['page'] ?? $listData['Page'] ?? $page);
+            $tasksPageSize = (int) ($listData['pageSize'] ?? $listData['PageSize'] ?? $pageSize);
+            $tasksLastPage = $tasksPageSize > 0 ? max(1, (int) ceil($tasksTotal / $tasksPageSize)) : 1;
         } catch (\Exception $e) {
             $tasks = [];
         }
@@ -82,10 +86,7 @@ class TaskController extends Controller
         // Fetch all accounts then narrow down to project members for the assignee dropdown
         $accounts = [];
         try {
-            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $allAccounts = is_array($accountsRaw)
-                ? $accountsRaw
-                : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+            $allAccounts = $this->accountsApi->listAssignableUsers();
 
             // Keep only accounts that belong to this project
             $accounts = $this->projectMemberAccounts($project ?? [], $allAccounts);
@@ -102,6 +103,10 @@ class TaskController extends Controller
             'project' => $project ?? null,
             'tasks' => $tasks,
             'accounts' => $accounts,
+            'tasksTotal' => $tasksTotal,
+            'tasksPage' => $tasksPage,
+            'tasksPageSize' => $tasksPageSize,
+            'tasksLastPage' => $tasksLastPage,
         ]);
     }
 
@@ -111,24 +116,7 @@ class TaskController extends Controller
      */
     public function getStatuses(): array
     {
-        try {
-            $list = $this->api->get('/api/Task/GetAllTasksStatuses', ['_no_cache' => 1]);
-
-            $map = [];
-            $names = [];
-            foreach ((array) $list as $s) {
-                $id = $s['id'] ?? null;
-                $name = $s['name'] ?? null;
-                if ($id !== null && $name !== null) {
-                    $map[$name] = (int) $id;
-                    $names[] = $name;
-                }
-            }
-
-            return ['map' => $map, 'names' => $names];
-        } catch (\Throwable) {
-            return ['map' => [], 'names' => []];
-        }
+        return $this->tasksApi->getStatusesFormatted();
     }
 
     /**
@@ -137,69 +125,17 @@ class TaskController extends Controller
      */
     public function getPriorities(): array
     {
-        try {
-            $raw = $this->api->get('/api/Task/GetAllTasksPriorities', ['_no_cache' => 1]);
-
-            // Unwrap common API response shapes: wrapped object or raw array
-            $list = $raw['data'] ?? $raw['Data']
-                ?? $raw['items'] ?? $raw['Items']
-                ?? $raw['value'] ?? $raw['Value']
-                ?? $raw['priorities'] ?? $raw['Priorities']
-                ?? $raw['result'] ?? $raw['Result']
-                ?? $raw['results'] ?? $raw['Results']
-                ?? $raw;
-
-            if (! is_array($list)) {
-                $list = [];
-            }
-
-            // If $list is associative (object-style), it might be a single item — wrap it
-            if (! empty($list) && array_keys($list) !== range(0, count($list) - 1)) {
-                $list = [$list];
-            }
-
-            $map = [];
-            $names = [];
-            $items = [];
-            foreach ($list as $p) {
-                if (! is_array($p)) {
-                    continue;
-                }
-                $id = $p['id'] ?? $p['Id'] ?? $p['priorityId'] ?? $p['PriorityId'] ?? null;
-                $name = $p['name'] ?? $p['Name'] ?? $p['priorityName'] ?? $p['PriorityName'] ?? null;
-                if ($id !== null && $name !== null) {
-                    $id = (int) $id;
-                    $name = (string) trim($name);
-                    if ($name !== '') {
-                        $map[$name] = $id;
-                        $names[] = $name;
-                        $items[] = ['id' => $id, 'name' => $name];
-                    }
-                }
-            }
-
-            return ['map' => $map, 'names' => $names, 'items' => $items];
-        } catch (\Throwable $e) {
-            Log::warning('GetAllTasksPriorities failed', ['message' => $e->getMessage(), 'url' => config('services.csharp_api.url').'/api/Task/GetAllTasksPriorities']);
-
-            return ['map' => [], 'names' => [], 'items' => []];
-        }
+        return $this->tasksApi->getPrioritiesFormatted();
     }
 
     public function updateStatus(int $projectId, int $taskId, int $statusId): void
     {
-        $user = Session::get('user', []);
-        $requesterId = $user['id'] ?? $user['Id'] ?? null;
-
-        $this->api->patch(
-            "/api/Task/UpdateTaskStatus/{$taskId}?requesterId={$requesterId}",
-            ['statusId' => $statusId]
-        );
+        $this->tasksApi->updateStatus($taskId, $statusId);
     }
 
     /**
      * GET /tasks/calculate-due-date
-     * Proxies to /api/Task/CheckAssigneeWorkload (new response shape)
+     * Proxies to GET /api/v1/tasks/check-workload
      */
     public function calculateDueDate(Request $request): JsonResponse
     {
@@ -240,96 +176,68 @@ class TaskController extends Controller
             'proxy_base_params' => $params,
         ]);
 
-        // New API shape:
-        // { projectedStartDate, projectedDueDate, storyPoints, warnings: [{message,...}] }
-        $resultItems = [];
-        $errorMessages = [];
-
-        $callWorkload = function (?int $assigneeId, string $label) use ($params, &$resultItems, &$errorMessages): void {
-            $queryParams = $params;
-            if ($assigneeId !== null && $assigneeId > 0) {
-                // Single-assignee calls are stable; we'll aggregate for multi-assignee.
-                $queryParams['assigneeIds'] = (string) $assigneeId;
-            }
-            try {
-                Log::info('[due-calc-debug] trying upstream request', ['params' => $queryParams, 'label' => $label]);
-                $result = $this->api->get('/api/Task/CheckAssigneeWorkload', array_merge($queryParams, ['_no_cache' => 1]));
-                Log::info('[due-calc-debug] upstream request succeeded', ['label' => $label]);
-                if (is_array($result)) {
-                    $resultItems[] = $result;
-                }
-            } catch (RequestException $e) {
-                Log::warning('[due-calc-debug] upstream request failed', [
-                    'label' => $label,
-                    'status' => $e->response?->status(),
-                    'body' => $e->response?->body(),
-                ]);
-                $message = trim((string) ($e->response?->body() ?? ''));
-                if ($message === '') {
-                    $message = 'Unable to auto-compute due date right now.';
-                }
-                if ($label !== 'single') {
-                    $message = "Assignee {$label}: {$message}";
-                }
-                $errorMessages[] = $message;
-            }
-        };
-
-        if (count($assigneeIds) <= 1) {
-            $callWorkload(! empty($assigneeIds) ? (int) $assigneeIds[0] : null, 'single');
-        } else {
-            foreach ($assigneeIds as $aid) {
-                $callWorkload((int) $aid, (string) $aid);
-            }
+        $queryParams = array_merge($params, ['_no_cache' => 1]);
+        if (! empty($assigneeIds)) {
+            $queryParams['assigneeIds'] = $assigneeIds;
         }
 
-        if (empty($resultItems)) {
+        try {
+            Log::info('[due-calc-debug] single upstream request', ['params' => $queryParams]);
+            $item = $this->tasksApi->checkWorkload($queryParams);
+        } catch (RequestException $e) {
+            Log::warning('[due-calc-debug] upstream request failed', [
+                'status' => $e->response?->status(),
+                'body' => $e->response?->body(),
+            ]);
+            $message = trim((string) ($e->response?->body() ?? ''));
+            if ($message === '') {
+                $message = 'Unable to auto-compute due date right now.';
+            }
+
             return response()->json([
                 'dueDate' => null,
-                'warnings' => array_values(array_unique($errorMessages ?: ['Unable to auto-compute due date right now.'])),
+                'warnings' => [$message],
             ], 422);
         }
 
-        $due = null;
-        $maxDueTs = null;
-        $warningsRaw = [];
-        foreach ($resultItems as $item) {
-            Log::info('[due-calc-debug] upstream response', [
-                'result_keys' => array_keys($item),
-                'projected_due_date' => $item['projectedDueDate'] ?? $item['ProjectedDueDate'] ?? null,
-                'warnings_count' => count((array) ($item['warnings'] ?? $item['Warnings'] ?? [])),
-            ]);
-
-            $candidateDue = $item['projectedDueDate']
-                ?? $item['ProjectedDueDate']
-                ?? $item['dueDate']
-                ?? $item['DueDate']
-                ?? $item['dueAt']
-                ?? null;
-            if ($candidateDue) {
-                try {
-                    $ts = Carbon::parse((string) $candidateDue)->getTimestamp();
-                    if ($maxDueTs === null || $ts > $maxDueTs) {
-                        $maxDueTs = $ts;
-                        $due = (string) $candidateDue;
-                    }
-                } catch (\Throwable) {
-                    // ignore malformed due values from upstream
-                }
-            }
-
-            $warningsRaw = array_merge($warningsRaw, (array) ($item['warnings'] ?? $item['Warnings'] ?? []));
+        if (! is_array($item)) {
+            return response()->json([
+                'dueDate' => null,
+                'warnings' => ['Unable to auto-compute due date right now.'],
+            ], 422);
         }
 
+        Log::info('[due-calc-debug] upstream response', [
+            'result_keys' => array_keys($item),
+            'projected_due_date' => $item['projectedDueDate'] ?? $item['ProjectedDueDate'] ?? null,
+            'warnings_count' => count((array) ($item['warnings'] ?? $item['Warnings'] ?? [])),
+        ]);
+
+        $due = null;
+        $candidateDue = $item['projectedDueDate']
+            ?? $item['ProjectedDueDate']
+            ?? $item['dueDate']
+            ?? $item['DueDate']
+            ?? $item['dueAt']
+            ?? null;
+        if ($candidateDue) {
+            try {
+                $due = (string) $candidateDue;
+            } catch (\Throwable) {
+                $due = null;
+            }
+        }
+
+        $warningsRaw = (array) ($item['warnings'] ?? $item['Warnings'] ?? []);
         $warningMessages = [];
-        foreach ((array) $warningsRaw as $w) {
+        foreach ($warningsRaw as $w) {
             if (is_array($w) && ! empty($w['message'])) {
                 $warningMessages[] = (string) $w['message'];
             } elseif (is_string($w) && trim($w) !== '') {
                 $warningMessages[] = trim($w);
             }
         }
-        $warningMessages = array_values(array_unique(array_merge($warningMessages, $errorMessages)));
+        $warningMessages = array_values(array_unique($warningMessages));
 
         $responsePayload = ['dueDate' => $due, 'warnings' => $warningMessages];
         Log::info('[due-calc-debug] outgoing frontend response', $responsePayload);
@@ -337,19 +245,10 @@ class TaskController extends Controller
         return response()->json($responsePayload);
     }
 
-    public function store(int $projectId, Request $request)
+    public function store(int $projectId, CreateTaskRequest $request)
     {
         $user = Session::get('user', []);
         $creatorId = $user['id'] ?? $user['Id'] ?? null;
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'priorityId' => 'required|integer|min:1',
-            'assigneeIds' => 'nullable|string',
-        ], [
-            'priorityId.required' => 'Please select a priority.',
-            'priorityId.min' => 'Please select a valid priority.',
-        ]);
 
         $toDate = static function (mixed $v): ?string {
             if (! $v) {
@@ -374,38 +273,31 @@ class TaskController extends Controller
             'title' => $request->input('name'),
             'description' => $request->input('description') ?? '',
             'priorityId' => $priorityId,
-            'storyPoints' => $request->integer('storyPoints') ?: 0,
+            'storyPoints' => (int) $request->input('storyPoints'),
             'projectId' => $projectId,
             'parentTaskId' => $parentTaskId,
             'startDate' => $toDate($request->input('startDate')),
-            'dueDate' => $toDate($request->input('dueDate')) ?: null,
             'assigneeIds' => $assigneeIds,
         ];
 
         if ($payload['startDate'] === null) {
             unset($payload['startDate']);
         }
-        if ($payload['dueDate'] === null) {
-            unset($payload['dueDate']);
-        }
         if ($payload['parentTaskId'] === null) {
             unset($payload['parentTaskId']);
         }
 
         try {
-            // ✅ CHANGED: capture result to extract warnings
-            $result = $this->api->post("/api/Task/CreateTask?creatorId={$creatorId}", $payload);
+            $result = $this->tasksApi->create($payload);
 
-            // ✅ NEW: Extract warning messages if any assignee is overloaded
             $warnings = $result['warnings'] ?? [];
             $warningMessages = [];
-            foreach ($warnings as $w) {
-                if (! empty($w['message'])) {
+            foreach ((array) $warnings as $w) {
+                if (is_array($w) && ! empty($w['message'])) {
                     $warningMessages[] = $w['message'];
                 }
             }
 
-            // ✅ CHANGED: flash warnings to session alongside success
             $redirect = (string) $request->input('redirect_to', '');
             if ($redirect === 'dashboard') {
                 return redirect()->route('dashboard')
@@ -453,13 +345,8 @@ class TaskController extends Controller
 
             if (empty($fieldErrors) && $creatorId) {
                 try {
-                    $projectResponse = $this->api->get(
-                        "/api/Task/GetTasksByProject/{$projectId}",
-                        ['requesterId' => $creatorId, '_no_cache' => 1]
-                    );
-                    $allTasks = is_array($projectResponse)
-                        ? $projectResponse
-                        : ($projectResponse['data'] ?? $projectResponse['tasks'] ?? []);
+                    $listResponse = $this->tasksApi->list(1, 500, $projectId);
+                    $allTasks = $listResponse['items'] ?? $listResponse['Items'] ?? [];
 
                     $needleTitle = mb_strtolower(trim((string) ($payload['title'] ?? '')));
                     $needlePrio = (int) ($payload['priorityId'] ?? 0);
@@ -504,16 +391,13 @@ class TaskController extends Controller
     public function getAssignableAccountsForProject(int $projectId, int $requesterId): array
     {
         try {
-            $project = $this->api->get("/api/Project/GetProjectById/{$projectId}", ['_no_cache' => 1]);
+            $project = $this->projectsApi->find($projectId);
         } catch (\Throwable) {
             $project = [];
         }
 
         try {
-            $accountsRaw = $this->api->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $allAccounts = is_array($accountsRaw)
-                ? $accountsRaw
-                : ($accountsRaw['data'] ?? $accountsRaw['accounts'] ?? []);
+            $allAccounts = $this->accountsApi->listAssignableUsers();
 
             $projArr = is_array($project) ? $project : [];
             $accounts = $this->projectMemberAccounts($projArr, (array) $allAccounts);

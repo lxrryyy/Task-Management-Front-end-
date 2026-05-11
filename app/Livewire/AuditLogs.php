@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Services\CsharpApiService;
+use App\Services\AuditLogApiService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -122,8 +122,7 @@ class AuditLogs extends Component
     private function loadAccounts(): void
     {
         try {
-            $raw = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount');
-            $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
+            $list = app(\App\Services\AccountApiService::class)->listAssignableUsers();
             $this->accounts = array_values(array_filter(array_map(function ($acc) {
                 if (! is_array($acc)) {
                     return null;
@@ -157,56 +156,29 @@ class AuditLogs extends Component
     {
         $this->loadError = null;
 
-        $requesterId = $this->requesterId();
-        if ($requesterId <= 0) {
+        if ($this->requesterId() <= 0) {
             $this->logs = [];
-
             return;
         }
 
-        $api = app(CsharpApiService::class);
-
         try {
-            // Default: GetAllLogs (generalization)
-            $endpoint = '/api/AuditLog/GetActionLogs';
-            $query = ['requesterId' => $requesterId];
+            $filter = [
+                'userId' => (int) ($this->filterUserId ?? 0) ?: null,
+                'taskId' => (int) ($this->filterTaskId ?? 0) ?: null,
+                'action' => trim($this->filterAction) !== '' ? trim($this->filterAction) : null,
+                'from' => $this->filterFrom ? trim($this->filterFrom) : null,
+                'to' => $this->filterTo ? trim($this->filterTo) : null,
+            ];
 
-            // Filtering (use more specific endpoints)
-            $from = $this->filterFrom ? trim($this->filterFrom) : '';
-            $to = $this->filterTo ? trim($this->filterTo) : '';
-            $action = trim($this->filterAction);
-            $taskId = (int) ($this->filterTaskId ?? 0);
-            $userId = (int) ($this->filterUserId ?? 0);
-
-            if ($from !== '' || $to !== '') {
-                $endpoint = '/api/AuditLog/GetLogsByDateRange';
-                if ($from !== '') {
-                    $query['from'] = $from;
-                }
-                if ($to !== '') {
-                    $query['to'] = $to;
-                }
-            } elseif ($action !== '') {
-                $endpoint = '/api/AuditLog/GetLogsByAction';
-                $query['action'] = $action;
-            } elseif ($taskId > 0) {
-                $endpoint = "/api/AuditLog/GetTaskLogs/{$taskId}";
-            } elseif ($userId > 0) {
-                $endpoint = "/api/AuditLog/GetUserLogs/{$userId}";
-            }
-
-            $raw = $api->get($endpoint, $query);
-
-            // Unwrap common response shapes
-            $list = is_array($raw)
-                ? ($raw['data'] ?? $raw['logs'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
-                : [];
+            // Pull a generous page so the existing client-side search/filter/paginate UX still works
+            // without a UI overhaul. Real server-side pagination is a follow-up.
+            $page = app(AuditLogApiService::class)->list(AuditLogApiService::KIND_ACTION, $filter, 1, 500);
 
             $this->logs = array_values(array_filter(array_map(
                 fn ($l) => is_array($l) ? $this->normaliseLog($l) : null,
-                (array) $list
+                $page['items']
             )));
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             $this->logs = [];
             $this->loadError = 'Failed to load audit logs. Please try again.';
         }
@@ -216,27 +188,19 @@ class AuditLogs extends Component
     {
         $this->loginLogs = [];
 
-        $requesterId = $this->requesterId();
-        if ($requesterId <= 0) {
+        if ($this->requesterId() <= 0) {
             return;
         }
 
-        $api = app(CsharpApiService::class);
-
         try {
-            $raw = $api->get('/api/AuditLog/GetLoginLogoutLogs', [
-                'requesterId' => $requesterId,
-            ]);
-
-            $list = is_array($raw)
-                ? ($raw['data'] ?? $raw['logs'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
-                : [];
+            $page = app(AuditLogApiService::class)
+                ->list(AuditLogApiService::KIND_LOGIN_LOGOUT, [], 1, 500);
 
             $this->loginLogs = array_values(array_filter(array_map(
                 fn ($l) => is_array($l) ? $this->normaliseLog($l) : null,
-                (array) $list
+                $page['items']
             )));
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             $this->loginLogs = [];
         }
     }

@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CsharpApiService;
+use App\Services\AccountApiService;
+use App\Services\AuthApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 
 class LoginController extends Controller
 {
-    public function __construct(protected CsharpApiService $api) {}
+    public function __construct(
+        protected AccountApiService $accountsApi,
+        protected AuthApiService $authApi,
+    ) {}
 
     public function showForm()
     {
@@ -23,32 +27,26 @@ class LoginController extends Controller
         ]);
 
         try {
-            $response = $this->api->post('/api/Auth/login', [
-                'email'      => $request->email,
-                'password'   => $request->password,
-                'rememberMe' => (bool) $request->boolean('remember'),
-            ]);
+            $response = $this->authApi->login(
+                (string) $request->email,
+                (string) $request->password,
+                (bool) $request->boolean('remember'),
+            );
 
-            $token = $response['token'] ?? '';
-            $token = preg_replace('/^Bearer\s+/i', '', $token);
-            Session::put('api_token', trim($token));
-            Session::put('expires_in', $response['expiresIn'] ?? null);
+            Session::put('api_token', $response['token']);
+            Session::put('expires_in', $response['expiresIn']);
 
-            // Use the user object returned directly by the login endpoint
-            $user = $response['user'] ?? ['email' => $request->email];
+            $user = $response['user'] !== [] ? $response['user'] : ['email' => $request->email];
 
-            $userId = $user['id'] ?? $user['Id'] ?? null;
-            if ($userId) {
-                try {
-                    $profile = $this->api->get('/api/Account/GetAccountById/' . $userId);
+            $userId = (int) ($user['id'] ?? $user['Id'] ?? 0);
+            if ($userId > 0) {
+                $profile = $this->accountsApi->find($userId);
+                if (is_array($profile)) {
                     $specialization = $profile['specialization']
                         ?? $profile['Specialization']
-                        ?? $profile['bio']
-                        ?? $profile['Bio']
                         ?? null;
                     $user['specialization'] = is_string($specialization) ? trim($specialization) : $specialization;
                     $user['Specialization'] = $user['specialization'];
-                } catch (\Throwable $e) {
                 }
             }
 
@@ -57,9 +55,9 @@ class LoginController extends Controller
 
             return redirect()->route('dashboard');
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            $status = $e->response->status();
-            $body = $e->response->json();
-            $message = $body['message'] ?? 'Invalid credentials';
+            $body = $e->response?->json() ?? [];
+            // v1 returns { "error": "..." } via GlobalExceptionMiddleware; legacy used { "message": "..." }.
+            $message = (string) ($body['error'] ?? $body['message'] ?? 'Invalid credentials');
             return back()->withErrors(['email' => $message]);
         } catch (\Exception $e) {
             return back()->withErrors(['email' => $e->getMessage()]);
@@ -68,12 +66,7 @@ class LoginController extends Controller
 
     public function logout()
     {
-        try {
-            // Best-effort backend logout; ignore failures so user can still log out client-side.
-            $this->api->post('/api/Auth/logout', []);
-        } catch (\Throwable $e) {
-            // Optionally log the error, but don't block logout.
-        }
+        $this->authApi->logout();
 
         Session::forget(['api_token', 'expires_in', 'user']);
         return redirect()->route('login');

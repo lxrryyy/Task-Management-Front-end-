@@ -20,16 +20,16 @@ class ApiAuthenticated
         try {
             /** @var CsharpApiService $api */
             $api = app(CsharpApiService::class);
-            // Validate token and, if needed, refresh the user from /api/Auth/me.
+            // Validate token and, if needed, refresh the user from /api/v1/auth/me.
             $user = Session::get('user');
             if (!$user) {
-                $fetched = $api->get('/api/Auth/me');
+                $fetched = $api->get('/api/v1/auth/me');
                 if (is_array($fetched) && !empty($fetched)) {
                     Session::put('user', $fetched);
                 }
             } else {
                 // Light ping to ensure token is still valid.
-                $api->get('/api/Auth/me');
+                $api->get('/api/v1/auth/me');
             }
         } catch (RequestException $e) {
             $status = $e->response?->status();

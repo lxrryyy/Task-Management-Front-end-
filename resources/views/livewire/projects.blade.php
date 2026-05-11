@@ -633,7 +633,7 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
                             <th>
                                 @php
                                     // Project status is derived from tasks; display-only (no dropdown).
-                                    // Derived in ProjectController@index using GetTasksByProject:
+                                    // Derived in ProjectController@index via POST /api/v1/tasks/stats/batch:
                                     // - Completed only when all tasks are completed
                                     // - Not Started when project has no tasks
                                     // - Active when project has tasks but not all completed

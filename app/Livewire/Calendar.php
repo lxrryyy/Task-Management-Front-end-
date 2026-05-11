@@ -3,8 +3,9 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Http\Controllers\DashboardController;
-use App\Services\CsharpApiService;
+use App\Services\AccountApiService;
+use App\Services\DashboardApiService;
+use App\Services\StickyNoteApiService;
 use Illuminate\Support\Facades\Session;
 
 class Calendar extends Component
@@ -21,38 +22,38 @@ class Calendar extends Component
             return;
         }
 
-        $this->loadTasks($accountId);
-        $this->loadNotes($accountId);
+        $this->loadTasks();
+        $this->loadNotes();
     }
 
-    // ── Calendar tasks ────────────────────────────────────────────────────────
-    private function loadTasks(int $accountId): void
+    /**
+     * Pull a flat task projection from /api/v1/dashboard/calendar instead of walking
+     * the full /api/v1/dashboard/projects tree. Smaller payload, faster render.
+     */
+    private function loadTasks(): void
     {
         try {
-            /** @var DashboardController $controller */
-            $controller = app(DashboardController::class);
-            $projects   = $controller->getMyProjectsAndTasks($accountId);
+            $rows = app(DashboardApiService::class)->getCalendarTasks();
         } catch (\Throwable) {
+            $this->calendarTasks = [];
             return;
         }
 
         $priorityColorMap = [
-            'Urgent'    => 'red',
+            'Urgent' => 'red',
             'Important' => 'pink',
-            'Medium'    => 'blue',
-            'Low'       => 'gray',
+            'Medium' => 'blue',
+            'Low' => 'gray',
         ];
 
         // Build account profile lookup for assignee avatars/initials
         $accountMap = [];
         try {
-            $raw  = app(CsharpApiService::class)->get('/api/Account/GetAllUserRoleAccount', ['_no_cache' => 1]);
-            $list = is_array($raw) ? ($raw['data'] ?? $raw['accounts'] ?? $raw) : [];
-            foreach ((array) $list as $acc) {
-                $id   = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
+            foreach (app(AccountApiService::class)->listAssignableUsers() as $acc) {
+                $id = (int) ($acc['id'] ?? $acc['Id'] ?? 0);
                 $name = $acc['name'] ?? $acc['Name'] ?? $acc['fullName']
-                        ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))
-                        ?: null;
+                    ?? trim(($acc['firstName'] ?? '') . ' ' . ($acc['lastName'] ?? ''))
+                    ?: null;
                 $pic = $acc['profilePicture'] ?? $acc['ProfilePicture'] ?? null;
                 $pic = is_string($pic) ? trim($pic) : '';
                 if ($id > 0 && $name) {
@@ -62,83 +63,71 @@ class Calendar extends Component
                     ];
                 }
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         $tasks = [];
-        foreach ((array) $projects as $project) {
-            $projectName = $project['name'] ?? $project['Name'] ?? $project['title'] ?? '';
-            $projectId   = (int) ($project['id'] ?? $project['Id'] ?? 0);
-
-            foreach ((array) ($project['tasks'] ?? $project['Tasks'] ?? []) as $task) {
-                $dueRaw = $task['dueDate'] ?? $task['dueAt'] ?? null;
-                if (!$dueRaw) {
-                    continue;
-                }
-
-                $priority     = $task['priorityName'] ?? $task['priority'] ?? 'Medium';
-                $subtaskCount = (int) ($task['subtaskCount'] ?? $task['childCount'] ?? 0);
-
-                $aids = $task['assigneeIds'] ?? $task['assigneeId'] ?? [];
-                if (!is_array($aids)) {
-                    $aids = $aids ? [$aids] : [];
-                }
-                $assignees = [];
-                foreach ($aids as $aid) {
-                    $profile = $accountMap[(int) $aid] ?? null;
-                    if (is_array($profile) && !empty($profile['name'])) {
-                        $assignees[] = [
-                            'name' => (string) $profile['name'],
-                            'profilePicture' => $profile['profilePicture'] ?? null,
-                        ];
-                    }
-                }
-
-                $tasks[] = [
-                    'id'            => (int) ($task['id'] ?? $task['Id'] ?? 0),
-                    'title'         => $task['name'] ?? $task['title'] ?? 'Task',
-                    'project'       => $projectName,
-                    'projectId'     => $projectId,
-                    'dueDate'       => substr($dueRaw, 0, 10),
-                    'status'        => $task['statusName'] ?? $task['status'] ?? '',
-                    'priority'      => $priority,
-                    'color'         => $priorityColorMap[$priority] ?? 'blue',
-                    'subtasks'      => $subtaskCount,
-                    'assignees'     => $assignees,
-                ];
+        foreach ($rows as $row) {
+            $dueRaw = $row['dueDate'] ?? $row['DueDate'] ?? null;
+            if (!$dueRaw) {
+                continue;
             }
+
+            $priority = $row['priorityName'] ?? $row['PriorityName'] ?? 'Medium';
+
+            $assigneeIds = $row['assigneeIds'] ?? $row['AssigneeIds'] ?? [];
+            $assignees = [];
+            foreach ((array) $assigneeIds as $aid) {
+                $profile = $accountMap[(int) $aid] ?? null;
+                if (is_array($profile) && !empty($profile['name'])) {
+                    $assignees[] = [
+                        'name' => (string) $profile['name'],
+                        'profilePicture' => $profile['profilePicture'] ?? null,
+                    ];
+                }
+            }
+
+            $tasks[] = [
+                'id' => (int) ($row['id'] ?? $row['Id'] ?? 0),
+                'title' => $row['title'] ?? $row['Title'] ?? 'Task',
+                'project' => $row['projectName'] ?? $row['ProjectName'] ?? '',
+                'projectId' => (int) ($row['projectId'] ?? $row['ProjectId'] ?? 0),
+                'dueDate' => substr((string) $dueRaw, 0, 10),
+                'status' => $row['statusName'] ?? $row['StatusName'] ?? '',
+                'priority' => $priority,
+                'color' => $priorityColorMap[$priority] ?? 'blue',
+                'subtasks' => (int) ($row['subtaskCount'] ?? $row['SubtaskCount'] ?? 0),
+                'assignees' => $assignees,
+            ];
         }
 
         $this->calendarTasks = $tasks;
     }
 
-    // ── Sticky notes ──────────────────────────────────────────────────────────
-    private function loadNotes(int $accountId): void
+    private function loadNotes(): void
     {
         try {
-            $api  = app(CsharpApiService::class);
-            $raw  = $api->get("/api/StickyNote/GetMyNotes/{$accountId}", ['_no_cache' => 1]);
-
-            // Unwrap common wrapper shapes
-            $list = is_array($raw)
-                ? ($raw['data'] ?? $raw['notes'] ?? $raw['items'] ?? (isset($raw[0]) ? $raw : []))
-                : [];
-
+            $list = app(StickyNoteApiService::class)->list();
             $this->stickyNotes = array_values(
-                array_map(fn ($n) => $this->normaliseNote($n), (array) $list)
+                array_map(fn ($n) => $this->normaliseNote((array) $n), $list)
             );
         } catch (\Throwable) {
             $this->stickyNotes = [];
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $note
+     * @return array<string, mixed>
+     */
     private function normaliseNote(array $note): array
     {
         return [
-            'id'        => (int)    ($note['id']        ?? $note['Id']        ?? 0),
-            'content'   => (string) ($note['content']   ?? $note['Content']   ?? $note['text'] ?? $note['Text'] ?? ''),
-            'isPinned'  => (bool)   ($note['isPinned']  ?? $note['IsPinned']  ?? false),
-            'createdAt' => (string) ($note['createdAt'] ?? $note['CreatedAt'] ?? $note['createdDate'] ?? now()->toIso8601String()),
-            'updatedAt' => (string) ($note['updatedAt'] ?? $note['UpdatedAt'] ?? $note['modifiedDate'] ?? $note['createdAt'] ?? $note['CreatedAt'] ?? now()->toIso8601String()),
+            'id' => (int) ($note['id'] ?? $note['Id'] ?? 0),
+            'content' => (string) ($note['content'] ?? $note['Content'] ?? ''),
+            'isPinned' => (bool) ($note['isPinned'] ?? $note['IsPinned'] ?? false),
+            'createdAt' => (string) ($note['createdAt'] ?? $note['CreatedAt'] ?? now()->toIso8601String()),
+            'updatedAt' => (string) ($note['updatedAt'] ?? $note['UpdatedAt'] ?? $note['createdAt'] ?? $note['CreatedAt'] ?? now()->toIso8601String()),
         ];
     }
 
@@ -146,7 +135,7 @@ class Calendar extends Component
     {
         return view('livewire.calendar', [
             'calendarTasks' => $this->calendarTasks,
-            'stickyNotes'   => $this->stickyNotes,
+            'stickyNotes' => $this->stickyNotes,
         ]);
     }
 }
