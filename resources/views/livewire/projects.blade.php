@@ -346,10 +346,10 @@
                             </div>
                         </th>
                         <th>
-                            <span class="!font-normal text-sm" x-text="project.createdAt || '—'"></span>
+                            <span class="!font-normal text-sm" x-text="formatDate(project.startDate)"></span>
                         </th>
                         <th>
-                            <span class="!font-normal text-sm" x-text="project.endDate || '—'"></span>
+                            <span class="!font-normal text-sm" x-text="formatDate(project.endDate)"></span>
                         </th>
                         <th>
                             <span class="text-gray-400" x-show="!(project.state === 'created' && project.id)">—</span>
@@ -720,6 +720,21 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
             return {
                 isSubmitting: false,
                 optimisticProjects: [],
+                formatDate(value) {
+                    const raw = (value ?? '').toString().trim();
+                    if (!raw || raw === '—') return '—';
+
+                    // Fast path for YYYY-MM-DD
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+                    const d = new Date(raw);
+                    if (Number.isNaN(d.getTime())) return raw;
+
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const yyyy = String(d.getFullYear());
+                    return `${yyyy}-${mm}-${dd}`;
+                },
                 showSuccessToast(message) {
                     const container = document.getElementById('toast-container');
                     if (!container) return;
@@ -774,6 +789,7 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
 
                     const formData = new FormData(form);
                     const projectName = (formData.get('name') || '').toString().trim() || 'Project';
+                    const startDate = (formData.get('startDate') || '').toString().trim();
                     const endDate = (formData.get('endDate') || '').toString().trim();
                     const members = this.collectSelectedMembers(form);
                     const tempId = `tmp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -782,7 +798,7 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
                         state: 'pending',
                         name: projectName,
                         createdByName: (config?.currentUserName || 'You').toString().trim() || 'You',
-                        createdAt: new Date().toISOString().slice(0, 10),
+                        startDate: startDate || new Date().toISOString().slice(0, 10),
                         endDate: endDate || '—',
                         status: 'Not Started',
                         members,
@@ -824,7 +840,7 @@ if (is_array($assigneeIds) && !empty($assigneeIds)) {
                                 id: normalized.id || null,
                                 name: (normalized.name || this.optimisticProjects[idx].name || 'Project').toString(),
                                 status: (normalized.status || 'Not Started').toString(),
-                                createdAt: (normalized.createdAt || this.optimisticProjects[idx].createdAt || '—').toString(),
+                                startDate: (normalized.startDate || normalized.createdAt || this.optimisticProjects[idx].startDate || '—').toString(),
                                 endDate: (normalized.endDate || this.optimisticProjects[idx].endDate || '—').toString(),
                             };
                             // If backend doesn't provide a usable id, refresh list so created project becomes navigable.
