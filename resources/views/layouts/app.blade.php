@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 
 <head>
     <meta charset="utf-8">
@@ -33,7 +33,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 
-<body class="font-sans antialiased">
+<body class="font-sans antialiased bg-gray-100 text-gray-900">
     <x-global-loader />
     <!-- UPDATED, THIS IS THE ONE THAT HAS NO RICH TEXT YET (WORKING) -->
     <div class="flex h-screen relative">
@@ -290,7 +290,7 @@
             </div>
 
             <main
-                class="flex-1 overflow-auto p-6"
+                class="flex-1 overflow-auto p-6 bg-gray-100 text-gray-900"
                 x-data="{ pageReady: false }"
                 x-init="requestAnimationFrame(() => { pageReady = true })"
                 x-show="pageReady"

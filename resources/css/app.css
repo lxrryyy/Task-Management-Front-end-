@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep UI readable when the OS/browser prefers dark mode (we ship a light-only product skin). */
+html {
+    color-scheme: light;
+}
+
+html[data-theme='light'] {
+    color-scheme: light;
+}
+
 [x-cloak] {
     display: none !important;
 }
@@ -103,4 +112,16 @@ select:focus {
 
 .hover-clr-bg-white:hover {
     background-color: white;
+}
+
+/* Navy primary buttons: always light label on dark bg (Daisy "base-100" can flip under dark media). */
+.btn.clr-bg-primary {
+    background-color: #102b3c !important;
+    color: #f9fafb !important;
+    border-color: #102b3c;
+}
+
+.btn.clr-bg-primary:hover {
+    background-color: #102b3c !important;
+    color: #f9fafb !important;
 }
