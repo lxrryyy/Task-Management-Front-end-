@@ -18,4 +18,10 @@ export default {
     },
 
     plugins: [forms, require('daisyui')],
+
+    // App is light-theme only; OS "dark mode" must not switch DaisyUI tokens (invisible text on light panels).
+    daisyui: {
+        themes: ['light'],
+        darkTheme: false,
+    },
 };
